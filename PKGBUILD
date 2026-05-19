@@ -45,7 +45,6 @@ options=(
   !debug
   !strip
 )
-_srcname=archlinux-linux-charcoal
 _xpadneo_version=0.10.2
 source=(
   "$_srcname::https://steamdeck-packages.steamos.cloud/archlinux-mirror/sources/jupiter-main/${_srcname}.src.tar.gz"
