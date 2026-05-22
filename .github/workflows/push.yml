@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 1
 
       - name: Fetch tags
-        if: ${{ github.event_name == 'push' && github.ref_name == '6.18' }}
+        if: ${{ github.event_name == 'push' && github.ref_name == 'master' }}
         run: git fetch --tags --force
 
       - name: Get current tag
