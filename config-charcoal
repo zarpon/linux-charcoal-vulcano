@@ -26,27 +26,17 @@ CONFIG_ATH11K_TRACING=n
 CONFIG_NTSYNC=y
 
 # Enable LTO
-
 CONFIG_LTO_CLANG_FULL=y
-
-# CONFIG_LTO_CLANG_THIN=n
 
 # Enable Polly
 CONFIG_POLLY_CLANG=y
 
-# Ativa o seletor de CPUs ociosas de alta performance (POC)
-CONFIG_SCHED_POC_SELECTOR=y
-
-# Ativa o governador de CPUIdle baseado em Rede Neural (NAP)
-CONFIG_CPU_IDLE_GOV_NAP=y
-
-# (Opcional) Define o NAP como o governador padrão já no boot
-CONFIG_CPU_IDLE_DEFAULT_GOVERNOR="nap"
-
-
-# Change CPU IDLE goernor
+# Change CPU IDLE governor
 CONFIG_CPU_IDLE_GOV_LADDER=n
 CONFIG_CPU_IDLE_GOV_MENU=n
+CONFIG_CPU_IDLE_GOV_TEO=n
+CONFIG_CPU_IDLE_GOV_NAP=y
+CONFIG_SCHED_POC_SELECTOR=y
 
 # Enable Zen kernel tuning
 CONFIG_ZEN_INTERACTIVE=y
@@ -617,6 +607,10 @@ CONFIG_STAGING_MEDIA=n
 CONFIG_VHOST_MENU=n
 CONFIG_VDPA=n
 CONFIG_INPUT_PCSPKR=n
+CONFIG_HAMRADIO=n
+CONFIG_ATA_SFF=n
+CONFIG_CAN_DEV=n
+CONFIG_ATM=n
 
 # Disable old network drivers removed from Linux 7.1 cause of bugs
 CONFIG_VORTEX=n
