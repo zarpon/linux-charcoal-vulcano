@@ -1,12 +1,26 @@
 --- a/mm/vmscan.c
 +++ b/mm/vmscan.c
-@@ -40,6 +40,11 @@
- #include <linux/freezer.h>
- #include <linux/memcontrol.h>
- #include <linux/lru_marie.h>
+@@ -70,6 +70,10 @@
+ #include <linux/memory-tiers.h>
+ #include <linux/pagewalk.h>
+ 
 +#if defined(CONFIG_LRU_MARIE) && defined(CONFIG_SWAP)
-+/* kcompmari thread function defined in mm/page_io.c */
 +extern int kcompmari(void *data);
 +#endif
- #include <linux/migrate.h>
- #include <linux/delayacct.h>
++
+ #include "internal.h"
+ #include "swap.h"
+ 
+--- a/mm/internal.h
++++ b/mm/internal.h
+@@ -560,6 +560,11 @@
+ extern struct task_struct *kswapd_run(int nid);
+ extern void kswapd_stop(int nid);
+ 
++#if defined(CONFIG_LRU_MARIE) && defined(CONFIG_SWAP)
++extern int kcompmari(void *data);
++#endif
++
+ #ifdef CONFIG_COMPACTION
+ extern void compaction_defer_reset(pg_data_t *pgdat, int order,
+ 				   bool alloc_success);
