@@ -1,0 +1,10 @@
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -39,6 +39,7 @@
+ #include <linux/kthread.h>
+ #include <linux/freezer.h>
+ #include <linux/memcontrol.h>
++#include "swap.h"
+ #include <linux/lru_marie.h>
+ #include <linux/migrate.h>
+ #include <linux/delayacct.h>
