@@ -564,14 +564,14 @@ index f6a2b2d200..d237c5d05b 100644
  	return seq % MAX_NR_GENS;
 @@ -313,6 +348,9 @@ static inline void folio_migrate_refs(struct folio *new, const struct folio *old
  
- static inline bool lru_gen_enabled(void)
- {
 +static inline void lru_gen_fill_lruvec(struct lruvec *lruvec) { }
 +static inline void lru_gen_drain_lruvec(struct lruvec *lruvec) { }
 +
+ static inline bool lru_gen_enabled(void)
+ {
  	return false;
  }
- 
+
 @@ -342,8 +380,23 @@ void lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)
  {
  	enum lru_list lru = folio_lru_list(folio);
@@ -818,10 +818,9 @@ diff --git a/mm/internal.h b/mm/internal.h
 index c80c6f566c..656f4e9bc2 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
-@@ -532,12 +532,70 @@ extern unsigned long highest_memmap_pfn;
-  */
+@@ -532,6 +532,25 @@ extern unsigned long highest_memmap_pfn;
  #define MAX_RECLAIM_RETRIES 16
- 
++
 +#ifdef CONFIG_LRU_MARIE
 +/*
 + * Maximum number of swap-write failures (incremented by mm/page_io.c
@@ -851,45 +850,7 @@ index c80c6f566c..656f4e9bc2 100644
 +extern unsigned int marie_clean_min_ratio;
 +#endif
 +
- /*
-  * in mm/vmscan.c:
-+ *
-+ * struct scan_control is private to vmscan.c. Out-of-tree LRU
-+ * experiments (mm/lru_marie) read/update individual fields via the
-+ * sc_* accessors declared below; the struct itself is opaque to
-+ * everything outside vmscan.c.
-  */
-+struct scan_control;
-+
- bool folio_isolate_lru(struct folio *folio);
- void folio_putback_lru(struct folio *folio);
-+struct reclaim_stat;
-+unsigned int shrink_folio_list(struct list_head *folio_list,
-+		struct pglist_data *pgdat, struct scan_control *sc,
-+		struct reclaim_stat *stat, bool ignore_references,
-+		struct mem_cgroup *memcg);
- extern void reclaim_throttle(pg_data_t *pgdat, enum vmscan_throttle_state reason);
-+int vmscan_reclaimer_offset(struct scan_control *sc);
-+bool vmscan_can_reclaim_anon_pages(struct mem_cgroup *memcg, int nid,
-+				   struct scan_control *sc);
-+
-+/*
-+ * scan_control accessors -- read/update the few fields out-of-tree
-+ * readers need without exposing the struct layout. All defined in
-+ * vmscan.c next to the struct definition; trivial enough that the
-+ * compiler routinely inlines the body across LTO. Non-LTO builds
-+ * pay one extra call per use, which lands only on cold paths
-+ * (entry of marie_state_shrink_lruvec and the inner tier loop).
-+ */
-+int  sc_priority(const struct scan_control *sc);
-+int  sc_reclaim_idx(const struct scan_control *sc);
-+bool sc_reclaim_target_reached(const struct scan_control *sc);
-+void sc_add_reclaimed(struct scan_control *sc, unsigned long nr);
-+bool sc_cgroup_reclaim(const struct scan_control *sc);
- int user_proactive_reclaim(char *buf,
- 			   struct mem_cgroup *memcg, pg_data_t *pgdat);
- 
-@@ -595,6 +653,18 @@ struct alloc_context {
+ @@ -595,6 +653,18 @@ struct alloc_context {
  	 */
  	enum zone_type highest_zoneidx;
  	bool spread_dirty_pages;
@@ -9534,10 +9495,9 @@ index 3c342db77c..f0e5e71220 100644
  /*
   * We may have stale swap cache pages in memory: notice
   * them here and get rid of the unnecessary final write.
-@@ -272,6 +411,14 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
- 	 */
+@@ -408,6 +408,13 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
  	swap_zeromap_folio_clear(folio);
- 
++
 +	/*
 +	 * Compression within zswap and zram might block rmap, unmap
 +	 * of both file and anon pages, try to do compression async
@@ -9545,11 +9505,8 @@ index 3c342db77c..f0e5e71220 100644
 +	 */
 +	if (kcompmari_store(folio, swap_plug))
 +		return 0;
-+
- 	if (zswap_store(folio)) {
- 		count_mthp_stat(folio_order(folio), MTHP_STAT_ZSWPOUT);
- 		goto out_unlock;
-@@ -288,6 +435,46 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
+
+ @@ -288,6 +435,46 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
  	return ret;
  }
  
@@ -9803,17 +9760,12 @@ diff --git a/mm/swap.h b/mm/swap.h
 index c6bdc5d215..be0826e422 100644
 --- a/mm/swap.h
 +++ b/mm/swap.h
-@@ -196,6 +196,10 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
- void swap_write_unplug(struct swap_iocb *sio);
- int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug);
- void __swap_writepage(struct folio *folio, struct swap_iocb **swap_plug);
+@@ -196,0 +197,4 @@
 +#ifdef CONFIG_LRU_MARIE
 +/* CONFIG_SWAP is implied by this branch (mm/swap.h's CONFIG_SWAP gate). */
 +int kcompmari(void *p);
 +#endif
- 
- /* linux/mm/swap_state.c */
- extern struct address_space swap_space __read_mostly;
++
 diff --git a/mm/vmscan.c b/mm/vmscan.c
 index 95b1179a14..3be780910c 100644
 --- a/mm/vmscan.c
