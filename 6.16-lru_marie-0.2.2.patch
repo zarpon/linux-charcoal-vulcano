@@ -60,7 +60,7 @@ new file mode 100644
 index 0000000000..3913fc90d5
 --- /dev/null
 +++ b/include/linux/lru_marie.h
-@@ -0,1 +1,442 @@
+@@ -0,0 +1,441 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _LINUX_LRU_MARIE_H
 +#define _LINUX_LRU_MARIE_H
@@ -616,7 +616,7 @@ index f6a2b2d200..d237c5d05b 100644
  
  	update_lru_size(lruvec, lru, folio_zonenum(folio),
  			folio_nr_pages(folio));
-@@ -370,7 +432,12 @@ void lruvec_del_folio(struct lruvec *lruvec, struct folio *folio)
+@@ -370,6 +432,11 @@ void lruvec_del_folio(struct lruvec *lruvec, struct folio *folio)
  {
  	enum lru_list lru = folio_lru_list(folio);
  
@@ -668,7 +668,7 @@ index 7fb7331c57..a2b3b317db 100644
  };
  
  /* Isolate for asynchronous migration */
-@@ -1442,7 +1463,21 @@ typedef struct pglist_data {
+@@ -1442,6 +1463,20 @@ typedef struct pglist_data {
  
  	atomic_t kswapd_failures;	/* Number of 'reclaimed == 0' runs */
  
@@ -694,7 +694,7 @@ diff --git a/include/linux/swap.h b/include/linux/swap.h
 index e818fbade1..e7b8b27ed6 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
-@@ -450,7 +450,25 @@ extern atomic_long_t nr_swap_pages;
+@@ -450,6 +450,24 @@ extern atomic_long_t nr_swap_pages;
  extern long total_swap_pages;
  extern atomic_t nr_rotate_swap;
  
@@ -724,7 +724,7 @@ diff --git a/mm/Kconfig b/mm/Kconfig
 index 76001e9ba0..86ca3a652e 100644
 --- a/mm/Kconfig
 +++ b/mm/Kconfig
-@@ -1329,7 +1329,37 @@ config LRU_GEN_WALKS_MMU
+@@ -1329,6 +1329,36 @@ config LRU_GEN_WALKS_MMU
  	depends on LRU_GEN && ARCH_HAS_HW_PTE_YOUNG
  # }
  
@@ -766,7 +766,7 @@ diff --git a/mm/Makefile b/mm/Makefile
 index 21abb33535..7d40460c7d 100644
 --- a/mm/Makefile
 +++ b/mm/Makefile
-@@ -75,7 +75,8 @@ ifdef CONFIG_MMU
+@@ -75,6 +75,7 @@ ifdef CONFIG_MMU
  	obj-$(CONFIG_ADVISE_SYSCALLS)	+= madvise.o
  endif
  
@@ -787,7 +787,7 @@ index 8218e9d188..f47ff9179d 100644
  #include <linux/sched.h>
  #include <linux/sched/mm.h>
  #include <linux/sched/numa_balancing.h>
-@@ -3243,11 +3244,32 @@ static void lru_add_split_folio(struct folio *folio, struct folio *new_folio,
+@@ -3243,10 +3244,31 @@ static void lru_add_split_folio(struct folio *folio, struct folio *new_folio,
  	} else {
  		/* head is still on lru (and we have it frozen) */
  		VM_WARN_ON(!folio_test_lru(folio));
@@ -897,7 +897,7 @@ index c80c6f566c..656f4e9bc2 100644
  int user_proactive_reclaim(char *buf,
  			   struct mem_cgroup *memcg, pg_data_t *pgdat);
  
-@@ -595,7 +653,19 @@ struct alloc_context {
+@@ -595,6 +653,18 @@ struct alloc_context {
  	 */
  	enum zone_type highest_zoneidx;
  	bool spread_dirty_pages;
@@ -922,7 +922,7 @@ new file mode 100644
 index 0000000000..c1e9c9becf
 --- /dev/null
 +++ b/mm/lru_marie/Makefile
-@@ -0,1 +1,20 @@
+@@ -0,0 +1,19 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# Marie LRU. Reached from mm/Makefile via obj-$(CONFIG_LRU_MARIE) += lru_marie/.
@@ -948,7 +948,7 @@ new file mode 100644
 index 0000000000..da8f595a6b
 --- /dev/null
 +++ b/mm/lru_marie/bitmap.c
-@@ -0,1 +1,167 @@
+@@ -0,0 +1,166 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Hierarchical PFN bitmap operations. See bitmap.h for the design
@@ -1121,7 +1121,7 @@ new file mode 100644
 index 0000000000..1439771849
 --- /dev/null
 +++ b/mm/lru_marie/bitmap.h
-@@ -0,1 +1,229 @@
+@@ -0,0 +1,228 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * Hierarchical PFN bitmap shared by Marie's global per-(type, gen, tier)
@@ -1356,7 +1356,7 @@ new file mode 100644
 index 0000000000..bf62467812
 --- /dev/null
 +++ b/mm/lru_marie/core.c
-@@ -0,1 +1,1883 @@
+@@ -0,0 +1,1882 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * mm/lru_marie/core.c — Marie LRU.
@@ -3245,7 +3245,7 @@ new file mode 100644
 index 0000000000..1581ca0f88
 --- /dev/null
 +++ b/mm/lru_marie/prefetch.h
-@@ -0,1 +1,93 @@
+@@ -0,0 +1,92 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _MM_LRU_MARIE_PREFETCH_H
 +#define _MM_LRU_MARIE_PREFETCH_H
@@ -3344,7 +3344,7 @@ new file mode 100644
 index 0000000000..146fe5fd3d
 --- /dev/null
 +++ b/mm/lru_marie/simd.h
-@@ -0,1 +1,100 @@
+@@ -0,0 +1,99 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _MM_LRU_MARIE_SIMD_H
 +#define _MM_LRU_MARIE_SIMD_H
@@ -3450,7 +3450,7 @@ new file mode 100644
 index 0000000000..0045098bfa
 --- /dev/null
 +++ b/mm/lru_marie/simd_generic.c
-@@ -0,1 +1,47 @@
+@@ -0,0 +1,46 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * mm/lru_marie/simd_generic.c -- fallback PTE young-bit scan for arches
@@ -3503,7 +3503,7 @@ new file mode 100644
 index 0000000000..b119b6c265
 --- /dev/null
 +++ b/mm/lru_marie/simd_x86.c
-@@ -0,1 +1,168 @@
+@@ -0,0 +1,167 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * mm/lru_marie/simd_x86.c -- x86-64 PTE young-bit scan dispatch.
@@ -3677,7 +3677,7 @@ new file mode 100644
 index 0000000000..95242d53b0
 --- /dev/null
 +++ b/mm/lru_marie/simd_x86_avx2.S
-@@ -0,1 +1,215 @@
+@@ -0,0 +1,214 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * mm/lru_marie/simd_x86_avx2.S -- AVX2 PTE young-bit scan for Marie walker.
@@ -3898,7 +3898,7 @@ new file mode 100644
 index 0000000000..18d73dbd8b
 --- /dev/null
 +++ b/mm/lru_marie/simd_x86_avx512.S
-@@ -0,1 +1,200 @@
+@@ -0,0 +1,199 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * mm/lru_marie/simd_x86_avx512.S -- AVX-512F PTE young-bit scan for Marie walker.
@@ -4104,7 +4104,7 @@ new file mode 100644
 index 0000000000..4646ca1b9c
 --- /dev/null
 +++ b/mm/lru_marie/simd_x86_sse2.S
-@@ -0,1 +1,216 @@
+@@ -0,0 +1,215 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * mm/lru_marie/simd_x86_sse2.S -- SSE2 PTE young-bit scan for the Marie walker.
@@ -4326,7 +4326,7 @@ new file mode 100644
 index 0000000000..53e6d98fd7
 --- /dev/null
 +++ b/mm/lru_marie/state.c
-@@ -0,1 +1,2501 @@
+@@ -0,0 +1,2500 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Marie per-PFN state array — allocation, init, and global counters.
@@ -6833,7 +6833,7 @@ new file mode 100644
 index 0000000000..1f2cbdcf03
 --- /dev/null
 +++ b/mm/lru_marie/state.h
-@@ -0,1 +1,1296 @@
+@@ -0,0 +1,1295 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _MM_LRU_MARIE_STATE_H
 +#define _MM_LRU_MARIE_STATE_H
@@ -8135,7 +8135,7 @@ new file mode 100644
 index 0000000000..03b83475b9
 --- /dev/null
 +++ b/mm/lru_marie/version.h
-@@ -0,1 +1,23 @@
+@@ -0,0 +1,22 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef _MM_LRU_MARIE_VERSION_H
 +#define _MM_LRU_MARIE_VERSION_H
@@ -8164,7 +8164,7 @@ new file mode 100644
 index 0000000000..e94ac1b381
 --- /dev/null
 +++ b/mm/lru_marie/walker.c
-@@ -0,1 +1,1019 @@
+@@ -0,0 +1,1018 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * mm/lru_marie/walker.c — Marie's SIMD-accelerated PTE walker.
@@ -9196,7 +9196,7 @@ index 6eed14bff7..2841aab255 100644
  
  #include "internal.h"
  #include "swap.h"
-@@ -1962,7 +1963,19 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
+@@ -1962,6 +1963,18 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
  	} else
  		WRITE_ONCE(vm_swappiness, val);
  
@@ -9238,7 +9238,7 @@ index 61cf6af26f..17ba28b2ee 100644
  	memcg_wb_domain_exit(memcg);
  	__mem_cgroup_free(memcg);
  }
-@@ -3772,7 +3776,16 @@ static struct mem_cgroup *mem_cgroup_alloc(struct mem_cgroup *parent)
+@@ -3772,6 +3776,15 @@ static struct mem_cgroup *mem_cgroup_alloc(struct mem_cgroup *parent)
  	memcg->deferred_split_queue.split_queue_len = 0;
  #endif
  	lru_gen_init_memcg(memcg);
@@ -9259,7 +9259,7 @@ diff --git a/mm/mm_init.c b/mm/mm_init.c
 index 7712d887b6..3e7cf7aa2e 100644
 --- a/mm/mm_init.c
 +++ b/mm/mm_init.c
-@@ -1412,7 +1412,10 @@ static void __meminit pgdat_init_internals(struct pglist_data *pgdat)
+@@ -1412,6 +1412,9 @@ static void __meminit pgdat_init_internals(struct pglist_data *pgdat)
  	pgdat_init_kcompactd(pgdat);
  
  	init_waitqueue_head(&pgdat->kswapd_wait);
@@ -9373,7 +9373,7 @@ index 6288c7e4b9..28782b5560 100644
  
  	/*
  	 * Keep reclaiming pages while there is a chance this will lead
-@@ -4699,7 +4777,21 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+@@ -4699,6 +4777,20 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
  		WARN_ON_ONCE(current->flags & PF_MEMALLOC);
  	}
  
@@ -9577,7 +9577,7 @@ index 3c342db77c..f0e5e71220 100644
  	if (zswap_store(folio)) {
  		count_mthp_stat(folio_order(folio), MTHP_STAT_ZSWPOUT);
  		goto out_unlock;
-@@ -288,7 +435,47 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
+@@ -288,6 +435,46 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
  	return ret;
  }
  
@@ -9637,7 +9637,7 @@ index 8f3c50bd11..818ee3881a 100644
  
  #include <asm/tlb.h>
  
-@@ -897,7 +898,12 @@ static bool folio_referenced_one(struct folio *folio,
+@@ -897,6 +898,11 @@ static bool folio_referenced_one(struct folio *folio,
  		if (lru_gen_enabled() && pvmw.pte) {
  			if (lru_gen_look_around(&pvmw))
  				referenced++;
@@ -9814,7 +9814,7 @@ index 2260dcd277..cc80743d3f 100644
  	folio_batch_add_and_move(folio, lru_deactivate);
  }
  
-@@ -728,7 +822,15 @@ void folio_mark_lazyfree(struct folio *folio)
+@@ -728,6 +822,14 @@ void folio_mark_lazyfree(struct folio *folio)
  	    folio_test_swapcache(folio) || folio_test_unevictable(folio))
  		return;
  
@@ -9834,7 +9834,7 @@ diff --git a/mm/swap.h b/mm/swap.h
 index c6bdc5d215..be0826e422 100644
 --- a/mm/swap.h
 +++ b/mm/swap.h
-@@ -196,7 +196,11 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
+@@ -196,6 +196,10 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
  void swap_write_unplug(struct swap_iocb *sio);
  int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug);
  void __swap_writepage(struct folio *folio, struct swap_iocb **swap_plug);
@@ -10230,7 +10230,7 @@ index 95b1179a14..3be780910c 100644
  	pgdat_kswapd_unlock(pgdat);
  }
  
-@@ -7536,17 +7791,60 @@ void __meminit kswapd_stop(int nid)
+@@ -7536,16 +7791,60 @@ void __meminit kswapd_stop(int nid)
  		kthread_stop(kswapd);
  		pgdat->kswapd = NULL;
  	}
