@@ -759,16 +759,14 @@ diff --git a/mm/Makefile b/mm/Makefile
 index 21abb33535..7d40460c7d 100644
 --- a/mm/Makefile
 +++ b/mm/Makefile
-@@ -75,6 +75,7 @@ ifdef CONFIG_MMU
+@@ -76,6 +76,7 @@ ifdef CONFIG_MMU
  	obj-$(CONFIG_ADVISE_SYSCALLS)	+= madvise.o
  endif
  
--obj-$(CONFIG_SWAP)	+= page_io.o swap_state.o swapfile.o
-+obj-$(CONFIG_SWAP)	+= page_io.o swap_state.o swapfile.o swap_slots.o
-+obj-$(CONFIG_LRU_MARIE)	+= lru_marie/
+ obj-$(CONFIG_SWAP)	+= page_io.o swap_state.o swapfile.o
  obj-$(CONFIG_ZSWAP)	+= zswap.o
++obj-$(CONFIG_LRU_MARIE)	+= lru_marie/
  obj-$(CONFIG_HAS_DMA)	+= dmapool.o
-+obj-$(CONFIG_HUGETLBFS)	+= hugetlb.o
 diff --git a/mm/huge_memory.c b/mm/huge_memory.c
 index 8218e9d188..f47ff9179d 100644
 --- a/mm/huge_memory.c
@@ -819,7 +817,7 @@ diff --git a/mm/internal.h b/mm/internal.h
 index c80c6f566c..656f4e9bc2 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
-@@ -532,6 +532,12 @@ extern unsigned long highest_memmap_pfn;
+@@ -532,24 +532,29 @@ extern unsigned long highest_memmap_pfn;
   */
  #define MAX_RECLAIM_RETRIES 16
 +#ifdef CONFIG_LRU_MARIE
@@ -9312,7 +9310,7 @@ diff --git a/mm/page_io.c b/mm/page_io.c
 index 3c342db77c..f0e5e71220 100644
 --- a/mm/page_io.c
 +++ b/mm/page_io.c
-@@ -25,8 +25,15 @@
+@@ -25,6 +25,11 @@
  #include <linux/sched/task.h>
  #include <linux/delayacct.h>
  #include <linux/zswap.h>
@@ -9324,7 +9322,7 @@ index 3c342db77c..f0e5e71220 100644
 +#endif
  static void __end_swap_bio_write(struct bio *bio)
  {
-@@ -39,7 +46,12 @@ static void __end_swap_bio_write(struct bio *bio)
+@@ -39,7 +46,14 @@ static void __end_swap_bio_write(struct bio *bio)
  		 * very quickly.
  		 *
  		 * Also clear PG_reclaim to avoid folio_rotate_reclaimable()
@@ -9339,7 +9337,7 @@ index 3c342db77c..f0e5e71220 100644
  		folio_mark_dirty(folio);
  		pr_alert_ratelimited("Write-error on swap-device (%u:%u:%llu)\n",
  				     MAJOR(bio_dev(bio)), MINOR(bio_dev(bio)),
-@@ -233,6 +245,56 @@ static void swap_zeromap_folio_clear(struct folio *folio)
+@@ -233,4 +245,33 @@ static void swap_zeromap_folio_clear(struct folio *folio)
  	}
  }
 +
@@ -9973,7 +9971,7 @@ index 95b1179a14..3be780910c 100644
  	pgdat_kswapd_unlock(pgdat);
  }
  
-@@ -7536,16 +7791,60 @@ void __meminit kswapd_stop(int nid)
+@@ -7536,17 +7791,60 @@ void __meminit kswapd_stop(int nid)
  		kthread_stop(kswapd);
  		pgdat->kswapd = NULL;
  	}
