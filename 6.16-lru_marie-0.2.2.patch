@@ -759,14 +759,16 @@ diff --git a/mm/Makefile b/mm/Makefile
 index 21abb33535..7d40460c7d 100644
 --- a/mm/Makefile
 +++ b/mm/Makefile
-@@ -76,5 +76,6 @@ ifdef CONFIG_MMU
+@@ -75,6 +75,7 @@ ifdef CONFIG_MMU
  	obj-$(CONFIG_ADVISE_SYSCALLS)	+= madvise.o
  endif
  
- obj-$(CONFIG_SWAP)	+= page_io.o swap_state.o swapfile.o
- obj-$(CONFIG_ZSWAP)	+= zswap.o
+-obj-$(CONFIG_SWAP)	+= page_io.o swap_state.o swapfile.o
++obj-$(CONFIG_SWAP)	+= page_io.o swap_state.o swapfile.o swap_slots.o
 +obj-$(CONFIG_LRU_MARIE)	+= lru_marie/
+ obj-$(CONFIG_ZSWAP)	+= zswap.o
  obj-$(CONFIG_HAS_DMA)	+= dmapool.o
++obj-$(CONFIG_HUGETLBFS)	+= hugetlb.o
 diff --git a/mm/huge_memory.c b/mm/huge_memory.c
 index 8218e9d188..f47ff9179d 100644
 --- a/mm/huge_memory.c
@@ -10032,5 +10034,3 @@ index 95b1179a14..3be780910c 100644
  		.extra1		= SYSCTL_ZERO,
  		.extra2		= SYSCTL_TWO_HUNDRED,
  	},
--- 
-2.34.1
