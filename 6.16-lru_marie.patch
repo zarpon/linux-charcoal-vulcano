@@ -612,7 +612,6 @@ index f6a2b2d200..d237c5d05b 100644
 +
  	if (lru_gen_del_folio(lruvec, folio, false))
  		return;
-
 diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
 index 7fb7331c57..520fe5b2b7 100644
 --- a/include/linux/mmzone.h
