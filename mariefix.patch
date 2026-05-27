@@ -1,3 +1,18 @@
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -66,6 +66,10 @@
+ #include <linux/freezer.h>
+ #include <linux/memcontrol.h>
+ #include <linux/lru_marie.h>
++
++#if defined(CONFIG_LRU_MARIE) && defined(CONFIG_SWAP)
++extern int kcompmari(void *data);
++#endif
++
+ #include <linux/migrate.h>
+ #include <linux/delayacct.h>
+
 diff --git a/mm/lru_marie/state.c b/mm/lru_marie/state.c
 --- a/mm/lru_marie/state.c
 +++ b/mm/lru_marie/state.c
