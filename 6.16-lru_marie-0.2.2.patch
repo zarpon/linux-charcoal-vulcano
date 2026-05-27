@@ -528,7 +528,7 @@ index f6a2b2d200d..2d9b5b4e5f8 100644
  #include <linux/swap.h>
  #include <linux/string.h>
  #include <linux/userfaultfd_k.h>
-@@ -41,7 +42,22 @@ static __always_inline void __update_lru_size(struct lruvec *lruvec,
+@@ -41,7 +42,12 @@ static __always_inline void __update_lru_size(struct lruvec *lruvec,
  {
  	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
  
@@ -9125,7 +9125,7 @@ index 6eed14bff7e..c37a61642f3 100644
  
  #include "internal.h"
  #include "swap.h"
-@@ -1962,6 +1963,18 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
+@@ -1962,6 +1963,10 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
  	} else
  		WRITE_ONCE(vm_swappiness, val);
  
@@ -9158,7 +9158,7 @@ index 61cf6af26ff..17ba28b2ee4 100644
  	memcg_wb_domain_exit(memcg);
  	__mem_cgroup_free(memcg);
  }
-@@ -3772,6 +3776,15 @@ static struct mem_cgroup *mem_cgroup_alloc(struct mem_cgroup *parent)
+@@ -3772,6 +3776,9 @@ static struct mem_cgroup *mem_cgroup_alloc(struct mem_cgroup *parent)
  	memcg->deferred_split_queue.split_queue_len = 0;
  #endif
  	lru_gen_init_memcg(memcg);
@@ -9194,7 +9194,7 @@ index 6288c7e4b9b..80e2dc44eaf 100644
  #include <linux/highmem.h>
  #include <linux/interrupt.h>
  #include <linux/jiffies.h>
-@@ -1353,6 +1354,28 @@ __always_inline bool __free_pages_prepare(struct page *page,
+@@ -1353,6 +1354,11 @@ __always_inline bool __free_pages_prepare(struct page *page,
  	trace_mm_page_free(page, order);
  	kmsan_free_page(page, order);
  
@@ -9206,7 +9206,7 @@ index 6288c7e4b9b..80e2dc44eaf 100644
  	if (memcg_kmem_online() && PageMemcgKmem(page))
  		__memcg_kmem_uncharge_page(page, order);
  
-@@ -4573,6 +4596,45 @@ should_reclaim_retry(gfp_t gfp_mask, unsigned order,
+@@ -4573,6 +4596,17 @@ should_reclaim_retry(gfp_t gfp_mask, unsigned order,
  	if (*no_progress_loops > MAX_RECLAIM_RETRIES)
  		goto out;
  
@@ -9224,7 +9224,7 @@ index 6288c7e4b9b..80e2dc44eaf 100644
  
  	/*
  	 * Keep reclaiming pages while there is a chance this will lead
-@@ -4699,6 +4761,20 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+@@ -4699,6 +4761,10 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
  		WARN_ON_ONCE(current->flags & PF_MEMALLOC);
  	}
  
@@ -9239,7 +9239,7 @@ diff --git a/mm/page_io.c b/mm/page_io.c
 index 3c342db77c1..f0e5e712203 100644
 --- a/mm/page_io.c
 +++ b/mm/page_io.c
-@@ -25,8 +25,19 @@
+@@ -25,8 +25,14 @@
  #include <linux/sched/task.h>
  #include <linux/delayacct.h>
  #include <linux/zswap.h>
@@ -9254,7 +9254,7 @@ index 3c342db77c1..f0e5e712203 100644
  static void __end_swap_bio_write(struct bio *bio)
  {
  	struct folio *folio = bio_first_folio_all(bio);
-@@ -39,7 +50,21 @@ static void __end_swap_bio_write(struct bio *bio)
+@@ -39,7 +50,16 @@ static void __end_swap_bio_write(struct bio *bio)
  		 * very quickly.
  		 *
  		 * Also clear PG_reclaim to avoid folio_rotate_reclaimable()
@@ -9271,7 +9271,7 @@ index 3c342db77c1..f0e5e712203 100644
  		folio_mark_dirty(folio);
  		pr_alert_ratelimited("Write-error on swap-device (%u:%u:%llu)\n",
  				     MAJOR(bio_dev(bio)), MINOR(bio_dev(bio)),
-@@ -233,6 +258,120 @@ static void swap_zeromap_folio_clear(struct folio *folio)
+@@ -233,6 +258,78 @@ static void swap_zeromap_folio_clear(struct folio *folio)
  	}
  }
  
@@ -9350,7 +9350,7 @@ index 3c342db77c1..f0e5e712203 100644
  /*
   * We may have stale swap cache pages in memory: notice
   * them here and get rid of the unnecessary final write.
-@@ -272,6 +411,14 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
+@@ -272,6 +411,9 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
  	 */
  	swap_zeromap_folio_clear(folio);
  
@@ -9360,7 +9360,7 @@ index 3c342db77c1..f0e5e712203 100644
  	if (zswap_store(folio)) {
  		count_mthp_stat(folio_order(folio), MTHP_STAT_ZSWPOUT);
  		goto out_unlock;
-@@ -288,6 +435,46 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
+@@ -288,6 +435,26 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
  	return ret;
  }
  
@@ -9423,7 +9423,7 @@ index 2260dcd2771..cc80743d3f5 100644
  
  #include "internal.h"
  
-@@ -171,6 +172,27 @@ static void folio_batch_move_lru(struct folio_batch *fbatch, move_fn_t move_fn)
+@@ -171,6 +172,11 @@ static void folio_batch_move_lru(struct folio_batch *fbatch, move_fn_t move_fn)
  		folio_lruvec_relock_irqsave(folio, &lruvec, &flags);
  		move_fn(lruvec, folio);
  
@@ -9435,7 +9435,7 @@ index 2260dcd2771..cc80743d3f5 100644
  		folio_set_lru(folio);
  	}
  
-@@ -234,6 +256,14 @@ void folio_rotate_reclaimable(struct folio *folio)
+@@ -234,6 +256,11 @@ void folio_rotate_reclaimable(struct folio *folio)
  	    folio_test_unevictable(folio) || !folio_test_lru(folio))
  		return;
  
@@ -9447,7 +9447,7 @@ index 2260dcd2771..cc80743d3f5 100644
  	folio_batch_add_and_move(folio, lru_move_tail);
  }
  
-@@ -332,6 +362,13 @@ void folio_activate(struct folio *folio)
+@@ -332,6 +362,11 @@ void folio_activate(struct folio *folio)
  	    !folio_test_lru(folio))
  		return;
  
@@ -9459,7 +9459,7 @@ index 2260dcd2771..cc80743d3f5 100644
  	folio_batch_add_and_move(folio, lru_activate);
  }
  
-@@ -347,6 +384,15 @@ void folio_activate(struct folio *folio)
+@@ -347,6 +384,13 @@ void folio_activate(struct folio *folio)
  	if (!folio_test_clear_lru(folio))
  		return;
  
@@ -9473,7 +9473,7 @@ index 2260dcd2771..cc80743d3f5 100644
  	lruvec = folio_lruvec_lock_irq(folio);
  	lru_activate(lruvec, folio);
  	unlock_page_lruvec_irq(lruvec);
-@@ -460,6 +506,25 @@ void folio_mark_accessed(struct folio *folio)
+@@ -460,6 +506,14 @@ void folio_mark_accessed(struct folio *folio)
  		lru_gen_inc_refs(folio);
  		return;
  	}
@@ -9488,7 +9488,7 @@ index 2260dcd2771..cc80743d3f5 100644
  
  	if (!folio_test_referenced(folio)) {
  		folio_set_referenced(folio);
-@@ -504,9 +569,24 @@ void folio_add_lru(struct folio *folio)
+@@ -504,9 +569,15 @@ void folio_add_lru(struct folio *folio)
  	VM_BUG_ON_FOLIO(folio_test_lru(folio), folio);
  
  	/* see the comment in lru_gen_folio_seq() */
@@ -9504,7 +9504,7 @@ index 2260dcd2771..cc80743d3f5 100644
  
  	folio_batch_add_and_move(folio, lru_add);
  }
-@@ -692,6 +772,13 @@ void deactivate_file_folio(struct folio *folio)
+@@ -692,6 +772,11 @@ void deactivate_file_folio(struct folio *folio)
  	if (lru_gen_enabled() && lru_gen_clear_refs(folio))
  		return;
  
@@ -9516,7 +9516,7 @@ index 2260dcd2771..cc80743d3f5 100644
  	folio_batch_add_and_move(folio, lru_deactivate_file);
  }
  
-@@ -711,6 +798,13 @@ void folio_deactivate(struct folio *folio)
+@@ -711,6 +798,11 @@ void folio_deactivate(struct folio *folio)
  	if (lru_gen_enabled() ? lru_gen_clear_refs(folio) : !folio_test_active(folio))
  		return;
  
@@ -9528,7 +9528,7 @@ index 2260dcd2771..cc80743d3f5 100644
  	folio_batch_add_and_move(folio, lru_deactivate);
  }
  
-@@ -728,6 +822,14 @@ void folio_mark_lazyfree(struct folio *folio)
+@@ -728,6 +822,11 @@ void folio_mark_lazyfree(struct folio *folio)
  	    folio_test_swapcache(folio) || folio_test_unevictable(folio))
  		return;
  
@@ -9544,7 +9544,7 @@ diff --git a/mm/swap.h b/mm/swap.h
 index c6bdc5d2159..be0826e422f 100644
 --- a/mm/swap.h
 +++ b/mm/swap.h
-@@ -196,6 +196,10 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
+@@ -196,6 +196,9 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
  void swap_write_unplug(struct swap_iocb *sio);
  int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug);
  void __swap_writepage(struct folio *folio, struct swap_iocb **swap_plug);
@@ -9566,7 +9566,7 @@ index 95b1179a14b..48cb278e9e8 100644
  #include <linux/migrate.h>
  #include <linux/delayacct.h>
  #include <linux/sysctl.h>
-@@ -182,6 +183,36 @@ struct scan_control {
+@@ -182,6 +183,28 @@ struct scan_control {
  	struct reclaim_state reclaim_state;
  };
  
@@ -9595,7 +9595,7 @@ index 95b1179a14b..48cb278e9e8 100644
  #ifdef ARCH_HAS_PREFETCHW
  #define prefetchw_prev_lru_folio(_folio, _base, _field)			\
  	do {								\
-@@ -198,8 +229,19 @@ struct scan_control {
+@@ -198,8 +229,14 @@ struct scan_control {
  
  /*
   * From 0 .. MAX_SWAPPINESS.  Higher means more swappy.
@@ -9610,7 +9610,7 @@ index 95b1179a14b..48cb278e9e8 100644
  
  #ifdef CONFIG_MEMCG
  
-@@ -418,10 +460,21 @@ static unsigned long lruvec_lru_size(struct lruvec *lruvec, enum lru_list lru,
+@@ -418,10 +460,14 @@ static unsigned long lruvec_lru_size(struct lruvec *lruvec, enum lru_list lru,
  	struct zone *zone;
  
  	for_each_managed_zone_pgdat(zone, lruvec_pgdat(lruvec), zid, zone_idx) {
@@ -9627,7 +9627,7 @@ index 95b1179a14b..48cb278e9e8 100644
  	}
  	return size;
  }
-@@ -479,6 +532,45 @@ static int reclaimer_offset(struct scan_control *sc)
+@@ -479,6 +532,24 @@ static int reclaimer_offset(struct scan_control *sc)
  	return PGSTEAL_DIRECT - PGSTEAL_KSWAPD;
  }
  
@@ -9695,7 +9695,7 @@ index 95b1179a14b..48cb278e9e8 100644
  	if (referenced_ptes) {
  		/*
  		 * All mapped folios start out with page table
-@@ -1109,6 +1229,8 @@ static bool may_enter_fs(struct folio *folio, gfp_t gfp_mask)
+@@ -1109,6 +1229,10 @@ static bool may_enter_fs(struct folio *folio, gfp_t gfp_mask)
  /*
   * shrink_folio_list() returns the number of reclaimed pages
   */
@@ -9706,7 +9706,7 @@ index 95b1179a14b..48cb278e9e8 100644
  static unsigned int shrink_folio_list(struct list_head *folio_list,
  		struct pglist_data *pgdat, struct scan_control *sc,
  		struct reclaim_stat *stat, bool ignore_references,
-@@ -5201,6 +5323,55 @@ static bool drain_evictable(struct lruvec *lruvec)
+@@ -5201,6 +5323,26 @@ static bool drain_evictable(struct lruvec *lruvec)
  	return true;
  }
  
@@ -9733,7 +9733,7 @@ index 95b1179a14b..48cb278e9e8 100644
  static void lru_gen_change_state(bool enabled)
  {
  	static DEFINE_MUTEX(state_mutex);
-@@ -5823,7 +5994,23 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
+@@ -5823,7 +5994,15 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
  	unsigned long nr_to_reclaim = sc->nr_to_reclaim;
  	bool proportional_reclaim;
  	struct blk_plug plug;
@@ -9749,7 +9749,7 @@ index 95b1179a14b..48cb278e9e8 100644
  	if (lru_gen_enabled() && !root_reclaim(sc)) {
  		lru_gen_shrink_lruvec(lruvec, sc);
  		return;
-@@ -5831,6 +6018,29 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
+@@ -5831,6 +6018,19 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
  
  	get_scan_count(lruvec, sc, nr);
  
@@ -9769,7 +9769,7 @@ index 95b1179a14b..48cb278e9e8 100644
  	/* Record the original scan target for proportional adjustments later */
  	memcpy(targets, nr, sizeof(nr));
  
-@@ -6086,11 +6296,27 @@ static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
+@@ -6086,11 +6296,19 @@ static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
  	struct lruvec *target_lruvec;
  	bool reclaimable = false;
  
@@ -9789,7 +9789,7 @@ index 95b1179a14b..48cb278e9e8 100644
  
  	target_lruvec = mem_cgroup_lruvec(sc->target_mem_cgroup, pgdat);
  
-@@ -6364,6 +6590,17 @@ static void snapshot_refaults(struct mem_cgroup *target_memcg, pg_data_t *pgdat)
+@@ -6364,6 +6590,11 @@ static void snapshot_refaults(struct mem_cgroup *target_memcg, pg_data_t *pgdat)
  	struct lruvec *target_lruvec;
  	unsigned long refaults;
  
@@ -9801,7 +9801,7 @@ index 95b1179a14b..48cb278e9e8 100644
  	if (lru_gen_enabled())
  		return;
  
-@@ -6760,6 +6997,21 @@ static void kswapd_age_node(struct pglist_data *pgdat, struct scan_control *sc)
+@@ -6760,6 +6997,13 @@ static void kswapd_age_node(struct pglist_data *pgdat, struct scan_control *sc)
  	struct mem_cgroup *memcg;
  	struct lruvec *lruvec;
  
@@ -9858,7 +9858,7 @@ index 95b1179a14b..48cb278e9e8 100644
  	pgdat_kswapd_unlock(pgdat);
  }
  
-@@ -7536,16 +7816,60 @@ void __meminit kswapd_stop(int nid)
+@@ -7536,18 +7816,41 @@ void __meminit kswapd_stop(int nid)
  		kthread_stop(kswapd);
  		pgdat->kswapd = NULL;
  	}
