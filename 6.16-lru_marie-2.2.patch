@@ -553,16 +553,17 @@ index f6a2b2d200..d237c5d05b 100644
  static inline int lru_gen_from_seq(unsigned long seq)
  {
  	return seq % MAX_NR_GENS;
-@@ -313,6 +328,9 @@ static inline void folio_migrate_refs(struct folio *new, struct folio *old)
- 
+@@ -313,8 +313,10 @@ static inline bool lru_gen_enabled(void)
  static inline bool lru_gen_enabled(void)
  {
  	return false;
  }
-+
 +static inline void lru_gen_fill_lruvec(struct lruvec *lruvec) { }
 +static inline void lru_gen_drain_lruvec(struct lruvec *lruvec) { }
- 
+ static inline bool lru_gen_in_fault(void)
+ {
+ 	return false;
+ }
 @@ -342,8 +360,19 @@ static __always_inline void lruvec_add_folio(struct lruvec *lruvec, struct folio
  {
  	enum lru_list lru = folio_lru_list(folio);
@@ -789,23 +790,14 @@ diff --git a/mm/internal.h b/mm/internal.h
 index c80c6f566c..2779be6c13 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
-@@ -532,12 +532,55 @@ extern unsigned long highest_memmap_pfn;
-  */
+@@ -532,11 +532,44 @@ extern unsigned long highest_memmap_pfn;
  #define MAX_RECLAIM_RETRIES 16
- 
-+#ifdef CONFIG_LRU_MARIE
-+/*
-+ * Maximum number of swap-write failures (incremented by mm/page_io.c
-+ * __end_swap_bio_write on bio->bi_status != 0) tolerated within a single
-+ * __alloc_pages_slowpath attempt before the early-OOM gate gives up. Lets
-+ * a handful of transient failures (concurrent ZRAM ops, brief retry
-+ * windows) recover, but trips OOM well before MAX_RECLAIM_RETRIES on
-+ * sustained backend rejection. Marie-only; omitted under
-+ * CONFIG_LRU_MARIE=n.
-+ */
-+#define MAX_SWAP_WRITE_FAIL_RETRIES 16
 +
++#ifdef CONFIG_LRU_MARIE
++#define MAX_SWAP_WRITE_FAIL_RETRIES 16
 +#endif
++
++struct scan_control;
 +
  /*
   * in mm/vmscan.c:
@@ -815,8 +807,8 @@ index c80c6f566c..2779be6c13 100644
 + * sc_* accessors declared below; the struct itself is opaque to
 + * everything outside vmscan.c.
   */
-+struct scan_control;
-+
+-struct scan_control;
+ 
  bool folio_isolate_lru(struct folio *folio);
  void folio_putback_lru(struct folio *folio);
 +struct reclaim_stat;
@@ -844,7 +836,6 @@ index c80c6f566c..2779be6c13 100644
 +bool sc_cgroup_reclaim(const struct scan_control *sc);
  int user_proactive_reclaim(char *buf,
  			   struct mem_cgroup *memcg, pg_data_t *pgdat);
- 
 @@ -595,6 +638,18 @@ struct alloc_context {
  	 */
  	enum zone_type highest_zoneidx;
@@ -9710,21 +9701,15 @@ diff --git a/mm/swap.h b/mm/swap.h
 index c6bdc5d215..be0826e422 100644
 --- a/mm/swap.h
 +++ b/mm/swap.h
-@@ -196,6 +196,10 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
- void swap_write_unplug(struct swap_iocb *sio);
- int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug);
- void __swap_writepage(struct folio *folio, struct swap_iocb **swap_plug);
+@@ -196,3 +196,8 @@ static inline void swap_read_unplug(struct swap_iocb *plug)
+  void swap_write_unplug(struct swap_iocb *sio);
++
 +#ifdef CONFIG_LRU_MARIE
-+/* CONFIG_SWAP is implied by this branch (mm/swap.h's CONFIG_SWAP gate). */
 +int kcompmari(void *p);
 +#endif
- 
- /* linux/mm/swap_state.c */
- extern struct address_space swap_space __read_mostly;
-diff --git a/mm/vmscan.c b/mm/vmscan.c
-index 95b1179a14..48cb278e9e 100644
---- a/mm/vmscan.c
-+++ b/mm/vmscan.c
++
+  int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug);
+  void __swap_writepage(struct folio *folio, struct swap_iocb **swap_plug);
 @@ -39,6 +39,7 @@
  #include <linux/kthread.h>
  #include <linux/freezer.h>
@@ -10140,7 +10125,8 @@ index 95b1179a14..48cb278e9e 100644
  	pgdat_kswapd_unlock(pgdat);
  }
  
-@@ -7536,17 +7818,60 @@ void __meminit kswapd_stop(int nid)
+@@ -7536,8 +7818,42 @@ void __meminit kswapd_stop(int nid)
+ 	if (pgdat->kswapd) {
  		kthread_stop(kswapd);
  		pgdat->kswapd = NULL;
  	}
@@ -10170,8 +10156,8 @@ index 95b1179a14..48cb278e9e 100644
 + * benefit since reset-to-zero is idempotent.
 + */
 +static int marie_swappiness_sysctl_handler(const struct ctl_table *table,
-+					   int write, void *buffer,
-+					   size_t *lenp, loff_t *ppos)
++				   int write, void *buffer,
++				   size_t *lenp, loff_t *ppos)
 +{
 +	int ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 +
@@ -10181,26 +10167,4 @@ index 95b1179a14..48cb278e9e 100644
 +}
 +#endif
 +
- static const struct ctl_table vmscan_sysctl_table[] = {
- 	{
- 		.procname	= "swappiness",
- 		.data		= &vm_swappiness,
- 		.maxlen		= sizeof(vm_swappiness),
- 		.mode		= 0644,
-+#ifdef CONFIG_LRU_MARIE
-+		/*
-+		 * Marie wraps the default minmax handler so that a sysctl
-+		 * write resets every per-lruvec swap_bias counter to zero.
-+		 * See mm/lru_marie/state.c::marie_swap_bias_update for the
-+		 * controller this notification clears.
-+		 */
-+		.proc_handler	= marie_swappiness_sysctl_handler,
-+#else
- 		.proc_handler	= proc_dointvec_minmax,
-+#endif
- 		.extra1		= SYSCTL_ZERO,
- 		.extra2		= SYSCTL_TWO_HUNDRED,
- 	},
--- 
-2.34.1
-
+  static const struct ctl_table vmscan_sysctl_table[] = {
