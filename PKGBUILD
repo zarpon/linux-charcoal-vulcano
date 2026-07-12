@@ -52,6 +52,7 @@ source=(
   config-neptune  # Jupiter: the neptune kernel fragment file (overrides 'config' above)
   config-charcoal # Charcoal: The Charcoal kernel fragment file
   charcoal.conf
+  99-charcoal-sysctl.conf
   65-adios.rules
   99-charcoal.sh
   vangogh_allow_higher_cpu_freq.patch
@@ -100,6 +101,7 @@ sha256sums=('b7772a6fad499c81ced4a34e1aca3ed73a0d13f849950f4980dc250577f007cd'
             'd88eaf0f94bae470040e4882f334c05b1bb2ab0a99e4b7299aa0b2337810ab8d'
             'f15615180ef04cec50aee50353c9156d04eb4dccb6102cf1a0717b12de0e8e2c'
             'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
+            '161d8bfa735b1c7143207e8ae900438e41bd9f9e2f0a55463d4c04fc70c57f39' 
             '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
             '0a6a7408ccc0c94b5cce50dabc7ee318abcc1b9eaaedd3d83fd7e7d5a73b4d4f'
             '375c8e17daf9e60bc6c211dd73f0c67ec241bd40a83d812a08eeb42aab6128d9'
