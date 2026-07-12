@@ -80,7 +80,7 @@ source=(
   "ath11k-upstream.patch::https://lore.kernel.org/all/20260319065608.2408179-1-reshma.rajkumar@oss.qualcomm.com/raw"
   6.16.12-ADIOS-3.2.0.patch
   "https://raw.githubusercontent.com/firelzrd/adios/d90faa7c84be86cd89a54acc610ed4cdf88347ac/patches/0002-Make-ADIOS-the-Default-I-O-scheduler.patch"
-  "https://raw.githubusercontent.com/firelzrd/bore-scheduler/5cfd8ed4f9c3a0e58b1667ccc37a928278656044/patches/stable/linux-6.16-bore/0001-linux6.16.0-bore-6.5.2.patch"
+  6.16.12-bore-6.6.3.patch
   "https://raw.githubusercontent.com/firelzrd/bore-scheduler/69c9409354ad8be29280e97ceccb507d2c394be1/patches/additions/0002-sched-ext-coexistence-fix.patch"
   "https://github.com/zen-kernel/zen-kernel/commit/f6ed65cd7bda9cb6009c6a12efd7c4311df31936.patch"
   "https://github.com/zen-kernel/zen-kernel/commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287.patch"
@@ -129,7 +129,7 @@ sha256sums=('b7772a6fad499c81ced4a34e1aca3ed73a0d13f849950f4980dc250577f007cd'
             '74db38cd3c353c295d2bd11159ccafc4396b8fb21735a536f5bb5ab71093a90f'
             'b7104fc9af642fa20e0a6cb8ab6dfba634132737948d5843dec76e7abd3a3530'
             '5ef2f14326a5fab8980d1ebb6734ece576f930c173b4980eb026513aa3b1b9d0'
-            '99a66ba41a7c40746f770b28430598c655f42e09e1ce196b1f28c9f4d89f247c'
+            '6706aaf378f5706eade9f9da40885056832475c6a10eeb407312c69fee306d73'
             'SKIP'
             'bc647f73ec860a0fe7d074c2377588816a616dc2a651b30d7b9cd168863a17c6'
             '5059762e54c8dbe4262d48eafb8d486a54244eec71da5d7b61fc0f5f1c5c2ea7'
