@@ -250,7 +250,8 @@ _package() {
   install -D -m 0644 -t "$pkgdir/etc/profile.d" ../99-charcoal.sh
   # Charcoal: Install udev rules
   install -D -m 0644 -t "$pkgdir/etc/udev/rules.d" ../65-adios.rules
-
+# sysctl parameters to fix trashing under heavy memory pressure 
+  install -D -m 0644 -t "$pkgdir/etc/sysctl.d" ../99-charcoal-sysctl.conf
   # Charcoal: Install bundles DKMS modules
   ZSTD_CLEVEL=19 make LLVM=1 M=../ryzen_smu INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
   ZSTD_CLEVEL=19 make LLVM=1 M=../xone INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
