@@ -1,0 +1,92 @@
+name: Fix PKGBUILD SHA-256 checksums
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/fix-pkgbuild-sha256.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-checksums:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Calculate, validate and commit checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          config_sha="$(sha256sum config-charcoal | awk '{print $1}')"
+          sched_url='https://raw.githubusercontent.com/firelzrd/bore-scheduler/69c9409354ad8be29280e97ceccb507d2c394be1/patches/additions/0002-sched-ext-coexistence-fix.patch'
+          sched_sha="$(curl --fail --silent --show-error --location "$sched_url" | sha256sum | awk '{print $1}')"
+
+          export CONFIG_SHA="$config_sha"
+          export SCHED_SHA="$sched_sha"
+
+          python3 <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path('PKGBUILD')
+          text = path.read_text(encoding='utf-8')
+          match = re.search(r"sha256sums=\((.*?)\n\)", text, flags=re.DOTALL)
+          if not match:
+              raise SystemExit('sha256sums array not found')
+
+          block = match.group(1)
+          tokens = list(re.finditer(r"'([^']*)'", block))
+          if len(tokens) != 48:
+              raise SystemExit(f'expected 48 checksum entries, found {len(tokens)}')
+
+          replacements = {
+              3: os.environ['CONFIG_SHA'],
+              34: os.environ['SCHED_SHA'],
+          }
+          for index, value in sorted(replacements.items(), reverse=True):
+              token = tokens[index]
+              block = block[:token.start(1)] + value + block[token.end(1):]
+
+          updated = text[:match.start(1)] + block + text[match.end(1):]
+          path.write_text(updated, encoding='utf-8')
+          PY
+
+          bash <<'BASH'
+          set -euo pipefail
+          source ./PKGBUILD
+
+          [[ ${#source[@]} -eq 48 ]]
+          [[ ${#sha256sums[@]} -eq 48 ]]
+          [[ ${source[3]} == 'config-charcoal' ]]
+          [[ ${source[34]} == *'0002-sched-ext-coexistence-fix.patch'* ]]
+          [[ ${sha256sums[3]} == "$CONFIG_SHA" ]]
+          [[ ${sha256sums[34]} == "$SCHED_SHA" ]]
+
+          for index in "${!source[@]}"; do
+            if [[ ${sha256sums[index]} == SKIP ]] \
+              && [[ ${source[index]} != git+* ]] \
+              && [[ ${source[index]} != *::git+* ]]; then
+              printf 'Non-VCS source still uses SKIP: index=%s source=%s\n' "$index" "${source[index]}" >&2
+              exit 1
+            fi
+          done
+          BASH
+
+          git diff --check
+
+          if git diff --quiet -- PKGBUILD; then
+            echo 'PKGBUILD already contains the calculated checksums.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add PKGBUILD
+          git commit -m 'Fix PKGBUILD source checksums'
+          git push
