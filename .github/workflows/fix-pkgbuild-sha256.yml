@@ -1,6 +1,7 @@
 name: Fix PKGBUILD SHA-256 checksums
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
