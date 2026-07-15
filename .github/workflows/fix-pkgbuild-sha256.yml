@@ -33,7 +33,7 @@ jobs:
 
           path = Path('PKGBUILD')
           text = path.read_text(encoding='utf-8')
-          match = re.search(r"sha256sums=\((.*?)\n\)", text, flags=re.DOTALL)
+          match = re.search(r"sha256sums=\((.*?)\n\s*\)", text, flags=re.DOTALL)
           if not match:
               raise SystemExit('sha256sums array not found')
 
