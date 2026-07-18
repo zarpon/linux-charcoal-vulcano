@@ -2,7 +2,8 @@
   "schema": 1,
   "kernel_source": {
     "repository": "evlaV/linux-integration",
-    "tag_regex": "^(?P<version>\\d+\\.\\d+\\.\\d+)-valve(?P<valve>[0-9.]+)$"
+    "series": "6.16",
+    "tag_regex": "^(?P<version>6\\.16\\.\\d+)-valve(?P<valve>[0-9.]+)$"
   },
   "components": [
     {"name":"lru_marie","repository":"firelzrd/lru_marie","target":"patches/latest-lru_marie.patch","filename_regex":"(?i).*lru[_-]marie.*\\.patch$"},
