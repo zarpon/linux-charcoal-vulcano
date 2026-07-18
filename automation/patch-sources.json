@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "kernel_source": {
+    "repository": "evlaV/linux-integration",
+    "tag_regex": "^(?P<version>\\d+\\.\\d+\\.\\d+)-valve(?P<valve>[0-9.]+)$"
+  },
+  "components": [
+    {"name":"lru_marie","repository":"firelzrd/lru_marie","target":"patches/latest-lru_marie.patch","filename_regex":"(?i).*lru[_-]marie.*\\.patch$"},
+    {"name":"zram_ir","repository":"firelzrd/zram-ir","target":"patches/latest-zram-ir.patch","filename_regex":"(?i).*zram[-_]ir.*\\.patch$"},
+    {"name":"adios","repository":"firelzrd/adios","target":"patches/latest-adios.patch","filename_regex":"(?i).*(adios|0001).*\\.patch$","exclude_regex":"(?i)default"},
+    {"name":"bore","repository":"firelzrd/bore-scheduler","target":"patches/latest-bore.patch","filename_regex":"(?i).*bore.*\\.patch$","exclude_regex":"(?i)(addition|sched-ext)"},
+    {"name":"poc_selector","repository":"firelzrd/poc-selector","target":"patches/latest-poc-selector.patch","filename_regex":"(?i).*poc[-_]selector.*\\.patch$"},
+    {"name":"nap","repository":"firelzrd/nap","target":"patches/latest-nap.patch","filename_regex":"(?i).*nap.*\\.patch$"}
+  ]
+}
