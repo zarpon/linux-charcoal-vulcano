@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - test/dynamic-latest-patches-release
   pull_request:
     branches:
       - master
@@ -14,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: charcoal-${{ github.workflow }}-${{ github.ref }}
+  group: charcoal-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -50,8 +49,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 automation/resolve-latest-patches.py --write
           python3 -m py_compile automation/resolve-latest-patches.py
+          python3 automation/resolve-latest-patches.py --write
           bash -n PKGBUILD
           grep -Fq '"kernel"' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
@@ -81,7 +80,7 @@ jobs:
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
 
       - name: Upload test artifacts
-        if: github.ref_name != 'master'
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: linux-charcoal-${{ env.PKGVER }}
@@ -100,7 +99,7 @@ jobs:
           {
             echo "# Charcoal SteamOS kernel ${PKGVER}"
             echo
-            echo "Built from the newest compatible Valve SteamOS tag and dynamically resolved patch streams."
+            echo "Built from the newest SteamOS 6.16 Valve tag and dynamically resolved or locally ported patches."
             echo
             echo '## Patch lock'
             echo '```json'
