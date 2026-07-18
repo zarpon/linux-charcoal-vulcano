@@ -50,7 +50,7 @@ jobs:
           set -Eeuo pipefail
           mkdir -p logs
           python3 -m py_compile automation/resolve-latest-patches.py
-          python3 automation/resolve-latest-patches.py --write
+          python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           bash -n PKGBUILD
           grep -Fq '"kernel"' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
@@ -61,16 +61,17 @@ jobs:
           grep -Fq 'latest-nap.patch' PKGBUILD
 
       - name: Build Docker image
-        run: docker build . -t charcoal
+        run: docker build . -t charcoal 2>&1 | tee logs/docker-build.log
 
       - name: Validate sources and build packages
         run: |
           set -Eeuo pipefail
           docker run --rm -v "$PWD:/project" charcoal chown -R nobody /project
           docker run --rm -v "$PWD:/project" charcoal sudo -u nobody bash -lc '
+            set -Eeuo pipefail
             cd /project
-            makepkg --verifysource
-            makepkg -Ccf --noconfirm
+            makepkg --verifysource 2>&1 | tee logs/verifysource.log
+            makepkg -Ccf --noconfirm 2>&1 | tee logs/makepkg.log
           '
           compgen -G 'linux-charcoal-*.pkg.tar.zst' >/dev/null
           sha256sum linux-charcoal-*.pkg.tar.zst | tee logs/SHA256SUMS
