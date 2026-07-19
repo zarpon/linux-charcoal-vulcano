@@ -38,12 +38,27 @@ makedepends=(
   # Charcoal: We build on LLVM
   llvm
   clang
+  ccache
   lld
 )
 options=(
   !debug
   !strip
 )
+
+# Charcoal: use ccache when available without making it mandatory for local builds.
+_ccache_prefix=
+if command -v ccache >/dev/null 2>&1; then
+  _ccache_prefix='ccache '
+fi
+
+_make_llvm() {
+  make LLVM=1 \
+    CC="${_ccache_prefix}clang" \
+    HOSTCC="${_ccache_prefix}clang" \
+    HOSTCXX="${_ccache_prefix}clang++" \
+    "$@"
+}
 _srcname=archlinux-linux-charcoal
 _xpadneo_version=0.10.2
 source=(
@@ -177,10 +192,10 @@ prepare() {
   echo "Setting config..."
   cp ../config .config
   scripts/kconfig/merge_config.sh -m ../config ../config-neptune ../config-charcoal # Charcoal: merge the extra fragment
-  make LLVM=1 olddefconfig
+  _make_llvm olddefconfig
   diff -u ../config .config || :
 
-  make LLVM=1 -s kernelrelease > version
+  _make_llvm -s kernelrelease > version
 
   # Charcoal patches for DKMS modules
   cd ../ryzen_smu
@@ -193,15 +208,15 @@ prepare() {
 
 build() {
   cd $_srcname
-  make LLVM=1 all
-  make LLVM=1 -C tools/bpf/bpftool vmlinux.h feature-clang-bpf-co-re=1
+  _make_llvm all
+  _make_llvm -C tools/bpf/bpftool vmlinux.h feature-clang-bpf-co-re=1
 #  make htmldocs # Jupiter: Don't build the docs
 
   # Charcoal: Build bundles DKMS modules
-  make LLVM=1 M=../ryzen_smu modules
-  make LLVM=1 M=../xone modules
-  make LLVM=1 M=../xpad-noone modules
-  make LLVM=1 M=../xpadneo/hid-xpadneo/src VERSION=$_xpadneo_version modules
+  _make_llvm M=../ryzen_smu modules
+  _make_llvm M=../xone modules
+  _make_llvm M=../xpad-noone modules
+  _make_llvm M=../xpadneo/hid-xpadneo/src VERSION=$_xpadneo_version modules
 }
 
 _package() {
@@ -244,13 +259,13 @@ _package() {
   echo "Installing boot image..."
   # systemd expects to find the kernel here to allow hibernation
   # https://github.com/systemd/systemd/commit/edda44605f06a41fb86b7ab8128dcf99161d2344
-  install -Dm644 "$(make LLVM=1 -s image_name)" "$modulesdir/vmlinuz"
+  install -Dm644 "$(_make_llvm -s image_name)" "$modulesdir/vmlinuz"
 
   # Used by mkinitcpio to name the kernel
   echo "$_nepbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
 
   echo "Installing modules..."
-  ZSTD_CLEVEL=19 make LLVM=1 INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 \
+  ZSTD_CLEVEL=19 _make_llvm INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 \
     DEPMOD=/doesnt/exist modules_install  # Suppress depmod
 
   # Charcoal: Install modprobe file (currently workaround for xpadneo)
@@ -261,10 +276,10 @@ _package() {
   install -D -m 0644 -t "$pkgdir/etc/udev/rules.d" ../65-adios.rules
 
   # Charcoal: Install bundles DKMS modules
-  ZSTD_CLEVEL=19 make LLVM=1 M=../ryzen_smu INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
-  ZSTD_CLEVEL=19 make LLVM=1 M=../xone INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
-  ZSTD_CLEVEL=19 make LLVM=1 M=../xpad-noone INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
-  ZSTD_CLEVEL=19 make LLVM=1 M=../xpadneo/hid-xpadneo/src INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
+  ZSTD_CLEVEL=19 _make_llvm M=../ryzen_smu INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
+  ZSTD_CLEVEL=19 _make_llvm M=../xone INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
+  ZSTD_CLEVEL=19 _make_llvm M=../xpad-noone INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
+  ZSTD_CLEVEL=19 _make_llvm M=../xpadneo/hid-xpadneo/src INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
   cd ../xpadneo/hid-xpadneo
   install -D -m 0644 -t "$pkgdir/etc/modprobe.d" etc-modprobe.d/xpadneo.conf
   install -D -m 0644 -t "$pkgdir/etc/udev/rules.d" etc-udev-rules.d/60-xpadneo.rules
@@ -397,3 +412,4 @@ for _p in "${pkgname[@]}"; do
 done
 
 # vim:set ts=8 sts=2 sw=2 et:
+
