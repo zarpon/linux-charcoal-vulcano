@@ -136,6 +136,29 @@ jobs:
           }
           PY
 
+      - name: Prepare compiler cache
+        run: mkdir -p .cache/ccache
+
+      - name: Restore compiler cache
+        id: restore-ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-llvm-${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/patch-sources.json', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
+          fail-on-cache-miss: false
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ runner.arch }}-llvm-
+
+      - name: Report compiler cache lookup
+        env:
+          CACHE_MATCHED_KEY: ${{ steps.restore-ccache.outputs.cache-matched-key }}
+        run: |
+          if [[ -n "$CACHE_MATCHED_KEY" ]]; then
+            echo "Using previous compiler cache: $CACHE_MATCHED_KEY"
+          else
+            echo "No previous compiler cache matched; starting a cold cache safely"
+          fi
+
       - name: Build Docker image
         run: docker build . -t charcoal 2>&1 | tee logs/docker-build.log
 
@@ -147,7 +170,7 @@ jobs:
             # Only host-side control paths need to be writable after the
             # container exits. Avoid traversing the complete kernel tree.
             sudo chown "$owner" "$PWD" || true
-            sudo chown -R "$owner" "$PWD/logs" "$PWD/.git" 2>/dev/null || true
+            sudo chown -R "$owner" "$PWD/logs" "$PWD/.git" "$PWD/.cache" 2>/dev/null || true
           }
           trap restore_workspace_owner EXIT
 
@@ -158,6 +181,15 @@ jobs:
           docker run --rm -v "$PWD:/project" charcoal sudo -u nobody bash -lc '
             set -Eeuo pipefail
             cd /project
+
+            export CCACHE_DIR=/project/.cache/ccache
+            export CCACHE_BASEDIR=/project
+            export CCACHE_COMPILERCHECK=content
+            export CCACHE_NOHASHDIR=true
+            export CCACHE_MAXSIZE=5G
+            export CCACHE_COMPRESS=true
+            ccache --show-config | tee logs/ccache-config.txt
+            ccache --show-stats | tee logs/ccache-before.txt
 
             # Fetch sources once. The resolver lock records the SHA-256 of every
             # dynamically materialized patch. No patch is applied at this stage.
@@ -202,6 +234,7 @@ jobs:
             # Verify again, now against real SHA-256 values, before prepare/build.
             makepkg --verifysource 2>&1 | tee logs/verifysource.log
             makepkg -Ccf --noconfirm 2>&1 | tee logs/makepkg.log
+            ccache --show-stats | tee logs/ccache-after.txt
           '
           # The container created logs as nobody; host-side post-processing
           # must be able to create checksums, the ZIP and release notes.
@@ -217,6 +250,13 @@ jobs:
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           RELEASE_ZIP="linux-charcoal-${PKGVER}-r${GITHUB_RUN_NUMBER}.zip"
           echo "RELEASE_ZIP=$RELEASE_ZIP" >> "$GITHUB_ENV"
+
+      - name: Save compiler cache
+        if: ${{ always() && !cancelled() && github.event_name == 'push' && (github.ref_name == 'master' || startsWith(github.ref_name, 'validation/')) && steps.restore-ccache.outputs.cache-primary-key != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/ccache
+          key: ${{ steps.restore-ccache.outputs.cache-primary-key }}
 
       - name: Generate release description
         run: |

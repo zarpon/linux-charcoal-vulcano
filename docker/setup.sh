@@ -6,7 +6,8 @@ pushd /docker
   mv pacman.conf /etc/pacman.conf
 
   pacman-key --init
-  pacman -Syu --noconfirm bc cpio pahole python llvm clang lld polly git openssh
+  pacman -Syu --noconfirm bc cpio pahole python llvm clang ccache lld polly git openssh
   echo -en "y\ny\n" | pacman -Scc
 popd
 rm -rf /docker /usr/share/man /usr/share/info /usr/share/locale
+
