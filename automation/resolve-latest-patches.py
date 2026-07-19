@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 API = "https://api.github.com"
-UA = "linux-charcoal-TD-dynamic-resolver/5"
+UA = "linux-charcoal-TD-dynamic-resolver/4"
 
 
 class ResolveError(RuntimeError):
@@ -27,6 +27,8 @@ class Candidate:
     path: str
     sha: str
     url: str
+    compatibility: int
+    kernel_version: tuple[int, ...] | None
     score: tuple[int, ...]
 
 
@@ -63,6 +65,68 @@ def request_bytes(url: str, token: str | None = None) -> bytes:
 def version_key(text: str) -> tuple[int, ...]:
     numbers = [int(value) for value in re.findall(r"\d+", text)]
     return tuple(numbers[-8:]) if numbers else (0,)
+
+
+def parse_kernel_version(text: str) -> tuple[int, ...] | None:
+    match = re.fullmatch(r"(\d+)\.(\d+)(?:\.(\d+))?", text)
+    if not match:
+        return None
+    return tuple(int(value) for value in match.groups() if value is not None)
+
+
+def candidate_kernel_version(
+    component: dict[str, Any], path: str
+) -> tuple[int, ...] | None:
+    expression = component.get(
+        "kernel_version_regex",
+        r"(?<!\d)(?P<kernel>\d+\.\d+(?:\.\d+)?)(?!\d)",
+    )
+    match = re.search(expression, path)
+    if not match:
+        return None
+    raw = match.groupdict().get("kernel") or match.group(1)
+    return parse_kernel_version(raw)
+
+
+def version_distance(
+    candidate: tuple[int, ...], target: tuple[int, ...]
+) -> int:
+    padded_candidate = candidate + (0,) * (3 - len(candidate))
+    padded_target = target + (0,) * (3 - len(target))
+    return (
+        abs(padded_candidate[0] - padded_target[0]) * 1_000_000
+        + abs(padded_candidate[1] - padded_target[1]) * 1_000
+        + abs(padded_candidate[2] - padded_target[2])
+    )
+
+
+def selection_key(candidate: Candidate) -> tuple[Any, ...]:
+    return (
+        candidate.kernel_version or (0,),
+        candidate.score,
+        candidate.path,
+    )
+
+
+def nearest_candidate(
+    candidates: list[Candidate], kernel_version: str
+) -> Candidate | None:
+    target = parse_kernel_version(kernel_version)
+    if target is None:
+        raise ResolveError(f"invalid kernel version: {kernel_version}")
+    versioned = [item for item in candidates if item.kernel_version]
+    if not versioned:
+        return None
+    closest_distance = min(
+        version_distance(item.kernel_version or (0,), target) for item in versioned
+    )
+    closest = [
+        item
+        for item in versioned
+        if version_distance(item.kernel_version or (0,), target)
+        == closest_distance
+    ]
+    return max(closest, key=selection_key)
 
 
 def paged(url: str, token: str | None) -> Iterable[Any]:
@@ -154,7 +218,6 @@ def upstream_candidates(
         tree = request_json(
             f"{API}/repos/{repo}/git/trees/{commit_sha}?recursive=1", token
         )
-        # Refuse an incomplete GitHub tree so the latest patch selection is exhaustive.
         if tree.get("truncated"):
             raise ResolveError(
                 f"GitHub tree for {repo}@{branch} was truncated; refusing to select a non-exhaustive patch set"
@@ -163,6 +226,9 @@ def upstream_candidates(
     include = re.compile(component["filename_regex"])
     exclude = re.compile(component["exclude_regex"]) if component.get("exclude_regex") else None
     series = ".".join(kernel_version.split(".")[:2])
+    target_version = parse_kernel_version(kernel_version)
+    if target_version is None:
+        raise ResolveError(f"invalid kernel version: {kernel_version}")
     candidates: list[Candidate] = []
     for item in tree.get("tree", []):
         path = item.get("path", "")
@@ -170,20 +236,31 @@ def upstream_candidates(
             continue
         if exclude and exclude.search(path):
             continue
+        path_kernel_version = candidate_kernel_version(component, path)
         if component.get("always_latest"):
-            compatibility = 1
+            compatibility = 0
+        elif path_kernel_version:
+            if path_kernel_version == target_version:
+                compatibility = 3
+            elif path_kernel_version[:2] == target_version[:2]:
+                compatibility = 2
+            else:
+                compatibility = 0
         else:
             compatibility = (
-                3 if kernel_version in path
-                else 2 if series in path
-                else 1 if "latest" in path.lower()
-                else 0
+                2 if series in path else 1 if "latest" in path.lower() else 0
             )
-        if compatibility:
-            raw = f"https://raw.githubusercontent.com/{repo}/{commit_sha}/{path}"
-            candidates.append(
-                Candidate(path, commit_sha, raw, (compatibility,) + version_key(path))
+        raw = f"https://raw.githubusercontent.com/{repo}/{commit_sha}/{path}"
+        candidates.append(
+            Candidate(
+                path,
+                commit_sha,
+                raw,
+                compatibility,
+                path_kernel_version,
+                (compatibility,) + version_key(path),
             )
+        )
     return candidates
 
 
@@ -191,66 +268,77 @@ def resolve_component(
     component: dict[str, Any], kernel_version: str, token: str | None, root: Path
 ) -> dict[str, Any]:
     candidates = upstream_candidates(component, kernel_version, token)
-    if candidates:
-        candidate = max(candidates, key=lambda item: item.score)
-        upstream = {
-            "repository": component["repository"],
-            "path": candidate.path,
-            "commit": candidate.sha,
-            "url": candidate.url,
-        }
-        local_port = component.get("local_port")
-        if component.get("port_for_kernel") == kernel_version and local_port:
-            path = root / local_port
-            if not path.is_file():
-                raise ResolveError(
-                    f"latest {component['name']} requires local port but it is missing: {local_port}"
-                )
-            data = path.read_bytes()
-            if not data.startswith((b"From ", b"diff --git", b"--- ")):
-                raise ResolveError(f"local port does not look like a patch: {local_port}")
+    if not candidates:
+        raise ResolveError(
+            f"no official upstream patch found for {component['name']} ({kernel_version})"
+        )
 
-            # Fetch the moving branch object even when 6.16.12 needs a port.
-            # This records exactly which upstream revision the port follows and
-            # fails early if the latest patch disappears or is not a patch.
-            upstream_data = request_bytes(candidate.url, token)
-            if not upstream_data.startswith((b"From ", b"diff --git", b"--- ")):
-                raise ResolveError(
-                    f"latest upstream patch for {component['name']} is not a patch"
-                )
-            upstream |= {
-                "sha256": hashlib.sha256(upstream_data).hexdigest(),
-                "size": len(upstream_data),
-            }
-            return {
-                "repository": "zarpon/linux-charcoal-TD",
-                "path": local_port,
-                "commit": "repository-local",
-                "url": None,
-                "origin": "local-port",
-                "upstream": upstream,
-                "content_bytes": data,
-            }
-        return {**upstream, "origin": "upstream-compatible"}
+    compatible = [item for item in candidates if item.compatibility >= 2]
     local_port = component.get("local_port")
-    if local_port:
-        path = root / local_port
+    if component.get("always_latest"):
+        candidate = max(candidates, key=selection_key)
+        use_local_port = bool(local_port)
+        selection = "latest-upstream-port" if use_local_port else "latest-upstream"
+    elif compatible:
+        candidate = max(compatible, key=selection_key)
+        use_local_port = False
+        selection = "upstream-compatible"
+    else:
+        candidate = nearest_candidate(candidates, kernel_version)
+        if not candidate:
+            raise ResolveError(
+                f"no 6.16-compatible or versioned upstream patch found for {component['name']}"
+            )
+        if not local_port or not component.get("port_when_incompatible"):
+            raise ResolveError(
+                f"no 6.16-compatible upstream patch found for {component['name']} and no approved port is configured"
+            )
+        use_local_port = True
+        selection = "nearest-upstream-port"
+
+    upstream = {
+        "repository": component["repository"],
+        "path": candidate.path,
+        "commit": candidate.sha,
+        "url": candidate.url,
+        "selection": selection,
+    }
+    if candidate.kernel_version:
+        upstream["kernel_version"] = ".".join(str(value) for value in candidate.kernel_version)
+
+    if use_local_port:
+        path = root / str(local_port)
         if not path.is_file():
             raise ResolveError(
-                f"no compatible upstream patch for {component['name']} and local port missing: {local_port}"
+                f"{selection} for {component['name']} requires local port but it is missing: {local_port}"
             )
         data = path.read_bytes()
         if not data.startswith((b"From ", b"diff --git", b"--- ")):
             raise ResolveError(f"local port does not look like a patch: {local_port}")
+
+        # Always fetch the current official patch, even when 6.16.12 needs a
+        # port. The lock then proves which upstream revision the port follows.
+        upstream_data = request_bytes(candidate.url, token)
+        if not upstream_data.startswith((b"From ", b"diff --git", b"--- ")):
+            raise ResolveError(
+                f"selected upstream patch for {component['name']} is not a patch"
+            )
+        upstream |= {
+            "sha256": hashlib.sha256(upstream_data).hexdigest(),
+            "size": len(upstream_data),
+        }
         return {
             "repository": "zarpon/linux-charcoal-TD",
-            "path": local_port,
+            "path": str(local_port),
             "commit": "repository-local",
             "url": None,
             "origin": "local-port",
+            "selection": selection,
+            "upstream": upstream,
             "content_bytes": data,
         }
-    raise ResolveError(f"no compatible patch found for {component['name']} ({kernel_version})")
+
+    return {**upstream, "origin": "upstream-compatible"}
 
 
 def replace_assignment(text: str, variable: str, value: str) -> str:
