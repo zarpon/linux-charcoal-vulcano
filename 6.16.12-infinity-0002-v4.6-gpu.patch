@@ -1,12 +1,9 @@
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
-@@ -55,8 +55,28 @@
- #include <uapi/linux/sched/types.h>
- 
+@@ -57,6 +57,27 @@
  #include "sched.h"
--#include "stats.h"
--#include "autogroup.h"
-+#include "pelt.h"
+ #include "stats.h"
+ #include "autogroup.h"
 +#include "infinity_sched.h"
 +
 +static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
@@ -289,4 +286,3 @@
  	/*
  	 * Aggressive migration if:
  	 * 1) active balance
-
