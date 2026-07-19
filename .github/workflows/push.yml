@@ -139,14 +139,26 @@ jobs:
       - name: Prepare compiler cache
         run: mkdir -p .cache/ccache
 
+      - name: Compute compiler cache keys
+        id: ccache-key
+        env:
+          CCACHE_INPUT_HASH: ${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/patch-sources.json', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
+        run: |
+          set -Eeuo pipefail
+          restore_prefix="ccache-${RUNNER_OS}-${RUNNER_ARCH}-llvm-${CCACHE_INPUT_HASH}"
+          save_key="${restore_prefix}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "restore_prefix=${restore_prefix}-" >> "$GITHUB_OUTPUT"
+          echo "save_key=${save_key}" >> "$GITHUB_OUTPUT"
+
       - name: Restore compiler cache
         id: restore-ccache
         uses: actions/cache/restore@v4
         with:
           path: .cache/ccache
-          key: ccache-${{ runner.os }}-${{ runner.arch }}-llvm-${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/patch-sources.json', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
+          key: ${{ steps.ccache-key.outputs.save_key }}
           fail-on-cache-miss: false
           restore-keys: |
+            ${{ steps.ccache-key.outputs.restore_prefix }}
             ccache-${{ runner.os }}-${{ runner.arch }}-llvm-
 
       - name: Report compiler cache lookup
@@ -252,11 +264,11 @@ jobs:
           echo "RELEASE_ZIP=$RELEASE_ZIP" >> "$GITHUB_ENV"
 
       - name: Save compiler cache
-        if: ${{ always() && !cancelled() && github.event_name == 'push' && (github.ref_name == 'master' || startsWith(github.ref_name, 'validation/')) && steps.restore-ccache.outputs.cache-primary-key != '' }}
+        if: ${{ always() && !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.ccache-key.outputs.save_key != '' }}
         uses: actions/cache/save@v4
         with:
           path: .cache/ccache
-          key: ${{ steps.restore-ccache.outputs.cache-primary-key }}
+          key: ${{ steps.ccache-key.outputs.save_key }}
 
       - name: Generate release description
         run: |
