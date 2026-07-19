@@ -13,6 +13,7 @@
       "target": "latest-lru_marie.patch",
       "filename_regex": "(?i)^patches/testing/0001-linux6\\.16(?:\\.[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)"
+      "filename_regex": "(?i)^patches/testing/0001-linux6\\.16\\.12-lru_marie-[0-9]+(?:\\.[0-9]+)*\\.patch$"
     },
     {
       "name": "zram_ir",

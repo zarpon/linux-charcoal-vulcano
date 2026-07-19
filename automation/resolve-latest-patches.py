@@ -223,6 +223,13 @@ def upstream_candidates(
                 f"GitHub tree for {repo}@{branch} was truncated; refusing to select a non-exhaustive patch set"
             )
         _TREE_CACHE[cache_key] = (commit_sha, tree)
+    branch_data = request_json(f"{API}/repos/{repo}/branches/{encoded}", token)
+    commit_sha = branch_data["commit"]["sha"]
+    tree = request_json(f"{API}/repos/{repo}/git/trees/{commit_sha}?recursive=1", token)
+    if tree.get("truncated"):
+        raise ResolveError(
+            f"GitHub tree for {repo}@{branch} was truncated; refusing to select a non-exhaustive patch set"
+        )
     include = re.compile(component["filename_regex"])
     exclude = re.compile(component["exclude_regex"]) if component.get("exclude_regex") else None
     series = ".".join(kernel_version.split(".")[:2])
