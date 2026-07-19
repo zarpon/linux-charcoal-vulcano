@@ -195,7 +195,8 @@ jobs:
                   assert index in vcs, sources[index]
               else:
                   assert re.fullmatch(r"[0-9a-f]{64}", checksum), sources[index]
-          print(f"sources={len(sources)} sha256={len(checksums) - sum(item == 'SKIP' for item in checksums)} vcs_skip={sum(item == 'SKIP' for item in checksums)}")
+          skip = "SKIP"
+          print(f"sources={len(sources)} sha256={len(checksums) - sum(item == skip for item in checksums)} vcs_skip={sum(item == skip for item in checksums)}")
           PY
 
             # Verify again, now against real SHA-256 values, before prepare/build.
