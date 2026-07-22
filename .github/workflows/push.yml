@@ -116,7 +116,7 @@ jobs:
                   assert item["path"] and item["url"]
               else:
                   upstream = item.get("upstream")
-                  assert item["repository"] == "zarpon/linux-charcoal-TD"
+                  assert item["repository"] == "zarpon/linux-charcoal-vulcano"
                   assert upstream and upstream["repository"] == expected_repositories[name]
                   assert upstream["commit"] and upstream["commit"] != "repository-local"
                   assert upstream["path"] and upstream["url"]

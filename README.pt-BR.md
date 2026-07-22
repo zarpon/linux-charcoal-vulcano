@@ -1,7 +1,7 @@
 # Kernel Charcoal para SteamOS - Edição Vulcano 
 Antes de instalar, por favor verifique se você está no canal estável de instalação do SteamOs 
 
-[![build](https://github.com/zarpon/linux-charcoal-TD/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-TD/actions)
+[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
 
 [English](README.md)
 
@@ -87,11 +87,11 @@ uma instalação DKMS separada:
 Execute no modo Desktop do SteamOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-TD/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
+curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
 O instalador sempre obtém a [última release
-publicada](https://github.com/zarpon/linux-charcoal-TD/releases/latest). Antes
+publicada](https://github.com/zarpon/linux-charcoal-vulcano/releases/latest). Antes
 de chamar o `pacman`, ele verifica o SHA-256 do ZIP da release e o SHA-256 de
 cada pacote interno. Em seguida, ativa o modo de desenvolvedor do SteamOS sem
 interação para inicializar o `pacman`, instala os pacotes do kernel e dos
@@ -153,8 +153,8 @@ Depois, reinicie.
 O Docker fornece o ambiente Arch Linux esperado para a compilação:
 
 ```bash
-git clone https://github.com/zarpon/linux-charcoal-TD.git
-cd linux-charcoal-TD
+git clone https://github.com/zarpon/linux-charcoal-vulcano.git
+cd linux-charcoal-vulcano
 docker build -t linux-charcoal .
 docker run --rm -it -v "$PWD:/project" linux-charcoal bash
 ```
@@ -180,7 +180,7 @@ lista completa.
 ## Contribuições
 
 Relate bugs e resultados de compatibilidade de dispositivos no
-[rastreador de issues](https://github.com/zarpon/linux-charcoal-TD/issues).
+[rastreador de issues](https://github.com/zarpon/linux-charcoal-vulcano/issues).
 Pull requests devem ter como alvo `master`. Para uma mudança de patch ou de
 configuração, inclua a origem, a compatibilidade com o kernel-alvo e o
 resultado da validação.

@@ -3,7 +3,7 @@
 
 set -Eeuo pipefail
 
-readonly REPOSITORY="zarpon/linux-charcoal-TD"
+readonly REPOSITORY="zarpon/linux-charcoal-vulcano"
 readonly RELEASE_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
 readonly RELEASE_DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
 readonly USER_AGENT="charcoal-kernel-installer"
