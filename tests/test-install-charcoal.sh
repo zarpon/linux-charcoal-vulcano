@@ -198,8 +198,8 @@ write_fake_commands() {
   printf '%s\n' \
     "#!$BASH_BIN" \
     'set -Eeuo pipefail' \
-    '[[ "$1" == "-U" && "$2" == "--needed" ]] || exit 4' \
-    'for package in "${@:3}"; do' \
+    '[[ "$1" == "-U" && "$2" != "--needed" ]] || exit 4' \
+    'for package in "${@:2}"; do' \
     '  [[ -f "$package" ]] || exit 5' \
     'done' \
     'printf "pacman %s\\n" "$*" >> "$CHARCOAL_TEST_LOG"' \
@@ -222,18 +222,22 @@ run_installer() {
 make_fixture
 write_fake_commands
 
+grep -Fq 'ZRAM switches to LZ4 with ZSTD priority-1 recompression after booting Charcoal' "$INSTALLER" \
+  || fail 'installer does not explain that active zram is preserved until reboot'
+
 : > "$log_file"
 run_installer normal
 assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
-assert_contains 'pacman -U --needed'
+assert_contains 'pacman -U '
+assert_not_contains 'pacman -U --needed'
 assert_contains 'linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst'
 assert_contains 'linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst'
 assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
 assert_precedes 'steamos-readonly disable' 'steamos-devmode enable --no-prompt'
-assert_precedes 'steamos-devmode enable --no-prompt' 'pacman -U --needed'
-assert_precedes 'pacman -U --needed' 'grub-mkconfig -o /boot/grub/grub.cfg'
+assert_precedes 'steamos-devmode enable --no-prompt' 'pacman -U '
+assert_precedes 'pacman -U ' 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_precedes 'grub-mkconfig -o /boot/grub/grub.cfg' 'steamos-readonly enable'
 
 : > "$log_file"
@@ -258,7 +262,7 @@ if run_installer pacman-failure >/dev/null 2>&1; then
 fi
 assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
-assert_contains 'pacman -U --needed'
+assert_contains 'pacman -U '
 assert_contains 'steamos-readonly enable'
 
 : > "$log_file"
@@ -277,7 +281,7 @@ if run_installer bootloader-failure >/dev/null 2>&1; then
 fi
 assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
-assert_contains 'pacman -U --needed'
+assert_contains 'pacman -U '
 assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
 

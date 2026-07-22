@@ -33,7 +33,7 @@ SHA-256 values.
 | Component | What is applied in Charcoal |
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Enables the LRU Marie memory-reclaim path (`CONFIG_LRU_MARIE=y`). |
-| [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. On zram add/change events, the packaged helper reasserts that value and, before a device is initialized, configures LZ4 as the primary compressor and ZSTD as priority-`1` recompression. It preserves an initialized device or active swap rather than resetting it, and does not create an additional zram swap device. |
+| [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. A packaged `zram-generator` drop-in overrides the SteamOS `zstd` primary setting before `zram0` is initialized: LZ4 is the primary compressor and ZSTD is recompression priority `1`. A `systemd-zram-setup@` `ExecStartPre` runs the same setup before `disksize`, making the configuration deterministic even if an older generator does not configure secondary algorithms. The udev helper reasserts the sysctl and provides a safe fallback; it never resets an initialized device or active swap and does not create an additional zram swap device. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adds the Adaptive Deadline I/O Scheduler and makes it the default MQ I/O scheduler. The packaged udev rule also selects `adios` for supported block devices, excluding loop and zram devices. |
 | [Infinity Scheduler v4.6-gpu](https://github.com/galpt/infinity-scheduler/tree/v4.6-gpu/patches/arch/7.1) | Applies the complete `0001`–`0006` series: core state, CFS/EEVDF behavior, real-time scheduling, and DRM GPU virtual-time scheduling changes. |
 | [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. |
@@ -94,7 +94,9 @@ package inside it. It then enables SteamOS Developer Mode non-interactively to
 initialize `pacman`, installs the Charcoal kernel and headers packages, and
 updates the bootloader configuration. It prefers `grub-mkconfig`, then
 `steamos-update-grub`, then `update-grub`; it stops instead of reporting
-success if none is available.
+success if none is available. It deliberately reinstalls the verified packages
+when necessary, because Charcoal release revisions can change while the Valve
+base kernel version remains the same.
 
 Developer Mode remains enabled after installation; only the SteamOS root
 filesystem is restored to read-only mode, including when the package
@@ -106,6 +108,19 @@ verify:
 ```bash
 uname -a  # should contain "charcoal"
 ```
+
+The installer intentionally does not reset the active zram swap, because the
+kernel does not permit changing its compressor after initialization. The LZ4
+primary compressor and ZSTD priority-`1` recompressor apply on the first boot
+into Charcoal. Verify them after that reboot:
+
+```bash
+cat /sys/block/zram0/comp_algorithm
+cat /sys/block/zram0/recomp_algorithm
+```
+
+`[lz4]` marks the selected primary compressor. In `recomp_algorithm`, ZSTD is
+shown in the priority-`1` row.
 
 You can also see the kernel version in Gaming Mode under
 **Settings → System**.

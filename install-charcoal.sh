@@ -327,12 +327,16 @@ main() {
   run_privileged steamos-devmode enable --no-prompt
 
   info "Installing ${release_tag}. Confirm the replacement of linux-neptune when pacman asks."
-  run_privileged pacman -U --needed "${packages[@]}"
+  # Releases carry a monotonically increasing GitHub revision while the
+  # package version tracks Valve's base kernel. Do not use --needed here: it
+  # would skip a verified newer release whose package version is unchanged.
+  run_privileged pacman -U "${packages[@]}"
 
   info "Updating the bootloader configuration..."
   _update_grub
 
   info "Charcoal ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
+  info "ZRAM switches to LZ4 with ZSTD priority-1 recompression after booting Charcoal; the active swap is not reset during installation."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

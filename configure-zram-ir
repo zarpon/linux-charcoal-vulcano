@@ -1,5 +1,6 @@
 #!/bin/sh
-# Configure ZRAM-IR for SteamOS before zram's disksize initializes the device.
+# Configure ZRAM-IR for SteamOS. The zram-generator drop-in is authoritative
+# for initial compressor selection; this helper keeps a safe event-time fallback.
 set -eu
 
 name="${1:-}"
@@ -29,8 +30,9 @@ if [ -w "$proc_sys_root/vm/zram_recomp_immediate" ]; then
   printf '%s\n' 1 > "$proc_sys_root/vm/zram_recomp_immediate"
 fi
 
-# Compressor choice is immutable after the zram disksize is set. A change event
-# may be emitted for a live swap device, so preserve it instead of resetting it.
+# Compressor choice is immutable after the zram disksize is set. The packaged
+# zram-generator drop-in configures LZ4 and ZSTD before that point; this
+# fallback must preserve a live device rather than resetting active swap.
 if [ "$(cat "$sys/initstate" 2>/dev/null || printf 1)" != 0 ]; then
   log_notice "$name already initialized; preserving its active compressor setup"
   exit 0

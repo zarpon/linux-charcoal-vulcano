@@ -33,7 +33,7 @@ patches usados.
 | Componente | O que é aplicado no Charcoal |
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Habilita o caminho de recuperação de memória LRU Marie (`CONFIG_LRU_MARIE=y`). |
-| [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. Em eventos de adição ou mudança do zram, o helper incluído reafirma esse valor e, antes de inicializar o dispositivo, configura LZ4 como compressor primário e ZSTD como recompressor de prioridade `1`. Ele preserva um dispositivo inicializado ou swap ativo em vez de redefini-lo e não cria um dispositivo zram adicional. |
+| [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. Um *drop-in* do `zram-generator` incluído substitui a configuração primária `zstd` do SteamOS antes da inicialização de `zram0`: LZ4 é o compressor primário e ZSTD é a recompressão de prioridade `1`. Um `ExecStartPre` de `systemd-zram-setup@` executa a mesma configuração antes de `disksize`, tornando o comportamento determinístico mesmo se uma versão antiga do generator não configurar algoritmos secundários. O helper udev reafirma o sysctl e fornece um fallback seguro; ele nunca redefine um dispositivo inicializado ou swap ativo e não cria um dispositivo zram adicional. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adiciona o escalonador Adaptive Deadline I/O Scheduler e o torna o escalonador MQ de I/O padrão. A regra udev instalada também seleciona `adios` para dispositivos de bloco compatíveis, exceto dispositivos loop e zram. |
 | [Infinity Scheduler v4.6-gpu](https://github.com/galpt/infinity-scheduler/tree/v4.6-gpu/patches/arch/7.1) | Aplica a série completa `0001`–`0006`: estado-base, comportamento CFS/EEVDF, escalonamento de tempo real e escalonamento virtual de GPU DRM. |
 | [POC Selector](https://github.com/firelzrd/poc-selector) | Habilita a seleção de CPU ociosa por bitmap (`CONFIG_SCHED_POC_SELECTOR=y`) no caminho de ativação de tarefas. |
@@ -96,7 +96,9 @@ cada pacote interno. Em seguida, ativa o modo de desenvolvedor do SteamOS sem
 interação para inicializar o `pacman`, instala os pacotes do kernel e dos
 headers Charcoal e atualiza a configuração do bootloader. A ordem de
 preferência é `grub-mkconfig`, `steamos-update-grub` e `update-grub`; se nenhum
-estiver disponível, o instalador não informa sucesso.
+estiver disponível, o instalador não informa sucesso. Ele reinstala os pacotes
+verificados quando necessário, pois revisões de release do Charcoal podem mudar
+enquanto a versão-base do kernel da Valve permanece a mesma.
 
 O modo de desenvolvedor permanece ativado após a instalação; somente o sistema
 de arquivos raiz do SteamOS volta ao modo somente leitura, inclusive quando a
@@ -108,6 +110,19 @@ reinicie e confira:
 ```bash
 uname -a  # deve conter "charcoal"
 ```
+
+O instalador intencionalmente não redefine o swap zram que já está ativo, pois
+o kernel não permite trocar o compressor após a inicialização. O compressor
+primário LZ4 e o recompressor ZSTD de prioridade `1` entram em vigor no
+primeiro boot com o Charcoal. Após esse boot, confirme:
+
+```bash
+cat /sys/block/zram0/comp_algorithm
+cat /sys/block/zram0/recomp_algorithm
+```
+
+`[lz4]` indica o compressor primário selecionado. Em `recomp_algorithm`, o
+ZSTD aparece na linha de prioridade `1`.
 
 Também é possível ver a versão do kernel no modo Jogo em
 **Configurações → Sistema**.

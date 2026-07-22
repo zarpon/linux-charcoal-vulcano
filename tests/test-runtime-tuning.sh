@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 helper="$root/configure-zram-ir"
+zram_generator_dropin="$root/90-charcoal-zram.conf"
+zram_setup_dropin="$root/90-charcoal-zram-ir.conf"
 sandbox="$(mktemp -d)"
 trap 'rm -rf "$sandbox"' EXIT
 
@@ -25,6 +27,37 @@ require_value() {
 
 bash -n "$root/PKGBUILD"
 sh -n "$helper"
+
+require_line "$zram_generator_dropin" "[zram0]"
+require_line "$zram_generator_dropin" "compression-algorithm = lz4 zstd"
+require_line "$zram_setup_dropin" "[Service]"
+require_line "$zram_setup_dropin" "ExecStartPre=/usr/lib/charcoal/configure-zram-ir %I"
+
+# SteamOS configures zram0 with zstd in its main generator configuration.
+# A zram-generator *.conf.d entry has higher precedence; verify the Charcoal
+# drop-in changes only the compressor and preserves Valve's size/swap policy.
+python3 - "$zram_generator_dropin" <<'PY'
+import configparser
+import sys
+
+base = """\
+[zram0]
+zram-size = ram/2
+compression-algorithm = zstd
+swap-priority = 100
+fs-type = swap
+"""
+
+parser = configparser.ConfigParser(interpolation=None)
+parser.read_string(base)
+parser.read(sys.argv[1], encoding="utf-8")
+
+zram0 = parser["zram0"]
+assert zram0["compression-algorithm"] == "lz4 zstd"
+assert zram0["zram-size"] == "ram/2"
+assert zram0["swap-priority"] == "100"
+assert zram0["fs-type"] == "swap"
+PY
 
 require_line "$root/99-charcoal-sysctl.conf" "vm.min_free_kbytes=65536"
 require_line "$root/99-charcoal-sysctl.conf" "vm.compaction_proactiveness=15"
@@ -71,7 +104,9 @@ for package_path in \
   'usr/lib/tmpfiles.d/99-charcoal-memory.conf' \
   'usr/lib/environment.d/99-charcoal-gaming.conf' \
   'usr/lib/udev/rules.d/60-charcoal-zram-ir.rules' \
-  'usr/lib/charcoal/configure-zram-ir'; do
+  'usr/lib/charcoal/configure-zram-ir' \
+  'usr/lib/systemd/zram-generator.conf.d/90-charcoal-zram.conf' \
+  'usr/lib/systemd/system/systemd-zram-setup@.service.d/90-charcoal-zram-ir.conf'; do
   grep -Fq "\$pkgdir/$package_path" "$root/PKGBUILD" || fail "package install missing: $package_path"
 done
 
