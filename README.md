@@ -1,5 +1,5 @@
 # Charcoal SteamOS Kernel - Vulcano Edition 
-
+BEFORE INSTALLING, PLEASE CHECK IF YOU'RE ON THE STEAMOS STABLE CHANNEL 
 [![build](https://github.com/zarpon/linux-charcoal-TD/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-TD/actions)
 
 [Português (Brasil)](README.pt-BR.md)
