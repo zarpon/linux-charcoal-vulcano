@@ -73,6 +73,8 @@ source=(
   65-adios.rules
   60-charcoal-zram-ir.rules
   configure-zram-ir
+  90-charcoal-zram.conf
+  90-charcoal-zram-ir.conf
   99-charcoal.sh
   vangogh_allow_higher_cpu_freq.patch
   vangogh_higher_max_power_limit.patch
@@ -129,7 +131,9 @@ sha256sums=(
   '6e71f4ef06f4e40053ac530d0000669bcf65db6e3992ccee54f0c61f8ba04ec6'
   '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
   '35fc7647671b1ab412804143a0585dde8d9880097c06feb520f90680780ac5e5'
-  'df210035887ec1a493b6047dc703a11648a88ed31023c2510491b75d0254ca48'
+  'bcf7f0e2197b968f70ecbc3fd4eb33fed599cda7805ec6b6e6dbb417e9f9b97f'
+  'a2e63ecf61f7f91da8473658da4bde646c30915d443d7edec243862437f945a1'
+  '07068c432fd7e80689f44a28346f1909de9ee77aa3e72dfaa6a4ea89d9921afd'
   '1f7df01db0bcd7c18230878003466ac3f651f8f21e74323b7e8178871d824f74'
   '375c8e17daf9e60bc6c211dd73f0c67ec241bd40a83d812a08eeb42aab6128d9'
   '1c49146dc5878bfab32b331d11cb66d493670bbe590ff07c2050305911c281c3'
@@ -293,6 +297,10 @@ _package() {
     "$pkgdir/usr/lib/udev/rules.d/60-charcoal-zram-ir.rules"
   install -D -m 0755 ../configure-zram-ir \
     "$pkgdir/usr/lib/charcoal/configure-zram-ir"
+  install -D -m 0644 ../90-charcoal-zram.conf \
+    "$pkgdir/usr/lib/systemd/zram-generator.conf.d/90-charcoal-zram.conf"
+  install -D -m 0644 ../90-charcoal-zram-ir.conf \
+    "$pkgdir/usr/lib/systemd/system/systemd-zram-setup@.service.d/90-charcoal-zram-ir.conf"
 
   # Charcoal: Install bundles DKMS modules
   ZSTD_CLEVEL=19 _make_llvm M=../ryzen_smu INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
