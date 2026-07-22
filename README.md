@@ -1,6 +1,6 @@
 # Charcoal SteamOS Kernel - Vulcano Edition 
 BEFORE INSTALLING, PLEASE CHECK IF YOU'RE ON THE STEAMOS STABLE CHANNEL 
-[![build](https://github.com/zarpon/linux-charcoal-TD/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-TD/actions)
+[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
 
 [Português (Brasil)](README.pt-BR.md)
 
@@ -84,11 +84,11 @@ installation is required:
 Run this in SteamOS Desktop Mode:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-TD/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
+curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
 The installer always retrieves the [latest published
-release](https://github.com/zarpon/linux-charcoal-TD/releases/latest). Before
+release](https://github.com/zarpon/linux-charcoal-vulcano/releases/latest). Before
 calling `pacman`, it verifies the release ZIP SHA-256 and the SHA-256 of each
 package inside it. It then enables SteamOS Developer Mode non-interactively to
 initialize `pacman`, installs the Charcoal kernel and headers packages, and
@@ -149,8 +149,8 @@ Then reboot.
 Docker provides the expected Arch Linux build environment:
 
 ```bash
-git clone https://github.com/zarpon/linux-charcoal-TD.git
-cd linux-charcoal-TD
+git clone https://github.com/zarpon/linux-charcoal-vulcano.git
+cd linux-charcoal-vulcano
 docker build -t linux-charcoal .
 docker run --rm -it -v "$PWD:/project" linux-charcoal bash
 ```
@@ -175,6 +175,6 @@ include `llvm`, `clang`, `lld`, `polly`, `bc`, `cpio`, `pahole`,
 ## Contributing
 
 Report bugs and device-compatibility results in the
-[issue tracker](https://github.com/zarpon/linux-charcoal-TD/issues). Pull
+[issue tracker](https://github.com/zarpon/linux-charcoal-vulcano/issues). Pull
 requests should target `master`. For a patch or configuration change, include
 the source, target-kernel compatibility, and validation result.

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 API = "https://api.github.com"
-UA = "linux-charcoal-TD-dynamic-resolver/4"
+UA = "linux-charcoal-vulcano-dynamic-resolver/4"
 
 
 class ResolveError(RuntimeError):
@@ -343,7 +343,7 @@ def resolve_component(
             "size": len(upstream_data),
         }
         return {
-            "repository": "zarpon/linux-charcoal-TD",
+            "repository": "zarpon/linux-charcoal-vulcano",
             "path": str(local_port),
             "commit": "repository-local",
             "url": None,

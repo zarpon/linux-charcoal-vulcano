@@ -142,7 +142,7 @@ make_fixture() {
     sha256sum bad-package.zip | sed 's/bad-package\.zip/linux-charcoal-test.zip/' > BAD-PACKAGE-RELEASE-ZIP-SHA256SUM
   )
 
-  printf '%s\n' '{"tag_name":"charcoal-test","draft":false,"prerelease":false,"assets":[{"name":"linux-charcoal-test.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-TD/releases/download/charcoal-test/linux-charcoal-test.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-TD/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM"}]}' > "$fixture_dir/release.json"
+  printf '%s\n' '{"tag_name":"charcoal-test","draft":false,"prerelease":false,"assets":[{"name":"linux-charcoal-test.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM"}]}' > "$fixture_dir/release.json"
 }
 
 write_fake_commands() {
@@ -159,15 +159,15 @@ write_fake_commands() {
     'done' \
     '[[ -n "$output" ]] || exit 2' \
     'case "$url" in' \
-    '  https://api.github.com/repos/zarpon/linux-charcoal-TD/releases/latest)' \
+    '  https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases/latest)' \
     '    cp "$CHARCOAL_TEST_FIXTURE/release.json" "$output" ;;' \
-    '  https://github.com/zarpon/linux-charcoal-TD/releases/download/charcoal-test/linux-charcoal-test.zip)' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
     '      cp "$CHARCOAL_TEST_FIXTURE/bad-package.zip" "$output"' \
     '    else' \
     '      cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-test.zip" "$output"' \
     '    fi ;;' \
-    '  https://github.com/zarpon/linux-charcoal-TD/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM)' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-checksum" ]]; then' \
     '      printf "%064d  linux-charcoal-test.zip\\n" 0 > "$output"' \
     '    elif [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
