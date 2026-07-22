@@ -53,6 +53,11 @@ jobs:
             sudo apt-get install -y zip
           fi
 
+      - name: Test release installer
+        run: |
+          set -Eeuo pipefail
+          bash -n install-charcoal.sh
+          bash tests/test-install-charcoal.sh
       - name: Validate runtime tuning payload
         run: |
           set -Eeuo pipefail
