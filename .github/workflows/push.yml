@@ -58,6 +58,10 @@ jobs:
           set -Eeuo pipefail
           bash -n install-charcoal.sh
           bash tests/test-install-charcoal.sh
+      - name: Validate runtime tuning payload
+        run: |
+          set -Eeuo pipefail
+          bash tests/test-runtime-tuning.sh
 
       - name: Resolve latest compatible SteamOS patches
         run: |
