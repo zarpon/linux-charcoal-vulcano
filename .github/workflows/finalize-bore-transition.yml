@@ -150,7 +150,7 @@ jobs:
           ! find . -maxdepth 1 -type f -iname '*infinity*.patch' -print -quit | grep -q .
           ! grep -RFi 'infinity' README.md README.pt-BR.md automation config-charcoal PKGBUILD
 
-      - name: Run repository validation
+      - name: Validate shell and Python syntax
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -162,9 +162,20 @@ jobs:
           from pathlib import Path
           json.loads(Path("automation/patch-sources.json").read_text())
           PY
-          tests/test-install-charcoal.sh
-          tests/test-runtime-tuning.sh
+          rm -rf automation/__pycache__
 
+      - name: Run installer tests
+        shell: bash
+        run: tests/test-install-charcoal.sh
+
+      - name: Run runtime tuning tests
+        shell: bash
+        run: tests/test-runtime-tuning.sh
+
+      - name: Validate PKGBUILD source checksum alignment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -176,7 +187,6 @@ jobs:
           if source_count != sum_count:
               raise SystemExit(f"source/checksum mismatch: {source_count} != {sum_count}")
           PY
-          rm -rf automation/__pycache__
 
       - name: Publish clean implementation commit
         shell: bash
