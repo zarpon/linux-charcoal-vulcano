@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import importlib.util
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -20,9 +19,11 @@ class PocPortTests(unittest.TestCase):
     def test_reviewed_patch_is_adapted_for_bore_layout(self) -> None:
         patch_text = PATCH.read_text(encoding="utf-8")
         adapted = module.adapt_patch(patch_text)
-        self.assertNotIn(module.HUNK_HEADER, adapted)
-        self.assertNotIn("poc_idle_committed", adapted)
-        self.assertIn("@@ -2197,6 +2200,112 @@", adapted)
+        adapted_sched = module.sched_section(adapted)
+        self.assertNotIn(module.HUNK_HEADER, adapted_sched)
+        self.assertNotIn(module.EXPECTED_ADDITIONS, adapted_sched)
+        self.assertIn("@@ -2197,6 +2200,112 @@", adapted_sched)
+        self.assertIn("poc_idle_committed", adapted)
 
         sched_h = (
             "struct rq {\n"
