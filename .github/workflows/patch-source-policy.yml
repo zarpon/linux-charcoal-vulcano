@@ -45,8 +45,9 @@ jobs:
           github.actor != 'github-actions[bot]'
         run: |
           set -Eeuo pipefail
+          mkdir -p logs
           chmod +x automation/refresh-reviewed-ports.sh
-          automation/refresh-reviewed-ports.sh
+          automation/refresh-reviewed-ports.sh 2>&1 | tee logs/refresh-reviewed-ports.log
           git config user.name 'TurboDecky Patch Automation'
           git config user.email 'noreply@localhost'
           git add \
@@ -58,6 +59,15 @@ jobs:
             git commit -m 'patches: refresh POC to v2.6.1r2 and guard local ports'
             git push origin HEAD:agent/track-all-upstream-patches
           fi
+
+      - name: Upload refresh diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-port-refresh-diagnostics
+          path: logs/refresh-reviewed-ports.log
+          if-no-files-found: warn
+          retention-days: 2
 
       - name: Validate resolver and patch coverage
         run: |
