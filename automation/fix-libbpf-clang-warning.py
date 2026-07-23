@@ -11,7 +11,7 @@ GUARDED = (
     f"{PRAGMA}\n"
     "#endif /* !__clang__ */"
 )
-EXPECTED_OCCURRENCES = 2
+EXPECTED_OCCURRENCES = 1
 
 
 class CompatibilityError(RuntimeError):
@@ -24,11 +24,11 @@ def adapt(text: str) -> str:
     count = text.count(PRAGMA)
     if count != EXPECTED_OCCURRENCES:
         raise CompatibilityError(
-            f"expected {EXPECTED_OCCURRENCES} GCC warning pragmas, found {count}"
+            f"expected {EXPECTED_OCCURRENCES} GCC warning pragma, found {count}"
         )
     adapted = text.replace(PRAGMA, GUARDED)
     if adapted.count(GUARDED) != EXPECTED_OCCURRENCES:
-        raise CompatibilityError("failed to guard every GCC warning pragma")
+        raise CompatibilityError("failed to guard the GCC warning pragma")
     return adapted
 
 
@@ -44,7 +44,7 @@ def main() -> None:
         raise SystemExit(f"libbpf Clang compatibility fix failed: {exc}") from exc
 
     args.elf_source.write_text(adapted, encoding="utf-8")
-    print("Guarded two GCC-only -Wmaybe-uninitialized pragmas from Clang")
+    print("Guarded the GCC-only -Wmaybe-uninitialized pragma from Clang")
 
 
 if __name__ == "__main__":
