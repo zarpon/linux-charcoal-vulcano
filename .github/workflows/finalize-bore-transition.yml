@@ -29,12 +29,10 @@ jobs:
           bore_dir="$RUNNER_TEMP/bore-scheduler"
           upstream_patch="$bore_dir/patches/stable/linux-6.18-bore/0001-linux6.18.22-bore-6.6.3.patch"
 
-          git clone --filter=blob:none https://github.com/evlaV/linux-integration.git "$kernel_dir"
-          git -C "$kernel_dir" checkout --detach c2906d864ef984ecdc23f350e3b38ad956fd1bac
+          git clone --depth 1 --branch 6.16.12-valve27 https://github.com/evlaV/linux-integration.git "$kernel_dir"
           test "$(git -C "$kernel_dir" rev-parse HEAD)" = c2906d864ef984ecdc23f350e3b38ad956fd1bac
 
-          git clone --filter=blob:none https://github.com/firelzrd/bore-scheduler.git "$bore_dir"
-          git -C "$bore_dir" checkout --detach 16bf5baebbb42cdba393c501ba9c2af5f84e4749
+          git clone --depth 1 https://github.com/firelzrd/bore-scheduler.git "$bore_dir"
           test "$(git -C "$bore_dir" rev-parse HEAD)" = 16bf5baebbb42cdba393c501ba9c2af5f84e4749
           echo '98b2730fba75f4d53ba4fb18d91d7ab09415feab0e828cd5b648b4471ccebe4e  '"$upstream_patch" | sha256sum -c -
 
