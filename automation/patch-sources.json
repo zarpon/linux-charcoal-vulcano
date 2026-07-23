@@ -48,6 +48,16 @@
       "local_port": "6.16.12-bore-6.6.3.patch"
     },
     {
+      "name": "bore_sched_ext_coexistence",
+      "repository": "firelzrd/bore-scheduler",
+      "ref": "main",
+      "target": "latest-bore-sched-ext-coexistence-fix.patch",
+      "filename_regex": "(?i)^patches/additions/0002-sched-ext-coexistence-fix\\.patch$",
+      "always_latest": true,
+      "port_for_kernel": "6.16.12",
+      "local_port": "6.16.12-bore-sched-ext-coexistence-fix.patch"
+    },
+    {
       "name": "poc_selector",
       "repository": "firelzrd/poc-selector",
       "ref": "main",

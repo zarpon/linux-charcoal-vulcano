@@ -83,6 +83,7 @@ jobs:
           grep -Fq 'latest-poc-selector.patch' PKGBUILD
           grep -Fq 'latest-nap.patch' PKGBUILD
           grep -Fq 'latest-bore.patch' PKGBUILD
+          grep -Fq 'latest-bore-sched-ext-coexistence-fix.patch' PKGBUILD
           ! grep -Fqi 'infinity' PKGBUILD
           ! grep -Fq 'drm_sched_rr_default.patch' PKGBUILD
           python3 - <<'PY'
@@ -97,6 +98,7 @@ jobs:
               "zram_ir": "firelzrd/zram-ir",
               "adios": "firelzrd/adios",
               "bore": "firelzrd/bore-scheduler",
+              "bore_sched_ext_coexistence": "firelzrd/bore-scheduler",
               "poc_selector": "firelzrd/poc-selector",
               "nap": "firelzrd/nap",
           }
@@ -122,6 +124,10 @@ jobs:
           bore = lock["components"]["bore"]
           assert bore["origin"] == "local-port"
           assert bore["selection"] == "latest-upstream-port"
+
+          bore_sched_ext = lock["components"]["bore_sched_ext_coexistence"]
+          assert bore_sched_ext["origin"] == "local-port"
+          assert bore_sched_ext["selection"] == "latest-upstream-port"
 
           assert lock["components"]["adios"]["selection"] in {
               "upstream-compatible", "nearest-upstream-port"

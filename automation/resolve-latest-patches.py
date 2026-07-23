@@ -382,7 +382,8 @@ def replace_source_entries(text: str, replacements: dict[str, str]) -> str:
         "lru_marie": r"(?m)^\s*6\.\d+(?:\.\d+)?-lru_marie-[^\s]+\.patch\s*$",
         "zram_ir": r"(?m)^\s*0001-linux[^\s]*-zram-ir-[^\s]+\.patch\s*$",
         "adios": r"(?m)^\s*6\.\d+(?:\.\d+)?-ADIOS-[^\s]+\.patch\s*$",
-        "bore": r"(?m)^\s*(?:6\.16\.12-bore-[^\s]+|latest-bore\.patch)\s*$",
+        "bore": r"(?m)^\s*(?:6\.16\.12-bore-[0-9][^\s]*|latest-bore\.patch)\s*$",
+        "bore_sched_ext_coexistence": r"(?m)^\s*(?:6\.16\.12-bore-sched-ext-coexistence-fix\.patch|latest-bore-sched-ext-coexistence-fix\.patch)\s*$",
         "poc_selector": r"(?m)^\s*6\.\d+(?:\.\d+)?-poc-selector-[^\s]+\.patch\s*$",
         "nap": r"(?m)^\s*6\.\d+(?:\.\d+)?-nap-v?[^\s]+\.patch\s*$",
     }

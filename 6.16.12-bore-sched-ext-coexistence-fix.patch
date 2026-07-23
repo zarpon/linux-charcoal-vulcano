@@ -1,0 +1,55 @@
+From f91002e6e8d52f20a10fc2b0059b59a7d59a38d6 Mon Sep 17 00:00:00 2001
+From: Zarpon Kernel Maintainers <noreply@users.noreply.github.com>
+Date: Thu, 23 Jul 2026 00:00:00 +0000
+Subject: [PATCH] sched: port BORE sched-ext coexistence fix for Valve 6.16.12
+
+Port firelzrd/bore-scheduler's
+0002-sched-ext-coexistence-fix.patch after the local BORE 6.6.3 port.
+
+Valve 6.16 builds with -Wmissing-prototypes as an error.  Declare the
+public BORE helper in the internal scheduler header in addition to the
+upstream implementation, so the port applies and compiles without fuzz.
+
+Upstream-commit: 16bf5baebbb42cdba393c501ba9c2af5f84e4749
+Upstream-path: patches/additions/0002-sched-ext-coexistence-fix.patch
+Upstream-sha256: cdf138cdb94fcb4e2988bd7d2873a51522fdb7212ec314fde202facaf8210b5c
+---
+ kernel/sched/fair.c  | 13 +++++++++++++
+ kernel/sched/sched.h |  1 +
+ 2 files changed, 14 insertions(+)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 61f660cdbb935cb748e96cd1b7584be0b33b6390..f29f72305e784c3e3badfb8218af7a189f62f7d0 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -13848,3 +13848,16 @@ __init void init_sched_fair_class(void)
+ #endif /* SMP */
+ 
+ }
++
++#ifdef CONFIG_SCHED_BORE
++void reweight_task(struct task_struct *p, int prio)
++{
++	struct sched_entity *se = &p->se;
++	struct cfs_rq *cfs_rq = cfs_rq_of(se);
++	struct load_weight *load = &se->load;
++	unsigned long weight = scale_load(sched_prio_to_weight[prio]);
++
++	reweight_entity(cfs_rq, se, weight);
++	load->inv_weight = sched_prio_to_wmult[prio];
++}
++#endif // CONFIG_SCHED_BORE
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index fc84b0966918a9e00c2a6c23cbbe47e0534742d4..506b426e78fb8b9f41ae10e95662d5f7907e06bd 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -2121,6 +2121,7 @@ extern void dirty_sched_domain_sysctl(int cpu);
+ 
+ #ifdef CONFIG_SCHED_BORE
+ extern void sched_update_min_base_slice(void);
++extern void reweight_task(struct task_struct *p, int prio);
+ #else /* !CONFIG_SCHED_BORE */
+ extern int sched_update_scaling(void);
+ #endif /* CONFIG_SCHED_BORE */
+-- 
+2.47.0

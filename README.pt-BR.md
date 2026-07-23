@@ -37,6 +37,7 @@ patches usados.
 | [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. Um *drop-in* do `zram-generator` incluído substitui a configuração primária `zstd` do SteamOS antes da inicialização de `zram0`: LZ4 é o compressor primário e ZSTD é a recompressão de prioridade `1`. Um `ExecStartPre` de `systemd-zram-setup@` executa a mesma configuração antes de `disksize`, tornando o comportamento determinístico mesmo se uma versão antiga do generator não configurar algoritmos secundários. O helper udev reafirma o sysctl e fornece um fallback seguro; ele nunca redefine um dispositivo inicializado ou swap ativo e não cria um dispositivo zram adicional. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adiciona o escalonador Adaptive Deadline I/O Scheduler e o torna o escalonador MQ de I/O padrão. A regra udev instalada também seleciona `adios` para dispositivos de bloco compatíveis, exceto dispositivos loop e zram. |
 | [BORE Scheduler 6.6.3](https://github.com/firelzrd/bore-scheduler/tree/main/patches/stable/linux-6.18-bore) | Habilita o escalonador de CPU Burst-Oriented Response Enhancer (`CONFIG_SCHED_BORE=y`) por meio do porte revisado para o Valve 6.16.12 do patch BORE 6.18 upstream atual. |
+| [Correção de coexistência BORE sched_ext](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Aplica o upstream `0002-sched-ext-coexistence-fix.patch` após o BORE. O porte local do Valve preserva o helper e acrescenta o protótipo interno exigido pela compilação estrita, sem usar fuzz. |
 | [POC Selector](https://github.com/firelzrd/poc-selector) | Habilita a seleção de CPU ociosa por bitmap (`CONFIG_SCHED_POC_SELECTOR=y`) no caminho de ativação de tarefas. |
 | [Nap](https://github.com/firelzrd/nap) | Habilita o governador Neural Adaptive Predictor de CPU idle. O fragmento de configuração do Charcoal desabilita ladder, menu e teo e habilita o NAP. |
 
@@ -45,7 +46,9 @@ busca o patch upstream correspondente mais recente. Quando é necessário um
 porte aprovado para 6.16.12, a compilação usa o porte local do repositório e
 registra em `patch-lock.json` a fonte upstream mais nova que ele acompanha. O
 BORE é acompanhado a partir do diretório estável Linux 6.18 de
-`firelzrd/bore-scheduler` e aplicado pelo porte local revisado para 6.16.12.
+`firelzrd/bore-scheduler`, e a adição de coexistência com `sched_ext` é
+acompanhada no mesmo repositório. Ambos usam portes locais revisados para
+6.16.12.
 
 ### Outras alterações incluídas
 

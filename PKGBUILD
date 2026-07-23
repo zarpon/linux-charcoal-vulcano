@@ -101,6 +101,7 @@ source=(
   6.16.12-ADIOS-3.2.0.patch
   "https://raw.githubusercontent.com/firelzrd/adios/d90faa7c84be86cd89a54acc610ed4cdf88347ac/patches/0002-Make-ADIOS-the-Default-I-O-scheduler.patch"
   6.16.12-bore-6.6.3.patch
+  6.16.12-bore-sched-ext-coexistence-fix.patch
   "https://github.com/zen-kernel/zen-kernel/commit/f6ed65cd7bda9cb6009c6a12efd7c4311df31936.patch"
   "https://github.com/zen-kernel/zen-kernel/commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287.patch"
   "https://github.com/zen-kernel/zen-kernel/commit/fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54.patch"
@@ -155,6 +156,7 @@ sha256sums=(
   'b7104fc9af642fa20e0a6cb8ab6dfba634132737948d5843dec76e7abd3a3530'
   '5ef2f14326a5fab8980d1ebb6734ece576f930c173b4980eb026513aa3b1b9d0'
   '68c6371b429db829fa1d6493b4f5cf978b68af30d38d1b4bea150eb8d7cf1939'
+  '6d0a744e0d35d5db7efed03df848a6a00da882fe303e23c5b58f123f85b3ae4a'
   'bc647f73ec860a0fe7d074c2377588816a616dc2a651b30d7b9cd168863a17c6'
   '5059762e54c8dbe4262d48eafb8d486a54244eec71da5d7b61fc0f5f1c5c2ea7'
   'f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262'
