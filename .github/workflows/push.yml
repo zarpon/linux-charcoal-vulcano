@@ -73,8 +73,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/finalize-pkgbuild-checksums.py
+          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/finalize-pkgbuild-checksums.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
+          python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
           bash -n PKGBUILD
           grep -Fq 'patches/testing/0001-linux6.16.12-lru_marie-' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
