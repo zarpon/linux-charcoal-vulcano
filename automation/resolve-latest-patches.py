@@ -257,6 +257,12 @@ def upstream_candidates(
             compatibility = (
                 2 if series in path else 1 if "latest" in path.lower() else 0
             )
+        version_source = path
+        project_version_regex = component.get("project_version_regex")
+        if project_version_regex:
+            version_match = re.search(str(project_version_regex), path)
+            if version_match:
+                version_source = version_match.groupdict().get("version") or path
         raw = f"https://raw.githubusercontent.com/{repo}/{commit_sha}/{path}"
         candidates.append(
             Candidate(
@@ -265,7 +271,7 @@ def upstream_candidates(
                 raw,
                 compatibility,
                 path_kernel_version,
-                (compatibility,) + version_key(path),
+                (compatibility,) + version_key(version_source),
             )
         )
     return candidates

@@ -42,6 +42,7 @@
       "ref": "main",
       "target": "latest-bore.patch",
       "filename_regex": "(?i)^patches/(?:testing/0001-linux6\\.18(?:\\.[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?|stable/linux-6\\.18-bore/0001-linux6\\.18(?:\\.[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?)\\.patch$",
+      "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?)\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "always_latest": true,
       "port_for_kernel": "6.16.12",
