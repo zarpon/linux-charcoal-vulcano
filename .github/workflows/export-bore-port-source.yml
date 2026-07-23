@@ -1,0 +1,64 @@
+name: Export BORE port source
+
+on:
+  push:
+    branches:
+      - validation/bore-scheduler-port
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Fetch target kernel scheduler files
+        run: |
+          set -Eeuo pipefail
+          git clone --depth 1 --branch 6.16.12-valve27 --filter=blob:none --sparse \
+            https://github.com/evlaV/linux-integration.git kernel-source
+          cd kernel-source
+          git sparse-checkout set \
+            include/linux/sched.h \
+            init/Kconfig \
+            kernel/Kconfig.hz \
+            kernel/exit.c \
+            kernel/fork.c \
+            kernel/futex/waitwake.c \
+            kernel/sched/Makefile \
+            kernel/sched/core.c \
+            kernel/sched/debug.c \
+            kernel/sched/fair.c \
+            kernel/sched/sched.h
+          git checkout 6.16.12-valve27
+          git rev-parse HEAD > ../kernel-source-commit.txt
+
+      - name: Package target files
+        run: |
+          set -Eeuo pipefail
+          tar -C kernel-source -czf bore-port-source.tar.gz \
+            include/linux/sched.h \
+            init/Kconfig \
+            kernel/Kconfig.hz \
+            kernel/exit.c \
+            kernel/fork.c \
+            kernel/futex/waitwake.c \
+            kernel/sched/Makefile \
+            kernel/sched/core.c \
+            kernel/sched/debug.c \
+            kernel/sched/fair.c \
+            kernel/sched/sched.h
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bore-port-source-6.16.12-valve27
+          path: |
+            bore-port-source.tar.gz
+            kernel-source-commit.txt
+          retention-days: 1
+          if-no-files-found: error
