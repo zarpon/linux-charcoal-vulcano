@@ -154,7 +154,7 @@
       "target": "latest-bt-ssp-key-size.patch",
       "source_regex": "https://dev\\.gentoo\\.org/~alicef/genpatches/trunk/[^/]+/2000_BT-Check-key-sizes-only-if-Secure-Simple-Pairing-enabled\\.patch",
       "urls": [
-        "https://dev.gentoo.org/~alicef/genpatches/trunk/{series}/2000_BT-Check-key-sizes-only-if-Secure-Simple-Pairing-enabled.patch"
+        "https://lore.kernel.org/linux-bluetooth/20190522070540.48895-1-marcel@holtmann.org/raw"
       ]
     },
     {
@@ -163,7 +163,7 @@
       "target": "latest-libbpf-uninitialized.patch",
       "source_regex": "https://dev\\.gentoo\\.org/~alicef/genpatches/trunk/[^/]+/2990_libbpf-v2-workaround-Wmaybe-uninitialized-false-pos\\.patch",
       "urls": [
-        "https://dev.gentoo.org/~alicef/genpatches/trunk/{series}/2990_libbpf-v2-workaround-Wmaybe-uninitialized-false-pos.patch"
+        "https://lore.kernel.org/bpf/3ebbe7a4e93a5ddc3a26e2e11d329801d7c8de6b.1723217044.git.sam@gentoo.org/raw"
       ]
     },
     {
