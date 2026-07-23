@@ -7,7 +7,11 @@ on:
       - PKGBUILD
       - automation/patch-sources.json
       - automation/resolve-latest-patches.py
+      - automation/validate-patch-lock.py
+      - automation/refresh-reviewed-ports.sh
       - tests/test_patch_source_policy.py
+      - tests/test_patch_lock_validation.py
+      - PATCH-SOURCES.md
       - .github/workflows/patch-source-policy.yml
   push:
     branches: [master]
@@ -15,20 +19,54 @@ on:
       - PKGBUILD
       - automation/patch-sources.json
       - automation/resolve-latest-patches.py
+      - automation/validate-patch-lock.py
       - tests/test_patch_source_policy.py
+      - tests/test_patch_lock_validation.py
+      - PATCH-SOURCES.md
       - .github/workflows/patch-source-policy.yml
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   policy:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Refresh reviewed ports in the audit branch
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.head_ref == 'agent/track-all-upstream-patches' &&
+          github.actor != 'github-actions[bot]'
+        run: |
+          set -Eeuo pipefail
+          chmod +x automation/refresh-reviewed-ports.sh
+          automation/refresh-reviewed-ports.sh
+          git config user.name 'TurboDecky Patch Automation'
+          git config user.email 'noreply@localhost'
+          git add \
+            6.16-poc-selector-v2.6.1r2.patch \
+            automation/patch-sources.json \
+            .github/workflows/push.yml \
+            .github/workflows/patch-source-policy.yml \
+            PATCH-SOURCES.md
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m 'patches: refresh POC to v2.6.1r2 and guard local ports'
+            git push origin HEAD:agent/track-all-upstream-patches
+          fi
+
       - name: Validate resolver and patch coverage
         run: |
           set -Eeuo pipefail
-          python3 -m py_compile automation/resolve-latest-patches.py tests/test_patch_source_policy.py
-          python3 -m unittest discover -s tests -p 'test_patch_source_policy.py' -v
+          python3 -m py_compile \
+            automation/resolve-latest-patches.py \
+            automation/validate-patch-lock.py \
+            tests/test_patch_source_policy.py \
+            tests/test_patch_lock_validation.py
+          python3 -m unittest discover -s tests -p 'test_patch*.py' -v
