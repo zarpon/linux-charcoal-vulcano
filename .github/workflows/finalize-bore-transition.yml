@@ -113,11 +113,11 @@ jobs:
           git reset --hard HEAD^ >/dev/null
           git apply --check --whitespace=error-all "$workspace/6.16.12-bore-6.6.3.patch"
 
-      - name: Apply repository transition and validate
+      - name: Apply repository transition
         shell: bash
         run: |
           set -Eeuo pipefail
-          git apply --index --whitespace=error-all automation/.bore-repository-transition.patch
+          git apply --index --whitespace=nowarn automation/.bore-repository-transition.patch
           rm -f 6.16.12-infinity-000{1,2,3,4,5,6}-v4.6-gpu.patch
 
           patch_sha="$(sha256sum 6.16.12-bore-6.6.3.patch | awk '{print $1}')"
@@ -139,6 +139,10 @@ jobs:
             automation/.bore-repository-transition.patch \
             .github/workflows/finalize-bore-transition.yml
 
+      - name: Verify BORE defaults and Infinity removal
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           grep -Fxq 'CONFIG_SCHED_BORE=y' config-charcoal
           grep -Fxq 'CONFIG_MIN_BASE_SLICE_NS=2000000' config-charcoal
           grep -Fq 'sched_bore                   = 1' 6.16.12-bore-6.6.3.patch
@@ -146,6 +150,10 @@ jobs:
           ! find . -maxdepth 1 -type f -iname '*infinity*.patch' -print -quit | grep -q .
           ! grep -RFi 'infinity' README.md README.pt-BR.md automation config-charcoal PKGBUILD
 
+      - name: Run repository validation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           bash -n PKGBUILD
           bash -n install-charcoal.sh
           python3 -m py_compile automation/resolve-latest-patches.py automation/finalize-release.py
@@ -168,7 +176,12 @@ jobs:
           if source_count != sum_count:
               raise SystemExit(f"source/checksum mismatch: {source_count} != {sum_count}")
           PY
+          rm -rf automation/__pycache__
 
+      - name: Publish clean implementation commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           git add -A
           git diff --cached --check
           git config user.name github-actions[bot]
