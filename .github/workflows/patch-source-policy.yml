@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   policy:
@@ -45,47 +45,6 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-          fetch-depth: 0
-
-      - name: Integrate libbpf Clang compatibility fix
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.head_ref == 'agent/track-all-upstream-patches'
-        run: |
-          set -Eeuo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('PKGBUILD')
-          text = path.read_text(encoding='utf-8')
-          if 'latest-libbpf-uninitialized.patch' in text and 'fix-libbpf-clang-warning.py' in text:
-              raise SystemExit(0)
-          anchor = '    else\n      patch -Np1 < "../$src"\n    fi\n'
-          replacement = (
-              '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
-              '      patch -Np1 < "../$src"\n'
-              '      python3 "$startdir/automation/fix-libbpf-clang-warning.py" \\\n'
-              '        tools/lib/bpf/elf.c\n'
-              '    else\n'
-              '      patch -Np1 < "../$src"\n'
-              '    fi\n'
-          )
-          if text.count(anchor) != 1:
-              raise SystemExit(
-                  f'PKGBUILD compatibility tail anchor count={text.count(anchor)}'
-              )
-          path.write_text(text.replace(anchor, replacement, 1), encoding='utf-8')
-          PY
-          git config user.name 'TurboDecky Patch Automation'
-          git config user.email 'noreply@localhost'
-          git add PKGBUILD
-          if ! git diff --cached --quiet; then
-            git diff --cached --check
-            git commit -m 'build: keep libbpf GCC warning workaround out of Clang'
-            git push origin HEAD:agent/track-all-upstream-patches
-          fi
 
       - name: Validate resolver, lock policy and patch coverage
         run: |
