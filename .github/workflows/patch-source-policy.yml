@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   policy:
@@ -47,6 +47,17 @@ jobs:
           mkdir -p logs
           chmod +x automation/refresh-reviewed-ports.sh
           automation/refresh-reviewed-ports.sh 2>&1 | tee logs/refresh-reviewed-ports.log
+          git config user.name 'TurboDecky Patch Automation'
+          git config user.email 'noreply@localhost'
+          git add \
+            6.16-poc-selector-v2.6.1r2.patch \
+            automation/patch-sources.json \
+            PATCH-SOURCES.md
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m 'patches: refresh POC to v2.6.1r2 and guard local ports'
+            git push origin HEAD:agent/track-all-upstream-patches
+          fi
 
       - name: Upload refreshed reviewed ports
         if: always()
