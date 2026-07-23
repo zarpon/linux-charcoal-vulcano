@@ -190,7 +190,18 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     echo "Applying patch $src..."
-    patch -Np1 < "../$src"
+    if [[ $src == latest-poc-selector.patch ]]; then
+      local adapted_poc="../${src%.patch}-valve-port.patch"
+      python3 "$startdir/automation/port-poc-selector.py" \
+        "../$src" "$adapted_poc" kernel/sched/sched.h
+      patch -Np1 < "$adapted_poc"
+    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
+      patch -Np1 < "../$src"
+      python3 "$startdir/automation/fix-libbpf-clang-warning.py" \
+        tools/lib/bpf/elf.c
+    else
+      patch -Np1 < "../$src"
+    fi
   done
 
   echo "Setting config..."

@@ -1,0 +1,81 @@
+name: Validate patch source policy
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - PKGBUILD
+      - automation/patch-sources.json
+      - automation/resolve-latest-patches.py
+      - automation/validate-patch-lock.py
+      - automation/port-poc-selector.py
+      - automation/fix-libbpf-clang-warning.py
+      - tests/test_patch_source_policy.py
+      - tests/test_patch_lock_validation.py
+      - tests/test_patch_poc_port.py
+      - tests/test_patch_libbpf_clang.py
+      - PATCH-SOURCES.md
+      - .github/workflows/patch-source-policy.yml
+      - .github/workflows/push.yml
+  push:
+    branches: [master]
+    paths:
+      - PKGBUILD
+      - automation/patch-sources.json
+      - automation/resolve-latest-patches.py
+      - automation/validate-patch-lock.py
+      - automation/port-poc-selector.py
+      - automation/fix-libbpf-clang-warning.py
+      - tests/test_patch_source_policy.py
+      - tests/test_patch_lock_validation.py
+      - tests/test_patch_poc_port.py
+      - tests/test_patch_libbpf_clang.py
+      - PATCH-SOURCES.md
+      - .github/workflows/patch-source-policy.yml
+      - .github/workflows/push.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate resolver, lock policy and patch coverage
+        run: |
+          set -Eeuo pipefail
+          mkdir -p logs
+          python3 -m py_compile \
+            automation/resolve-latest-patches.py \
+            automation/validate-patch-lock.py \
+            automation/port-poc-selector.py \
+            automation/fix-libbpf-clang-warning.py \
+            tests/test_patch_source_policy.py \
+            tests/test_patch_lock_validation.py \
+            tests/test_patch_poc_port.py \
+            tests/test_patch_libbpf_clang.py
+          python3 -m unittest discover -s tests -p 'test_patch*.py' -v \
+            2>&1 | tee logs/patch-policy-tests.log
+
+      - name: Resolve and validate every current upstream source
+        run: |
+          set -Eeuo pipefail
+          python3 automation/resolve-latest-patches.py --write \
+            2>&1 | tee logs/resolver.log
+          python3 automation/validate-patch-lock.py \
+            2>&1 | tee logs/patch-lock-validation.log
+          bash -n PKGBUILD
+
+      - name: Upload patch policy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-source-policy-${{ github.run_number }}
+          path: logs
+          if-no-files-found: warn
+          retention-days: 7
