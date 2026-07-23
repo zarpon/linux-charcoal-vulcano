@@ -41,11 +41,12 @@
       "repository": "firelzrd/bore-scheduler",
       "ref": "main",
       "target": "latest-bore.patch",
-      "filename_regex": "(?i)^patches/stable/linux-6\\.18-bore/0001-linux6\\.18(?:\\.[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*\\.patch$",
+      "filename_regex": "(?i)^patches/(?:testing/0001-linux6\\.18(?:\\.[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?|stable/linux-6\\.18-bore/0001-linux6\\.18(?:\\.[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?)\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "always_latest": true,
       "port_for_kernel": "6.16.12",
-      "local_port": "6.16.12-bore-6.6.3.patch"
+      "local_port": "6.16.12-bore-6.8.0-rc1.patch",
+      "local_port_upstream_sha256": "356f9b2935e3ca79c3bcfa87d8630b6fec3fb731049c81cc7086fbbaa58f5e60"
     },
     {
       "name": "bore_sched_ext_coexistence",

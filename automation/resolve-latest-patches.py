@@ -338,8 +338,19 @@ def resolve_component(
             raise ResolveError(
                 f"selected upstream patch for {component['name']} is not a patch"
             )
+        upstream_sha256 = hashlib.sha256(upstream_data).hexdigest()
+        expected_upstream_sha256 = component.get("local_port_upstream_sha256")
+        if (
+            expected_upstream_sha256
+            and upstream_sha256 != expected_upstream_sha256
+        ):
+            raise ResolveError(
+                f"local port for {component['name']} follows upstream SHA-256 "
+                f"{expected_upstream_sha256}, but the current official selection "
+                f"has SHA-256 {upstream_sha256}; refresh and validate the port"
+            )
         upstream |= {
-            "sha256": hashlib.sha256(upstream_data).hexdigest(),
+            "sha256": upstream_sha256,
             "size": len(upstream_data),
         }
         return {
