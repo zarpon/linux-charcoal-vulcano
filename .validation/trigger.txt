@@ -1,1 +1,1 @@
-Trigger corrected BORE source export workflow, attempt 3.
+Trigger full Valve source export for local BORE compilation.
