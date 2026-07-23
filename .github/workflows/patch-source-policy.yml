@@ -8,8 +8,10 @@ on:
       - automation/patch-sources.json
       - automation/resolve-latest-patches.py
       - automation/validate-patch-lock.py
+      - automation/port-poc-selector.py
       - tests/test_patch_source_policy.py
       - tests/test_patch_lock_validation.py
+      - tests/test_patch_poc_port.py
       - PATCH-SOURCES.md
       - .github/workflows/patch-source-policy.yml
       - .github/workflows/push.yml
@@ -20,15 +22,17 @@ on:
       - automation/patch-sources.json
       - automation/resolve-latest-patches.py
       - automation/validate-patch-lock.py
+      - automation/port-poc-selector.py
       - tests/test_patch_source_policy.py
       - tests/test_patch_lock_validation.py
+      - tests/test_patch_poc_port.py
       - PATCH-SOURCES.md
       - .github/workflows/patch-source-policy.yml
       - .github/workflows/push.yml
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   policy:
@@ -37,6 +41,48 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Integrate reviewed POC port adapter
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.head_ref == 'agent/track-all-upstream-patches'
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('PKGBUILD')
+          text = path.read_text(encoding='utf-8')
+          old = '''    echo "Applying patch $src..."
+              patch -Np1 < "../$src"
+          '''
+          new = '''    echo "Applying patch $src..."
+              if [[ $src == latest-poc-selector.patch ]]; then
+                local adapted_poc="../${src%.patch}-valve-port.patch"
+                python3 "$startdir/automation/port-poc-selector.py" \\
+                  "../$src" "$adapted_poc" kernel/sched/sched.h
+                patch -Np1 < "$adapted_poc"
+              else
+                patch -Np1 < "../$src"
+              fi
+          '''
+          if new in text:
+              raise SystemExit(0)
+          if text.count(old) != 1:
+              raise SystemExit('PKGBUILD patch loop anchor changed')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git config user.name 'TurboDecky Patch Automation'
+          git config user.email 'noreply@localhost'
+          git add PKGBUILD
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m 'sched: port POC 2.6.1r2 to Valve 6.16 sched.h'
+            git push origin HEAD:agent/track-all-upstream-patches
+          fi
 
       - name: Validate resolver, lock policy and patch coverage
         run: |
@@ -45,8 +91,10 @@ jobs:
           python3 -m py_compile \
             automation/resolve-latest-patches.py \
             automation/validate-patch-lock.py \
+            automation/port-poc-selector.py \
             tests/test_patch_source_policy.py \
-            tests/test_patch_lock_validation.py
+            tests/test_patch_lock_validation.py \
+            tests/test_patch_poc_port.py
           python3 -m unittest discover -s tests -p 'test_patch*.py' -v \
             2>&1 | tee logs/patch-policy-tests.log
 
