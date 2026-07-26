@@ -20,11 +20,12 @@ CONFIG_X86_AMD_PSTATE_DEFAULT_MODE=3
 # Enable lru_marie 
 CONFIG_LRU_MARIE=y
 
-# ZRAM-IR: LZ4 is the primary SteamOS swap compressor. The packaged udev
-# helper configures ZSTD as the priority-1 recompressor before zram is sized.
-CONFIG_ZRAM_DEF_COMP_LZ4=y
+# ZRAM-IR/LZ4KDR: LZ4KDR is the primary SteamOS swap compressor. The packaged
+# udev helper configures ZSTD as the priority-1 recompressor before zram is sized.
+# CONFIG_ZRAM_DEF_COMP_LZ4 is not set
+CONFIG_ZRAM_DEF_COMP_LZ4KDR=y
 # CONFIG_ZRAM_DEF_COMP_ZSTD is not set
-CONFIG_ZRAM_DEF_COMP="lz4"
+CONFIG_ZRAM_DEF_COMP="lz4kdr"
 
 # ALSA tuning
 CONFIG_SND_CTL_INPUT_VALIDATION=n

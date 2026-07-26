@@ -100,6 +100,71 @@ class PatchSourcePolicyTests(unittest.TestCase):
         )
         self.assertIs(max([older, newer], key=resolver.latest_key), newer)
 
+    def test_zram_policy_tracks_separate_ir_and_lz4kdr_components(self) -> None:
+        zram_ir = next(
+            item for item in MANIFEST["components"] if item["name"] == "zram_ir"
+        )
+        lz4kdr = next(
+            item for item in MANIFEST["components"] if item["name"] == "lz4kdr"
+        )
+        zram_ir_source = re.compile(str(zram_ir["source_regex"]))
+        zram_ir_filename = re.compile(str(zram_ir["filename_regex"]))
+        lz4kdr_source = re.compile(str(lz4kdr["source_regex"]))
+        lz4kdr_filename = re.compile(str(lz4kdr["filename_regex"]))
+
+        self.assertTrue(
+            zram_ir_source.fullmatch("0001-linux6.16.12-zram-ir-1.2.patch")
+        )
+        self.assertFalse(
+            zram_ir_source.fullmatch("0001-linux6.16.12-lz4kdr-1.3.patch")
+        )
+        self.assertTrue(
+            zram_ir_filename.fullmatch("patches/0001-linux6.16.0-zram-ir-1.2.patch")
+        )
+        self.assertFalse(
+            zram_ir_filename.fullmatch("patches/0001-linux6.12.74-lz4kdr-1.3.patch")
+        )
+        self.assertTrue(
+            lz4kdr_source.fullmatch("0001-linux6.16.12-lz4kdr-1.3.patch")
+        )
+        self.assertFalse(
+            lz4kdr_source.fullmatch("0001-linux6.16.12-zram-ir-1.2.patch")
+        )
+        self.assertTrue(
+            lz4kdr_filename.fullmatch("patches/0001-linux6.12.74-lz4kdr-1.3.patch")
+        )
+        self.assertFalse(
+            lz4kdr_filename.fullmatch("patches/0001-linux6.16.0-zram-ir-1.2.patch")
+        )
+
+        candidates = [
+            resolver.Candidate(
+                "patches/0001-linux6.12.74-lz4kdr-1.3.patch",
+                "a" * 40,
+                "https://example.invalid/nearest.patch",
+                0,
+                (6, 12, 74),
+                "1.3",
+            ),
+            resolver.Candidate(
+                "patches/0001-linux6.16.0-lz4kdr-1.3.patch",
+                "b" * 40,
+                "https://example.invalid/compatible.patch",
+                2,
+                (6, 16, 0),
+                "1.3",
+            ),
+        ]
+        compatible = [candidate for candidate in candidates if candidate.compatibility >= 2]
+        self.assertEqual(
+            max(compatible, key=resolver.compatible_key).path,
+            "patches/0001-linux6.16.0-lz4kdr-1.3.patch",
+        )
+        self.assertEqual(
+            resolver.nearest_candidate([candidates[0]], "6.16.12").path,
+            "patches/0001-linux6.12.74-lz4kdr-1.3.patch",
+        )
+
     def test_generic_source_rewrite_materializes_every_target(self) -> None:
         items = components()
         replacements = {str(item["name"]): str(item["target"]) for item in items}
