@@ -29,7 +29,7 @@ bash -n "$root/PKGBUILD"
 sh -n "$helper"
 
 require_line "$zram_generator_dropin" "[zram0]"
-require_line "$zram_generator_dropin" "compression-algorithm = lz4 zstd"
+require_line "$zram_generator_dropin" "compression-algorithm = lz4kdr zstd"
 require_line "$zram_setup_dropin" "[Service]"
 require_line "$zram_setup_dropin" "ExecStartPre=/usr/lib/charcoal/configure-zram-ir %I"
 
@@ -53,7 +53,7 @@ parser.read_string(base)
 parser.read(sys.argv[1], encoding="utf-8")
 
 zram0 = parser["zram0"]
-assert zram0["compression-algorithm"] == "lz4 zstd"
+assert zram0["compression-algorithm"] == "lz4kdr zstd"
 assert zram0["zram-size"] == "ram/2"
 assert zram0["swap-priority"] == "100"
 assert zram0["fs-type"] == "swap"
@@ -86,18 +86,21 @@ require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/ksm/run - - - - 
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/enabled - - - - 7"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/min_ttl_ms - - - - 0"
 
-require_line "$root/config-charcoal" "CONFIG_ZRAM_DEF_COMP_LZ4=y"
+require_line "$root/config-charcoal" "# CONFIG_ZRAM_DEF_COMP_LZ4 is not set"
+require_line "$root/config-charcoal" "CONFIG_ZRAM_DEF_COMP_LZ4KDR=y"
 require_line "$root/config-charcoal" "# CONFIG_ZRAM_DEF_COMP_ZSTD is not set"
-require_line "$root/config-charcoal" 'CONFIG_ZRAM_DEF_COMP="lz4"'
+require_line "$root/config-charcoal" 'CONFIG_ZRAM_DEF_COMP="lz4kdr"'
 require_line "$root/config" "CONFIG_ZRAM_BACKEND_LZ4=y"
+require_line "$root/config" "CONFIG_ZRAM_BACKEND_LZ4KDR=y"
 require_line "$root/config" "CONFIG_ZRAM_BACKEND_ZSTD=y"
 require_line "$root/config" "CONFIG_ZRAM_MULTI_COMP=y"
 grep -Fq 'zram_recomp_immediate' "$root/0001-linux6.16.12-zram-ir-1.2.patch" || fail "ZRAM-IR sysctl patch is missing"
+grep -Fq 'config ZRAM_DEF_COMP_LZ4KDR' "$root/0001-linux6.16.12-lz4kdr-1.3.patch" || fail "LZ4KDR default support is missing"
 grep -Fq '/usr/lib/charcoal/configure-zram-ir' "$root/60-charcoal-zram-ir.rules" || fail "udev helper path is missing"
 grep -Fq 'ACTION=="add"' "$root/60-charcoal-zram-ir.rules" || fail "udev add rule is missing"
 grep -Fq 'ACTION=="change"' "$root/60-charcoal-zram-ir.rules" || fail "udev change rule is missing"
 grep -Fq 'algo=zstd priority=1' "$helper" || fail "zstd priority-1 setup is missing"
-grep -Fq 'lz4 > "$sys/comp_algorithm"' "$helper" || fail "lz4 primary setup is missing"
+grep -Fq 'lz4kdr > "$sys/comp_algorithm"' "$helper" || fail "lz4kdr primary setup is missing"
 
 for package_path in \
   'usr/lib/sysctl.d/99-charcoal.conf' \
@@ -123,8 +126,8 @@ done
 # Exercise the exact helper against regular files standing in for sysfs/procfs.
 mkdir -p "$sandbox/sys/block/zram0" "$sandbox/proc/sys/vm" "$sandbox/bin"
 printf '0\n' > "$sandbox/sys/block/zram0/initstate"
-printf 'zstd lz4\n' > "$sandbox/sys/block/zram0/comp_algorithm"
-printf 'zstd lz4\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
+printf 'zstd lz4kdr\n' > "$sandbox/sys/block/zram0/comp_algorithm"
+printf 'zstd lz4kdr\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
 printf '0\n' > "$sandbox/proc/sys/vm/zram_recomp_immediate"
 printf '#!/bin/sh\nexit 0\n' > "$sandbox/bin/logger"
 chmod +x "$sandbox/bin/logger"
@@ -134,7 +137,7 @@ PATH="$sandbox/bin:$PATH" \
   CHARCOAL_PROC_SYS_ROOT="$sandbox/proc/sys" \
   sh "$helper" zram0
 require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "1"
-require_value "$sandbox/sys/block/zram0/comp_algorithm" "lz4"
+require_value "$sandbox/sys/block/zram0/comp_algorithm" "lz4kdr"
 require_value "$sandbox/sys/block/zram0/recomp_algorithm" "algo=zstd priority=1"
 
 # A later udev change event must reassert the sysctl but leave active swap alone.

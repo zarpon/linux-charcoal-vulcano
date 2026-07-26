@@ -222,7 +222,7 @@ run_installer() {
 make_fixture
 write_fake_commands
 
-grep -Fq 'ZRAM switches to LZ4 with ZSTD priority-1 recompression after booting Charcoal' "$INSTALLER" \
+grep -Fq 'ZRAM switches to LZ4KDR with ZSTD priority-1 recompression after booting Charcoal' "$INSTALLER" \
   || fail 'installer does not explain that active zram is preserved until reboot'
 
 : > "$log_file"

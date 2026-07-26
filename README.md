@@ -33,7 +33,8 @@ SHA-256 values.
 | Component | What is applied in Charcoal |
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Enables the LRU Marie memory-reclaim path (`CONFIG_LRU_MARIE=y`). |
-| [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. A packaged `zram-generator` drop-in overrides the SteamOS `zstd` primary setting before `zram0` is initialized: LZ4 is the primary compressor and ZSTD is recompression priority `1`. A `systemd-zram-setup@` `ExecStartPre` runs the same setup before `disksize`, making the configuration deterministic even if an older generator does not configure secondary algorithms. The udev helper reasserts the sysctl and provides a safe fallback; it never resets an initialized device or active swap and does not create an additional zram swap device. |
+| [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. The separate LZ4KDR component tracks the official backend patch using the newest compatible source first and the nearest kernel version for the reviewed 6.16.12 port when necessary. A packaged `zram-generator` drop-in overrides the SteamOS `zstd` primary setting before `zram0` is initialized: LZ4KDR is the primary compressor and ZSTD is recompression priority `1`. A `systemd-zram-setup@` `ExecStartPre` runs the same setup before `disksize`, making the configuration deterministic even if an older generator does not configure secondary algorithms. The udev helper reasserts the sysctl and provides a safe fallback; it never resets an initialized device or active swap and does not create an additional zram swap device. |
+| [LZ4KDR](https://github.com/firelzrd/zram-ir/blob/main/patches/0001-linux6.12.74-lz4kdr-1.3.patch) | Adds the LZ4KDR backend to zram and builds it as the default zram compressor. ZSTD remains enabled as the priority-`1` recompression algorithm. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adds the Adaptive Deadline I/O Scheduler and makes it the default MQ I/O scheduler. The packaged udev rule also selects `adios` for supported block devices, excluding loop and zram devices. |
 | [BORE Scheduler 6.8.0-rc1](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed 6.16.12 Valve port of the latest official BORE 6.18 patch. |
 | [BORE sched_ext coexistence fix](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Applies the upstream `0002-sched-ext-coexistence-fix.patch` after BORE. The local Valve port keeps the same helper and adds its required internal prototype, so strict builds compile without fuzz. |
@@ -114,7 +115,7 @@ uname -a  # should contain "charcoal"
 ```
 
 The installer intentionally does not reset the active zram swap, because the
-kernel does not permit changing its compressor after initialization. The LZ4
+kernel does not permit changing its compressor after initialization. The LZ4KDR
 primary compressor and ZSTD priority-`1` recompressor apply on the first boot
 into Charcoal. Verify them after that reboot:
 
@@ -123,7 +124,7 @@ cat /sys/block/zram0/comp_algorithm
 cat /sys/block/zram0/recomp_algorithm
 ```
 
-`[lz4]` marks the selected primary compressor. In `recomp_algorithm`, ZSTD is
+`[lz4kdr]` marks the selected primary compressor. In `recomp_algorithm`, ZSTD is
 shown in the priority-`1` row.
 
 You can also see the kernel version in Gaming Mode under
