@@ -1,5 +1,5 @@
 #!/bin/sh
-# Configure ZRAM-IR/LZ4KDR for SteamOS. The zram-generator drop-in is authoritative
+# Configure ZRAM-IR for SteamOS. The zram-generator drop-in is authoritative
 # for initial compressor selection; this helper keeps a safe event-time fallback.
 set -eu
 
@@ -31,15 +31,15 @@ if [ -w "$proc_sys_root/vm/zram_recomp_immediate" ]; then
 fi
 
 # Compressor choice is immutable after the zram disksize is set. The packaged
-# zram-generator drop-in configures LZ4KDR and ZSTD before that point; this
+# zram-generator drop-in configures LZ4 and ZSTD before that point; this
 # fallback must preserve a live device rather than resetting active swap.
 if [ "$(cat "$sys/initstate" 2>/dev/null || printf 1)" != 0 ]; then
   log_notice "$name already initialized; preserving its active compressor setup"
   exit 0
 fi
 
-if [ ! -w "$sys/comp_algorithm" ] || ! grep -qw lz4kdr "$sys/comp_algorithm"; then
-  log_notice "$name does not expose lz4kdr; ZRAM-IR setup skipped"
+if [ ! -w "$sys/comp_algorithm" ] || ! grep -qw lz4 "$sys/comp_algorithm"; then
+  log_notice "$name does not expose lz4; ZRAM-IR setup skipped"
   exit 0
 fi
 
@@ -48,7 +48,7 @@ if [ ! -w "$sys/recomp_algorithm" ] || ! grep -qw zstd "$sys/recomp_algorithm"; 
   exit 0
 fi
 
-printf '%s\n' lz4kdr > "$sys/comp_algorithm"
+printf '%s\n' lz4 > "$sys/comp_algorithm"
 printf '%s\n' 'algo=zstd priority=1' > "$sys/recomp_algorithm"
 
 # Real sysfs shows the active algorithm in brackets. Accept the write form too
@@ -59,7 +59,7 @@ is_selected() {
   grep -Eq "(^|[[:space:]])\\[${algorithm}\\]([[:space:]]|$)|(^|[[:space:]])algo=${algorithm}([[:space:]]|$)|^${algorithm}$" "$path"
 }
 
-is_selected lz4kdr "$sys/comp_algorithm"
+is_selected lz4 "$sys/comp_algorithm"
 is_selected zstd "$sys/recomp_algorithm"
 
-log_notice "$name configured for ZRAM-IR: lz4kdr priority 0 -> zstd priority 1"
+log_notice "$name configured for ZRAM-IR: lz4 priority 0 -> zstd priority 1"
