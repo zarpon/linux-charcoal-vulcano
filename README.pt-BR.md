@@ -36,6 +36,7 @@ patches usados.
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Habilita o caminho de recuperação de memória LRU Marie (`CONFIG_LRU_MARIE=y`). |
 | [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. O componente separado LZ4KDR acompanha o patch oficial procurando primeiro a fonte mais nova compatível e, quando necessário, usando a versão de kernel mais próxima para o porte revisado do 6.16.12. Um *drop-in* do `zram-generator` incluído substitui a configuração primária `zstd` do SteamOS antes da inicialização de `zram0`: LZ4KDR é o compressor primário e ZSTD é a recompressão de prioridade `1`. Um `ExecStartPre` de `systemd-zram-setup@` executa a mesma configuração antes de `disksize`, tornando o comportamento determinístico mesmo se uma versão antiga do generator não configurar algoritmos secundários. O helper udev reafirma o sysctl e fornece um fallback seguro; ele nunca redefine um dispositivo inicializado ou swap ativo e não cria um dispositivo zram adicional. |
 | [LZ4KDR](https://github.com/firelzrd/zram-ir/blob/main/patches/0001-linux6.12.74-lz4kdr-1.3.patch) | Adiciona o backend LZ4KDR à zram e o compila como compressor zram padrão. O ZSTD continua habilitado como algoritmo de recompressão de prioridade `1`. |
+| LZ4KDR para zswap | Registra LZ4KDR como algoritmo `crypto_acomp` do zswap. O adaptador é compilado sem alterar o backend zram; o uso é opt-in por `zswap.compressor=lz4kdr`, enquanto o padrão do zswap continua ZSTD. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adiciona o escalonador Adaptive Deadline I/O Scheduler e o torna o escalonador MQ de I/O padrão. A regra udev instalada também seleciona `adios` para dispositivos de bloco compatíveis, exceto dispositivos loop e zram. |
 | [BORE Scheduler 6.8.0-rc1](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Habilita o escalonador de CPU Burst-Oriented Response Enhancer (`CONFIG_SCHED_BORE=y`) por meio do porte revisado para o Valve 6.16.12 do patch BORE 6.18 oficial mais recente. |
 | [Correção de coexistência BORE sched_ext](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Aplica o upstream `0002-sched-ext-coexistence-fix.patch` após o BORE. O porte local do Valve preserva o helper e acrescenta o protótipo interno exigido pela compilação estrita, sem usar fuzz. |
@@ -130,6 +131,10 @@ cat /sys/block/zram0/recomp_algorithm
 
 `[lz4kdr]` indica o compressor primário selecionado. Em `recomp_algorithm`, o
 ZSTD aparece na linha de prioridade `1`.
+
+O kernel de teste também permite selecionar LZ4KDR no zswap pelo parâmetro de
+boot `zswap.compressor=lz4kdr`. Isso é separado da zram: a configuração padrão
+do zswap permanece ZSTD e o backend LZ4KDR da zram não é alterado.
 
 Também é possível ver a versão do kernel no modo Jogo em
 **Configurações → Sistema**.
