@@ -26,6 +26,7 @@ spec.loader.exec_module(resolver)
 LOCAL_ONLY_PATCHES = {
     "vangogh_allow_higher_cpu_freq.patch",
     "vangogh_higher_max_power_limit.patch",
+    "0002-linux6.16.12-lz4kdr-zswap-1.0.patch",
 }
 
 
