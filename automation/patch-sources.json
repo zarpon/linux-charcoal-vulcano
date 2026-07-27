@@ -33,22 +33,6 @@
       "local_port_project_version": "1.2"
     },
     {
-      "name": "lz4kdr",
-      "kind": "github_tree",
-      "repository": "firelzrd/zram-ir",
-      "ref": "main",
-      "target": "latest-lz4kdr.patch",
-      "source_regex": "0001-linux[^\\s]*-lz4kdr-[^\\s]+\\.patch",
-      "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:\\.y)?-lz4kdr-[0-9.]+\\.patch$",
-      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)lz4kdr-(?P<version>[0-9]+(?:\\.[0-9]+)*)\\.patch$",
-      "port_for_kernel": "6.16.12",
-      "port_when_incompatible": true,
-      "local_port": "0001-linux6.16.12-lz4kdr-1.3.patch",
-      "local_port_upstream_sha256": "854da8dcb96f511b38abdbe91f6214e29ac798e35a5b68258304055f82976bd3",
-      "local_port_project_version": "1.3"
-    },
-    {
       "name": "adios",
       "kind": "github_tree",
       "repository": "firelzrd/adios",
