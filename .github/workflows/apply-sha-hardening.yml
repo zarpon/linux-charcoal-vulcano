@@ -40,6 +40,7 @@ jobs:
                   'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.DOTALL)',
               'assert \'SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay':
                   'assert \'+#define SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay',
+              '-- \\n2.50.1': '--\\n2.50.1',
           }
           for old, new in replacements.items():
               if text.count(old) != 1:
