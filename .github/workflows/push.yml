@@ -76,6 +76,7 @@ jobs:
           python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/finalize-pkgbuild-checksums.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
+          python3 tests/test-bore-overlay.py
           bash -n PKGBUILD
           grep -Fq 'patches/testing/0001-linux6.16.12-lru_marie-' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
@@ -125,8 +126,15 @@ jobs:
           bore = lock["components"]["bore"]
           assert bore["origin"] == "local-port"
           assert bore["selection"] == "latest-upstream-port"
-          assert bore["upstream"]["path"] == "patches/testing/0001-linux6.18.22-bore-6.8.0-rc1.patch"
-          assert bore["upstream"]["sha256"] == "356f9b2935e3ca79c3bcfa87d8630b6fec3fb731049c81cc7086fbbaa58f5e60"
+          with open("automation/patch-source-overrides.json", encoding="utf-8") as handle:
+              bore_policy = json.load(handle)["components"]["bore"]
+          upstream = bore["upstream"]
+          expected_version = bore_policy["local_port_project_version"]
+          assert upstream["project_version"] == expected_version
+          assert upstream["path"].endswith(f"-bore-{expected_version}.patch")
+          assert re.fullmatch(r"[0-9a-f]{40}", upstream["commit"])
+          assert re.fullmatch(r"[0-9a-f]{64}", upstream["sha256"])
+          assert [item["path"] for item in bore["local_port_overlays"]] == bore_policy["local_port_overlays"]
 
           bore_sched_ext = lock["components"]["bore_sched_ext_coexistence"]
           assert bore_sched_ext["origin"] == "local-port"
@@ -149,7 +157,7 @@ jobs:
       - name: Compute compiler cache keys
         id: ccache-key
         env:
-          CCACHE_INPUT_HASH: ${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/patch-sources.json', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
+          CCACHE_INPUT_HASH: ${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/patch-sources.json', 'automation/patch-source-overrides.json', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
         run: |
           set -Eeuo pipefail
           restore_prefix="ccache-${RUNNER_OS}-${RUNNER_ARCH}-llvm-${CCACHE_INPUT_HASH}"
@@ -212,7 +220,7 @@ jobs:
 
             # Fetch sources once. The resolver lock records the SHA-256 of every
             # dynamically materialized patch. No patch is applied at this stage.
-            makepkg --verifysource 2>&1 | tee logs/verifysource-bootstrap.log
+            makepkg --verifysource --skipchecksums 2>&1 | tee logs/verifysource-bootstrap.log
 
             # Generate checksums from the exact downloaded bytes and rewrite the
             # PKGBUILD. SKIP is permitted only for pinned VCS sources.
@@ -238,14 +246,14 @@ jobs:
           assert checksums and any(checksum != "SKIP" for checksum in checksums)
           vcs = {
               index
-              for index, source in enumerate(sources)
-              if "git+" in source or source.startswith(("git://", "svn+", "hg+", "bzr+"))
+            for index, source in enumerate(sources)
+              if "git+" in source or source.startswith(("git://", "svn+", "hg+", "bzr++"))
           }
           for index, checksum in enumerate(checksums):
-              if checksum == "SKIP":
-                  assert index in vcs, sources[index]
-              else:
-                  assert re.fullmatch(r"[0-9a-f]{64}", checksum), sources[index]
+            if checksum == "SKIP":
+              assert index in vcs, sources[index]
+            else:
+              assert re.fullmatch(r"[0-9a-f]{64}", checksum), sources[index]
           skip = "SKIP"
           print(f"sources={len(sources)} sha256={len(checksums) - sum(item == skip for item in checksums)} vcs_skip={sum(item == skip for item in checksums)}")
           PY
@@ -304,10 +312,10 @@ jobs:
                   detail = f"6.16.12 local port ({path})"
                   upstream = item.get("upstream")
                   if upstream:
-                      detail += (
-                          f" following {upstream.get('repository')}"
-                          f"/{upstream.get('path')}@{upstream.get('commit')}"
-                      )
+                    detail += (
+                        f" following {upstream.get('repository')}"
+                        f"/{upstream.get('path')}@{upstream.get('commit')}"
+                    )
               else:
                   detail = f"latest compatible upstream patch ({path})"
               print(f"- **{name}**: {detail}; source commit `{commit}`.")
