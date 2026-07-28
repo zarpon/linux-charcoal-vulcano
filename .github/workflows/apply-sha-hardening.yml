@@ -75,15 +75,19 @@ jobs:
       - name: Exclude workflow files from runner commit
         run: git checkout -- .github/workflows/push.yml .github/workflows/apply-sha-hardening.yml
 
-      - name: Prepare validated commit
-        shell: bash
+      - name: Configure commit identity
         run: |
-          set -Eeuo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
-          git commit -m 'Harden BORE 6.8.0 SHA tracking'
+
+      - name: Stage validated changes
+        run: git add -A
+
+      - name: Validate staged diff
+        run: git diff --cached --check
+
+      - name: Create validated commit
+        run: git commit -m 'Harden BORE 6.8.0 SHA tracking'
 
       - name: Push validated commit
         env:
