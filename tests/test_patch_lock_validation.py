@@ -16,7 +16,48 @@ sys.modules[spec.name] = validator
 spec.loader.exec_module(validator)
 
 
-def manifest(version: str = "2.6.1r2") -> dict:
+def manifest(version: str = "1.0.0") -> dict:
+    return {
+        "schema": 2,
+        "components": [
+            {
+                "name": "static_port",
+                "kind": "github_tree",
+                "target": "latest-static-port.patch",
+                "local_port": "static-port.patch",
+                "local_port_project_version": version,
+                "project_version_regex": "static-v(?P<version>.+)\\.patch$",
+            }
+        ],
+        "auxiliary_components": [],
+    }
+
+
+def lock(version: str = "1.0.0") -> dict:
+    return {
+        "schema": 3,
+        "components": {
+            "static_port": {
+                "origin": "local-port",
+                "target": "latest-static-port.patch",
+                "sha256": "a" * 64,
+                "size": 1,
+                "upstream": {
+                    "repository": "example/static-port",
+                    "path": "patches/stable/0001-6.18.3-static-v1.0.0.patch",
+                    "commit": "b" * 40,
+                    "url": "https://example.invalid/static.patch",
+                    "project_version": version,
+                    "sha256": "c" * 64,
+                    "size": 1,
+                },
+            }
+        },
+        "auxiliary_components": {},
+    }
+
+
+def adaptive_manifest() -> dict:
     return {
         "schema": 2,
         "components": [
@@ -24,33 +65,28 @@ def manifest(version: str = "2.6.1r2") -> dict:
                 "name": "poc_selector",
                 "kind": "github_tree",
                 "target": "latest-poc-selector.patch",
-                "local_port": "6.16-poc-selector-v2.6.1r2.patch",
-                "local_port_project_version": version,
-                "project_version_regex": "poc-selector-v(?P<version>.+)\\.patch$",
+                "adaptive_port": "poc-selector-valve",
             }
         ],
         "auxiliary_components": [],
     }
 
 
-def lock(version: str = "2.6.1r2") -> dict:
+def adaptive_lock(adapter: str = "poc-selector-valve") -> dict:
     return {
         "schema": 3,
         "components": {
             "poc_selector": {
-                "origin": "local-port",
+                "origin": "adaptive-port",
+                "adapter": adapter,
+                "repository": "firelzrd/poc-selector",
+                "path": "patches/stable/0001-6.18.3-poc-selector-v2.6.3.patch",
+                "commit": "b" * 40,
+                "url": "https://example.invalid/poc.patch",
+                "project_version": "2.6.3",
                 "target": "latest-poc-selector.patch",
                 "sha256": "a" * 64,
                 "size": 1,
-                "upstream": {
-                    "repository": "firelzrd/poc-selector",
-                    "path": "patches/stable/0001-6.18.3-poc-selector-v2.6.1r2.patch",
-                    "commit": "b" * 40,
-                    "url": "https://example.invalid/poc.patch",
-                    "project_version": version,
-                    "sha256": "c" * 64,
-                    "size": 1,
-                },
             }
         },
         "auxiliary_components": {},
@@ -63,7 +99,7 @@ class PatchLockValidationTests(unittest.TestCase):
 
     def test_stale_local_port_is_rejected(self) -> None:
         with self.assertRaisesRegex(validator.ValidationError, "stale"):
-            validator.validate(manifest("2.6.1"), lock("2.6.1r2"))
+            validator.validate(manifest("0.9.0"), lock("1.0.0"))
 
     def test_missing_auxiliary_component_is_rejected(self) -> None:
         current_manifest = manifest()
@@ -72,6 +108,13 @@ class PatchLockValidationTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(validator.ValidationError, "missing"):
             validator.validate(current_manifest, lock())
+
+    def test_adaptive_port_locks_current_upstream_source(self) -> None:
+        validator.validate(adaptive_manifest(), adaptive_lock())
+
+    def test_adaptive_port_rejects_an_unexpected_adapter(self) -> None:
+        with self.assertRaisesRegex(validator.ValidationError, "adapter"):
+            validator.validate(adaptive_manifest(), adaptive_lock("different-adapter"))
 
 
 if __name__ == "__main__":

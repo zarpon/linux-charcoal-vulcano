@@ -73,9 +73,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/finalize-pkgbuild-checksums.py
+          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
+          python3 automation/port-poc-selector.py --validate latest-poc-selector.patch | tee logs/poc-adapter-validation.log
           python3 tests/test-bore-overlay.py
           bash -n PKGBUILD
           grep -Fq 'patches/testing/0001-linux6.16.12-lru_marie-' logs/patch-lock.json
@@ -109,9 +110,16 @@ jobs:
           for name, item in lock["components"].items():
               assert re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
               assert item["size"] > 0
-              assert item["origin"] in {"upstream-compatible", "local-port"}
+              assert item["origin"] in {
+                  "upstream-compatible", "adaptive-port", "local-port"
+              }
               if item["origin"] == "upstream-compatible":
                   assert item["repository"] == expected_repositories[name]
+                  assert item["commit"] and item["commit"] != "repository-local"
+                  assert item["path"] and item["url"]
+              elif item["origin"] == "adaptive-port":
+                  assert item["repository"] == expected_repositories[name]
+                  assert item["adapter"] == "poc-selector-valve"
                   assert item["commit"] and item["commit"] != "repository-local"
                   assert item["path"] and item["url"]
               else:
@@ -143,9 +151,13 @@ jobs:
           assert lock["components"]["adios"]["selection"] in {
               "upstream-compatible", "nearest-upstream-port"
           }
-          assert lock["components"]["poc_selector"]["selection"] in {
-              "upstream-compatible", "nearest-upstream-port"
-          }
+          poc = lock["components"]["poc_selector"]
+          assert poc["origin"] in {"upstream-compatible", "adaptive-port"}
+          if poc["origin"] == "adaptive-port":
+              assert poc["adapter"] == "poc-selector-valve"
+              assert poc["selection"] == "nearest-upstream-adaptive-port"
+          else:
+              assert poc["selection"] == "upstream-compatible"
           assert lock["components"]["nap"]["selection"] in {
               "upstream-compatible", "nearest-upstream-port"
           }

@@ -69,6 +69,8 @@ jobs:
             2>&1 | tee logs/resolver.log
           python3 automation/validate-patch-lock.py \
             2>&1 | tee logs/patch-lock-validation.log
+          python3 automation/port-poc-selector.py --validate latest-poc-selector.patch \
+            2>&1 | tee logs/poc-adapter-validation.log
           bash -n PKGBUILD
 
       - name: Upload patch policy diagnostics

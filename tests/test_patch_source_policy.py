@@ -9,6 +9,7 @@ import tempfile
 from contextlib import redirect_stdout
 from io import StringIO
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,6 +100,57 @@ class PatchSourcePolicyTests(unittest.TestCase):
             "6.9.0",
         )
         self.assertIs(max([older, newer], key=resolver.latest_key), newer)
+
+    def test_adaptive_port_locks_the_exact_current_upstream_bytes(self) -> None:
+        component = {
+            "name": "poc_selector",
+            "kind": "github_tree",
+            "repository": "firelzrd/poc-selector",
+            "target": "latest-poc-selector.patch",
+            "port_when_incompatible": True,
+            "adaptive_port": "poc-selector-valve",
+        }
+        candidate = resolver.Candidate(
+            "patches/stable/0001-6.18.3-poc-selector-v2.6.3.patch",
+            "a" * 40,
+            "https://example.invalid/poc-selector.patch",
+            0,
+            (6, 18, 3),
+            "2.6.3",
+        )
+        upstream = b"From 0000000000000000000000000000000000000000\n"
+        with (
+            mock.patch.object(resolver, "upstream_candidates", return_value=[candidate]),
+            mock.patch.object(resolver, "request_bytes", return_value=upstream),
+        ):
+            record = resolver.resolve_github_component(
+                component, "6.16.12", None, ROOT
+            )
+
+        self.assertEqual(record["origin"], "adaptive-port")
+        self.assertEqual(record["adapter"], "poc-selector-valve")
+        self.assertEqual(record["selection"], "nearest-upstream-adaptive-port")
+        self.assertEqual(record["commit"], candidate.sha)
+        self.assertEqual(record["path"], candidate.path)
+        self.assertEqual(record["content_bytes"], upstream)
+
+    def test_manifest_rejects_static_and_adaptive_port_together(self) -> None:
+        invalid = {
+            "schema": 2,
+            "components": [
+                {
+                    "name": "poc_selector",
+                    "target": "latest-poc-selector.patch",
+                    "source_regex": ".+",
+                    "kind": "github_tree",
+                    "local_port": "poc.patch",
+                    "adaptive_port": "poc-selector-valve",
+                }
+            ],
+            "auxiliary_components": [],
+        }
+        with self.assertRaisesRegex(resolver.ResolveError, "mutually exclusive"):
+            resolver.validate_manifest(invalid)
 
     def test_generic_source_rewrite_materializes_every_target(self) -> None:
         items = components()

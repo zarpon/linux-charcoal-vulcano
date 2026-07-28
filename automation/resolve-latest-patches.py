@@ -257,32 +257,58 @@ def resolve_github_component(
         raise ResolveError(f"no official upstream patch found for {spec['name']}")
     compatible = [item for item in candidates if item.compatibility >= 2]
     local_port = spec.get("local_port")
+    adaptive_port = spec.get("adaptive_port")
+    use_local_port = False
+    use_adaptive_port = False
     if spec.get("always_latest"):
         candidate = max(candidates, key=latest_key)
         use_local_port = bool(local_port)
-        selection = "latest-upstream-port" if use_local_port else "latest-upstream"
+        use_adaptive_port = bool(adaptive_port)
+        selection = (
+            "latest-upstream-port"
+            if use_local_port
+            else "latest-upstream-adaptive-port"
+            if use_adaptive_port
+            else "latest-upstream"
+        )
     elif spec.get("port_for_kernel") == kernel_version:
         candidate = (
             max(compatible, key=compatible_key)
             if compatible
             else nearest_candidate(candidates, kernel_version)
         )
-        if not candidate or not local_port or not spec.get("port_when_incompatible", True):
+        if (
+            not candidate
+            or not (local_port or adaptive_port)
+            or not spec.get("port_when_incompatible", True)
+        ):
             raise ResolveError(f"approved port is unavailable for {spec['name']}")
-        use_local_port, selection = True, "upstream-port"
+        use_local_port = bool(local_port)
+        use_adaptive_port = bool(adaptive_port)
+        selection = "upstream-port" if use_local_port else "upstream-adaptive-port"
     elif compatible:
         candidate = max(compatible, key=compatible_key)
-        use_local_port, selection = False, "upstream-compatible"
+        selection = "upstream-compatible"
     else:
         candidate = nearest_candidate(candidates, kernel_version)
         if candidate and spec.get("allow_nearest_upstream"):
-            use_local_port, selection = False, "nearest-upstream"
+            selection = "nearest-upstream"
         else:
-            if not candidate or not local_port or not spec.get("port_when_incompatible"):
+            if (
+                not candidate
+                or not (local_port or adaptive_port)
+                or not spec.get("port_when_incompatible")
+            ):
                 raise ResolveError(
                     f"no compatible upstream patch or approved port for {spec['name']}"
                 )
-            use_local_port, selection = True, "nearest-upstream-port"
+            use_local_port = bool(local_port)
+            use_adaptive_port = bool(adaptive_port)
+            selection = (
+                "nearest-upstream-port"
+                if use_local_port
+                else "nearest-upstream-adaptive-port"
+            )
 
     upstream: dict[str, Any] = {
         "repository": spec["repository"],
@@ -295,16 +321,25 @@ def resolve_github_component(
         upstream["kernel_version"] = ".".join(map(str, candidate.kernel_version))
     if candidate.project_version:
         upstream["project_version"] = candidate.project_version
-    if not use_local_port:
+    if not use_local_port and not use_adaptive_port:
         return {**upstream, "origin": "upstream-compatible"}
+
+    official = request_bytes(candidate.url, token)
+    if not looks_like_patch(official):
+        raise ResolveError(f"selected upstream source is not a patch: {candidate.url}")
+
+    if use_adaptive_port:
+        return {
+            **upstream,
+            "origin": "adaptive-port",
+            "adapter": str(adaptive_port),
+            "content_bytes": official,
+        }
 
     path = root / str(local_port)
     base_data = path.read_bytes() if path.is_file() else b""
     if not base_data or not looks_like_patch(base_data):
         raise ResolveError(f"local port is missing or invalid: {local_port}")
-    official = request_bytes(candidate.url, token)
-    if not looks_like_patch(official):
-        raise ResolveError(f"selected upstream source is not a patch: {candidate.url}")
     official_sha = hashlib.sha256(official).hexdigest()
     expected = spec.get("local_port_upstream_sha256")
     if expected and official_sha != expected:
@@ -480,6 +515,21 @@ def validate_manifest(manifest: dict[str, Any]) -> dict[str, list[dict[str, Any]
         raise ResolveError("patch component targets must be non-empty and unique")
     if any(not item.get("source_regex") for item in all_components):
         raise ResolveError("every patch component requires source_regex")
+    for item in all_components:
+        local_port = item.get("local_port")
+        adaptive_port = item.get("adaptive_port")
+        if local_port and adaptive_port:
+            raise ResolveError(
+                f"{item['name']}: local_port and adaptive_port are mutually exclusive"
+            )
+        if adaptive_port and (
+            item.get("kind", "github_tree") != "github_tree"
+            or not isinstance(adaptive_port, str)
+            or not adaptive_port
+        ):
+            raise ResolveError(
+                f"{item['name']}: adaptive_port requires a non-empty github_tree adapter name"
+            )
     return groups
 
 

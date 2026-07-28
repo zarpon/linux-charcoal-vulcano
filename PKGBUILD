@@ -113,7 +113,7 @@ source=(
   "git+https://github.com/dlundqvist/xone.git#tag=v0.5.8"
   "git+https://github.com/forkymcforkface/xpad-noone.git#commit=8e903676dd9514c07ce5e06e43c5f7d8cc51cb7d"
   "git+https://github.com/atar-axis/xpadneo.git#tag=v$_xpadneo_version"
-   6.16-poc-selector-v2.6.1.patch 
+   latest-poc-selector.patch
    6.16-nap-v0.5.0.patch
 )
 sha256sums=(
@@ -193,8 +193,9 @@ prepare() {
     if [[ $src == latest-poc-selector.patch ]]; then
       local adapted_poc="../${src%.patch}-valve-port.patch"
       python3 "$startdir/automation/port-poc-selector.py" \
-        "../$src" "$adapted_poc" kernel/sched/sched.h
-      patch -Np1 < "$adapted_poc"
+        "../$src" "$adapted_poc" kernel/sched/sched.h kernel/sched/fair.c
+      git apply --check "$adapted_poc"
+      git apply "$adapted_poc"
     elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
       patch -Np1 < "../$src"
       python3 "$startdir/automation/fix-libbpf-clang-warning.py" \

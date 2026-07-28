@@ -1,32 +1,52 @@
 #!/usr/bin/env python3
-"""Adapt the reviewed POC 2.6.1r2 patch to the Valve 6.16 sched.h layout.
+"""Adapt a structurally verified POC patch to the Valve/BORE 6.16 layout.
 
-The upstream 6.18.3 patch inserts rq::poc_idle_committed using context that is
-changed by the BORE port. All other POC hunks apply cleanly. This adapter
-removes only that upstream hunk and inserts the identical field at the unique
-Valve/BORE anchor before the remaining patch is applied.
+The nearest official POC source inserts rq::poc_idle_committed using context
+changed by the BORE port and declares select_idle_sibling() without Valve's
+CONFIG_SMP guard. This adapter removes only the reviewed rq field hunk,
+inserts the same field at the unique Valve/BORE anchor, and adds the missing
+guard as exact patch context. It intentionally does not pin an upstream
+SHA-256: the resolver locks the exact source bytes, commit, path and SHA-256
+for each build, while this adapter rejects any source whose relevant structure
+has changed.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import re
 from pathlib import Path
 
-EXPECTED_SHA256 = "3e3074017ca672c00ea5418bafb0537b862441664b7174e3c98a4787a0fbaca9"
 SECTION_HEADER = "diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h\n"
-HUNK_HEADER = "@@ -1135,6 +1135,9 @@ struct rq {\n"
+FAIR_SECTION_HEADER = "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\n"
 EXPECTED_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tunsigned int\t\tpoc_idle_committed;\n"
     "+#endif\n"
 )
 FIELD_BLOCK = (
-    "#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "\tunsigned int\t\tpoc_idle_committed;\n"
-    "#endif\n"
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tunsigned int\t\tpoc_idle_committed;\n"
+    "+#endif\n"
 )
-TTWU_RE = re.compile(r"(?m)^(\s*unsigned int\s+ttwu_pending;\s*\n)")
+SCHED_ANCHOR_RE = re.compile(
+    r"(?m)^(#ifdef CONFIG_SMP\n"
+    r"\tunsigned int\t\tttwu_pending;\n"
+    r"#endif\n"
+    r"\tu64\t\t\tnr_switches;\n)"
+)
+TTWU_CONTEXT_RE = re.compile(r"(?m)^[ \t]*unsigned int[ \t]+ttwu_pending;[ \t]*\n")
+HUNK_RE = re.compile(
+    r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
+    r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@(?P<context>.*\n)$"
+)
+IDLE_SIBLING_DECLARATION = (
+    "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);\n"
+)
+IDLE_SIBLING_SYNC_DECLARATION = (
+    "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);\n"
+)
+PELT_INCLUDE = ' #include "pelt.h"\n'
+VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\n"
 
 
 class PortError(RuntimeError):
@@ -41,74 +61,211 @@ def sched_section(text: str) -> str:
     return text[start : len(text) if end < 0 else end]
 
 
-def adapt_patch(text: str) -> str:
-    section = text.find(SECTION_HEADER)
-    if section < 0:
-        raise PortError("POC patch does not contain kernel/sched/sched.h")
+def section_bounds(text: str, header: str, description: str) -> tuple[int, int]:
+    start = text.find(header)
+    if start < 0:
+        raise PortError(f"POC patch does not contain {description}")
+    end = text.find("\ndiff --git ", start + len(header))
+    return start, len(text) if end < 0 else end
 
-    section_end = text.find("\ndiff --git ", section + len(SECTION_HEADER))
-    if section_end < 0:
-        section_end = len(text)
 
-    hunk = text.find(HUNK_HEADER, section, section_end)
-    if hunk < 0:
+def next_hunk_end(text: str, hunk: int, section_end: int) -> int:
+    next_hunk = text.find("\n@@ ", hunk + 1, section_end)
+    return section_end if next_hunk < 0 else next_hunk + 1
+
+
+def increment_hunk_context(header: str) -> str:
+    match = HUNK_RE.match(header)
+    if not match:
+        raise PortError("select_idle_sibling hunk header changed upstream")
+    old_count = int(match.group("old_count") or "1") + 1
+    new_count = int(match.group("new_count") or "1") + 1
+    return (
+        f"@@ -{match.group('old_start')},{old_count} "
+        f"+{match.group('new_start')},{new_count} @@{match.group('context')}"
+    )
+
+
+def old_hunk_text(body: str) -> str:
+    lines: list[str] = []
+    for line in body.splitlines(keepends=True):
+        if line.startswith("+"):
+            continue
+        if line.startswith(("-", " ")):
+            lines.append(line[1:])
+            continue
+        raise PortError("select_idle_sibling hunk has unsupported patch syntax")
+    return "".join(lines)
+
+
+def rebase_hunk_header(header: str, body: str, fair_source: str) -> str:
+    match = HUNK_RE.match(header)
+    if not match:
+        raise PortError("select_idle_sibling hunk header changed upstream")
+    old_text = old_hunk_text(body)
+    source_offset = fair_source.find(old_text)
+    if source_offset < 0:
+        raise PortError("select_idle_sibling context does not match Valve/BORE fair.c")
+    if fair_source.find(old_text, source_offset + 1) >= 0:
+        raise PortError("select_idle_sibling context is ambiguous in Valve/BORE fair.c")
+    source_line = fair_source.count("\n", 0, source_offset) + 1
+    old_start = int(match.group("old_start"))
+    new_start = int(match.group("new_start"))
+    return (
+        f"@@ -{source_line},{match.group('old_count') or '1'} "
+        f"+{source_line + new_start - old_start},{match.group('new_count') or '1'} "
+        f"@@{match.group('context')}"
+    )
+
+
+def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
+    fair_start, fair_end = section_bounds(text, FAIR_SECTION_HEADER, "kernel/sched/fair.c")
+    candidate: tuple[int, int, int, str] | None = None
+    hunk = text.find("@@ ", fair_start, fair_end)
+    while hunk >= 0:
+        header_end = text.find("\n", hunk, fair_end)
+        if header_end < 0:
+            raise PortError("select_idle_sibling hunk is malformed")
+        header_end += 1
+        hunk_end = next_hunk_end(text, hunk, fair_end)
+        body = text[header_end:hunk_end]
+        if (
+            f"-{IDLE_SIBLING_DECLARATION}" in body
+            and f"+{IDLE_SIBLING_SYNC_DECLARATION}" in body
+        ):
+            if candidate is not None:
+                raise PortError("multiple select_idle_sibling hunks found upstream")
+            candidate = (hunk, header_end, hunk_end, body)
+        hunk = text.find("@@ ", hunk_end, fair_end)
+
+    if candidate is None:
+        raise PortError("reviewed select_idle_sibling hunk was not found")
+
+    hunk, header_end, hunk_end, body = candidate
+    if body.count(PELT_INCLUDE) != 1:
+        raise PortError("select_idle_sibling hunk no longer has one pelt.h anchor")
+    if VALVE_SMP_GUARD in body:
+        raise PortError("select_idle_sibling hunk already has a CONFIG_SMP guard")
+
+    adapted_body = body.replace(PELT_INCLUDE, PELT_INCLUDE + VALVE_SMP_GUARD)
+    if adapted_body == body:
+        raise PortError("could not add the Valve CONFIG_SMP patch context")
+    header = increment_hunk_context(text[hunk:header_end])
+    if fair_source is not None:
+        header = rebase_hunk_header(header, adapted_body, fair_source)
+    return (
+        text[:hunk]
+        + header
+        + adapted_body
+        + text[hunk_end:]
+    )
+
+
+def sched_hunk(sched_header: str) -> str:
+    if "poc_idle_committed" in sched_header:
+        raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
+    matches = list(SCHED_ANCHOR_RE.finditer(sched_header))
+    if len(matches) != 1:
+        raise PortError(f"expected one Valve/BORE ttwu_pending anchor, found {len(matches)}")
+    match = matches[0]
+    line = sched_header.count("\n", 0, match.start()) + 1
+    lines = match.group(1).splitlines(keepends=True)
+    return (
+        f"@@ -{line},4 +{line},7 @@ struct rq {{\n"
+        + "".join(f" {item}" for item in lines[:2])
+        + FIELD_BLOCK
+        + "".join(f" {item}" for item in lines[2:])
+    )
+
+
+def insert_sched_hunk(text: str, header: str) -> str:
+    section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
+    first_hunk = text.find("@@ ", section, section_end)
+    if first_hunk < 0:
+        raise PortError("POC patch has no remaining kernel/sched/sched.h hunk")
+    return text[:first_hunk] + header + text[first_hunk:]
+
+
+def reviewed_sched_field_hunk(
+    text: str, section_start: int, section_end: int
+) -> tuple[int, int, str]:
+    candidate: tuple[int, int, str] | None = None
+    hunk = text.find("@@ ", section_start, section_end)
+    while hunk >= 0:
+        header_end = text.find("\n", hunk, section_end)
+        if header_end < 0:
+            raise PortError("rq::poc_idle_committed hunk is malformed")
+        hunk_end = next_hunk_end(text, hunk, section_end)
+        body = text[header_end + 1 : hunk_end]
+        if EXPECTED_ADDITIONS in body:
+            if body.count("poc_idle_committed") != 1 or not TTWU_CONTEXT_RE.search(body):
+                raise PortError("rq::poc_idle_committed hunk changed upstream")
+            if candidate is not None:
+                raise PortError("multiple rq::poc_idle_committed hunks found upstream")
+            candidate = (hunk, hunk_end, body)
+        hunk = text.find("@@ ", hunk_end, section_end)
+    if candidate is None:
         raise PortError("reviewed rq::poc_idle_committed hunk was not found")
+    return candidate
 
-    next_hunk = text.find("\n@@ ", hunk + len(HUNK_HEADER), section_end)
-    if next_hunk < 0:
-        next_hunk = section_end
-    else:
-        next_hunk += 1
 
-    body = text[hunk + len(HUNK_HEADER) : next_hunk]
-    if EXPECTED_ADDITIONS not in body:
-        raise PortError("rq::poc_idle_committed hunk changed upstream")
-    if body.count("poc_idle_committed") != 1:
-        raise PortError("unexpected rq::poc_idle_committed hunk structure")
+def adapt_patch(
+    text: str, fair_source: str | None = None, sched_header: str | None = None
+) -> str:
+    section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
+    hunk, next_hunk, _ = reviewed_sched_field_hunk(text, section, section_end)
 
     adapted = text[:hunk] + text[next_hunk:]
     adapted_sched = sched_section(adapted)
-    if HUNK_HEADER in adapted_sched or EXPECTED_ADDITIONS in adapted_sched:
+    if "poc_idle_committed" in adapted_sched:
         raise PortError("rq::poc_idle_committed hunk remains in sched.h")
-    return adapted
-
-
-def adapt_sched_header(text: str) -> str:
-    if "poc_idle_committed" in text:
-        raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
-    matches = list(TTWU_RE.finditer(text))
-    if len(matches) != 1:
-        raise PortError(f"expected one ttwu_pending anchor, found {len(matches)}")
-    match = matches[0]
-    return text[: match.end()] + FIELD_BLOCK + text[match.end() :]
+    if sched_header is not None:
+        adapted = insert_sched_hunk(adapted, sched_hunk(sched_header))
+    return adapt_idle_sibling_hunk(adapted, fair_source)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="validate the upstream hunk shape without writing an adapted patch",
+    )
     parser.add_argument("patch", type=Path)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("sched_header", type=Path)
+    parser.add_argument("output", type=Path, nargs="?")
+    parser.add_argument("sched_header", type=Path, nargs="?")
+    parser.add_argument("fair_source", type=Path, nargs="?")
     args = parser.parse_args()
 
-    patch_bytes = args.patch.read_bytes()
-    digest = hashlib.sha256(patch_bytes).hexdigest()
-    if digest != EXPECTED_SHA256:
-        raise SystemExit(
-            "POC upstream bytes changed; review and update the Valve port before building: "
-            f"expected {EXPECTED_SHA256}, got {digest}"
+    if args.validate:
+        if args.output or args.sched_header or args.fair_source:
+            parser.error("--validate accepts only the upstream patch path")
+        try:
+            adapt_patch(args.patch.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, PortError) as exc:
+            raise SystemExit(f"POC Valve port failed: {exc}") from exc
+        print(
+            "POC Valve adapter accepted the current upstream hunk; "
+            "the exact source bytes are recorded in patch-lock.json"
         )
+        return
+
+    if not args.output or not args.sched_header or not args.fair_source:
+        parser.error("output, sched_header and fair_source are required unless --validate is used")
 
     try:
-        adapted_patch = adapt_patch(patch_bytes.decode("utf-8"))
-        adapted_header = adapt_sched_header(args.sched_header.read_text(encoding="utf-8"))
+        adapted_patch = adapt_patch(
+            args.patch.read_text(encoding="utf-8"),
+            args.fair_source.read_text(encoding="utf-8"),
+            args.sched_header.read_text(encoding="utf-8"),
+        )
     except (UnicodeDecodeError, PortError) as exc:
         raise SystemExit(f"POC Valve port failed: {exc}") from exc
 
     args.output.write_text(adapted_patch, encoding="utf-8")
-    args.sched_header.write_text(adapted_header, encoding="utf-8")
     print(
-        "Prepared reviewed POC 2.6.1r2 port: inserted rq::poc_idle_committed "
-        "at the Valve/BORE ttwu_pending anchor"
+        "Prepared the locked upstream POC port with an atomic Valve/BORE "
+        "ttwu_pending hunk and exact CONFIG_SMP context"
     )
 
 

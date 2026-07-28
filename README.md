@@ -35,9 +35,9 @@ SHA-256 values.
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Enables the LRU Marie memory-reclaim path (`CONFIG_LRU_MARIE=y`). |
 | [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. A packaged `zram-generator` drop-in overrides the SteamOS `zstd` primary setting before `zram0` is initialized: LZ4 is the primary compressor and ZSTD is recompression priority `1`. A `systemd-zram-setup@` `ExecStartPre` runs the same setup before `disksize`, making the configuration deterministic even if an older generator does not configure secondary algorithms. The udev helper reasserts the sysctl and provides a safe fallback; it never resets an initialized device or active swap and does not create an additional zram swap device. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adds the Adaptive Deadline I/O Scheduler and makes it the default MQ I/O scheduler. The packaged udev rule also selects `adios` for supported block devices, excluding loop and zram devices. |
-| [BORE Scheduler 6.8.0-rc1](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed 6.16.12 Valve port of the latest official BORE 6.18 patch. |
+| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed 6.16.12 Valve port of the latest official BORE 6.18 patch. |
 | [BORE sched_ext coexistence fix](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Applies the upstream `0002-sched-ext-coexistence-fix.patch` after BORE. The local Valve port keeps the same helper and adds its required internal prototype, so strict builds compile without fuzz. |
-| [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. |
+| [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. Its constrained Valve/BORE adapter consumes the current compatible or nearest official patch and rejects unexpected hunk changes before packaging. |
 | [Nap](https://github.com/firelzrd/nap) | Enables the Neural Adaptive Predictor CPU-idle governor. The Charcoal fragment disables the ladder, menu, and teo governors and enables NAP. |
 
 For components with an official 6.16-compatible patch, the resolver fetches
@@ -49,6 +49,12 @@ its `sched_ext` coexistence addition is tracked from the same repository.
 The resolver records the current official source and accepts a local BORE port
 only when it matches the reviewed upstream SHA-256; a newer official patch
 therefore stops the build until its Valve port is refreshed and validated.
+POC Selector uses a separate adaptive adapter: it locks the exact selected
+upstream bytes, commit, path, SHA-256, and adapter name, then accepts only the
+known Valve/BORE transformations for `rq::poc_idle_committed` and
+`select_idle_sibling()`. It generates one atomic patch and verifies it with
+`git apply --check` before changing the source tree; a changed upstream hunk is
+rejected before package preparation rather than being applied blindly.
 
 ### Other Included Changes
 
