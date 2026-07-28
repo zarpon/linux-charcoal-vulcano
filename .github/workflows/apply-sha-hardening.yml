@@ -19,7 +19,7 @@ jobs:
   apply:
     if: github.head_ref == 'agent/bore-680-sha-hardening-20260728' || github.ref_name == 'agent/bore-680-sha-hardening-20260728'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 11
     steps:
       - name: Check out branch
         uses: actions/checkout@v4
