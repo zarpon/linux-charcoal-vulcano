@@ -28,7 +28,20 @@ jobs:
           fetch-depth: 0
 
       - name: Apply deterministic transform
-        run: python3 automation/.apply-sha-hardening.py
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('automation/.apply-sha-hardening.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'updated, count = re.subn(pattern, replacement, text, count=1, flags=re.DOTALL)'
+          new = 'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.DOTALL)'
+          if text.count(old) != 1:
+              raise SystemExit('sub_once implementation did not match exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          python3 automation/.apply-sha-hardening.py
 
       - name: Compile patch resolver
         run: python3 -m py_compile automation/resolve-latest-patches.py
