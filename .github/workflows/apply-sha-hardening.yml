@@ -1,4 +1,4 @@
-name: Apply BORE SHA hardening
+name: Export BORE SHA hardened workflow
 
 on:
   push:
@@ -9,17 +9,17 @@ on:
       - master
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: apply-bore-sha-hardening-vulcano
+  group: export-bore-sha-hardened-vulcano
   cancel-in-progress: true
 
 jobs:
-  apply:
+  export:
     if: github.head_ref == 'agent/bore-680-sha-hardening-20260728' || github.ref_name == 'agent/bore-680-sha-hardening-20260728'
     runs-on: ubuntu-24.04
-    timeout-minutes: 11
+    timeout-minutes: 10
     steps:
       - name: Check out branch
         uses: actions/checkout@v4
@@ -27,78 +27,29 @@ jobs:
           ref: agent/bore-680-sha-hardening-20260728
           fetch-depth: 0
 
-      - name: Apply deterministic transform
+      - name: Apply workflow hardening
+        run: python3 automation/.apply-ci-hardening.py
+
+      - name: Validate workflow hardening
         shell: bash
         run: |
           set -Eeuo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('automation/.apply-sha-hardening.py')
-          text = path.read_text(encoding='utf-8')
-          replacements = {
-              'updated, count = re.subn(pattern, replacement, text, count=1, flags=re.DOTALL)':
-                  'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.DOTALL)',
-              'assert \'SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay':
-                  'assert \'+#define SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay',
-          }
-          for old, new in replacements.items():
-              if text.count(old) != 1:
-                  raise SystemExit(f'transform source did not match exactly once: {old}')
-              text = text.replace(old, new)
-          path.write_text(text, encoding='utf-8')
-          PY
-          python3 automation/.apply-sha-hardening.py
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('6.16.12-bore-6.8.0-final.patch')
-          text = path.read_text(encoding='utf-8')
-          old = '-- \n2.50.1\n'
-          if text.count(old) != 1:
-              raise SystemExit(f'generated patch footer matched {text.count(old)} times')
-          path.write_text(text.replace(old, '--\n2.50.1\n'), encoding='utf-8')
-          PY
-
-      - name: Compile patch resolver
-        run: python3 -m py_compile automation/resolve-latest-patches.py
-
-      - name: Compile patch-lock validator
-        run: python3 -m py_compile automation/validate-patch-lock.py
-
-      - name: Compile overlay test
-        run: python3 -m py_compile tests/test-bore-overlay.py
-
-      - name: Validate BORE overlay policy
-        run: python3 tests/test-bore-overlay.py
-
-      - name: Validate transformed workflow and JSON
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          python3 -m json.tool automation/patch-source-overrides.json >/dev/null
+          grep -Fq 'patch-source-overrides.json' .github/workflows/push.yml
           grep -Fq 'makepkg --verifysource --skipchecksums' .github/workflows/push.yml
+          grep -Fq 'tests/test-bore-overlay.py' .github/workflows/push.yml
           ! grep -Fq '356f9b2935e3ca79c3bcfa87d8630b6fec3fb731049c81cc7086fbbaa58f5e60' .github/workflows/push.yml
+          git diff --check -- .github/workflows/push.yml
 
-      - name: Validate generated code diff
-        run: git diff --check -- . ':(exclude)6.16.12-bore-6.8.0-final.patch'
-
-      - name: Exclude workflow files from runner commit
-        run: git checkout -- .github/workflows/push.yml .github/workflows/apply-sha-hardening.yml
-
-      - name: Configure commit identity
+      - name: Stage exported workflow
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          mkdir -p exported/.github/workflows
+          cp .github/workflows/push.yml exported/.github/workflows/push.yml
 
-      - name: Stage validated changes
-        run: git add -A
-
-      - name: Validate staged code diff
-        run: git diff --cached --check -- . ':(exclude)6.16.12-bore-6.8.0-final.patch'
-
-      - name: Create validated commit
-        run: git commit -m 'Harden BORE 6.8.0 SHA tracking'
-
-      - name: Push validated commit
-        env:
-          BRANCH: agent/bore-680-sha-hardening-20260728
-        run: git push origin "HEAD:${BRANCH}"
+      - name: Upload validated workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulcano-validated-workflow-${{ github.sha }}
+          path: exported
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
