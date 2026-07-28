@@ -7,11 +7,11 @@ Carry the final 6.8.0 changes on top of the reviewed 6.8.0-rc1 Valve
 port: derive the score from penalty, expose bore_score(), and include the
 BORE declarations in the scheduler utility translation unit.
 ---
- include/linux/sched.h          | 8 +-------
- include/linux/sched/bore.h     | 5 ++++-
- kernel/sched/bore.c            | 2 +-
- kernel/sched/build_utility.c   | 4 ++++
- kernel/sched/debug.c           | 4 ++--
+ include/linux/sched.h        | 8 +-------
+ include/linux/sched/bore.h   | 5 ++++-
+ kernel/sched/bore.c          | 2 +-
+ kernel/sched/build_utility.c | 4 ++++
+ kernel/sched/debug.c         | 4 ++--
  5 files changed, 12 insertions(+), 11 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
@@ -57,7 +57,7 @@ diff --git a/include/linux/sched/bore.h b/include/linux/sched/bore.h
 diff --git a/kernel/sched/bore.c b/kernel/sched/bore.c
 --- a/kernel/sched/bore.c
 +++ b/kernel/sched/bore.c
-@@ -80,7 +80,7 @@ u8 effective_prio_bore(struct task_struct *p) {
+@@ -80,6 +80,6 @@ u8 effective_prio_bore(struct task_struct *p) {
  	int prio = p->static_prio - MAX_RT_PRIO;
  	if (static_branch_likely(&sched_bore_key))
 -		prio += p->bore.score;
