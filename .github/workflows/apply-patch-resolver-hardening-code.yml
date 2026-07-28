@@ -1,0 +1,38 @@
+name: Commit validated Charcoal resolver code
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'agent/patch-resolver-hardening-20260727'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Apply and validate correction
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 automation/stage-patch-resolver-hardening.py
+          python3 -m py_compile automation/resolve-latest-patches.py tests/test-resolve-latest-patches.py
+          python3 tests/test-resolve-latest-patches.py
+          git diff --check
+          git checkout -- .github/workflows/push.yml
+      - name: Commit resolver and regression tests
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add automation/resolve-latest-patches.py tests/test-resolve-latest-patches.py
+          git commit -m "Harden dynamic local-port tracking"
+          git push origin "HEAD:$HEAD_BRANCH"
