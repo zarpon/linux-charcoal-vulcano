@@ -30,23 +30,28 @@ jobs:
       - name: Apply deterministic transform
         run: python3 automation/.apply-sha-hardening.py
 
-      - name: Validate transformation
-        shell: bash
+      - name: Compile transformed Python
         run: |
-          set -Eeuo pipefail
           python3 -m py_compile \
             automation/resolve-latest-patches.py \
             automation/validate-patch-lock.py \
             tests/test-bore-overlay.py
-          python3 tests/test-bore-overlay.py
+
+      - name: Validate BORE overlay policy
+        run: python3 tests/test-bore-overlay.py
+
+      - name: Validate transformed workflow and JSON
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           python3 -m json.tool automation/patch-source-overrides.json >/dev/null
           grep -Fq 'makepkg --verifysource --skipchecksums' .github/workflows/push.yml
           ! grep -Fq '356f9b2935e3ca79c3bcfa87d8630b6fec3fb731049c81cc7086fbbaa58f5e60' .github/workflows/push.yml
-          git diff --check
 
-      - name: Commit validated changes
-        env:
-          BRANCH: agent/bore-680-sha-hardening-20260728
+      - name: Validate generated diff
+        run: git diff --check
+
+      - name: Prepare validated commit
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -55,4 +60,8 @@ jobs:
           git add -A
           git diff --cached --check
           git commit -m 'Harden BORE 6.8.0 SHA tracking'
-          git push origin "HEAD:${BRANCH}"
+
+      - name: Push validated commit
+        env:
+          BRANCH: agent/bore-680-sha-hardening-20260728
+        run: git push origin "HEAD:${BRANCH}"
