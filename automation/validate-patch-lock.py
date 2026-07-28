@@ -75,6 +75,23 @@ def validate_record(name: str, spec: dict[str, Any], record: dict[str, Any]) -> 
                 f"{expected_upstream_sha}, selected upstream is {upstream.get('sha256')!r}"
             )
 
+        expected_overlays = [str(value) for value in spec.get("local_port_overlays", [])]
+        actual_overlays = record.get("local_port_overlays", [])
+        if expected_overlays:
+            if not isinstance(actual_overlays, list):
+                raise ValidationError(f"{name}: local port overlay metadata is missing")
+            actual_paths = [str(item.get("path", "")) for item in actual_overlays]
+            if actual_paths != expected_overlays:
+                raise ValidationError(
+                    f"{name}: local port overlays differ: {actual_paths!r} != {expected_overlays!r}"
+                )
+            for item in actual_overlays:
+                overlay_sha = item.get("sha256")
+                if not isinstance(overlay_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", overlay_sha):
+                    raise ValidationError(f"{name}: invalid local port overlay SHA-256")
+                if not isinstance(item.get("size"), int) or item["size"] <= 0:
+                    raise ValidationError(f"{name}: invalid local port overlay size")
+
 
 def validate(manifest: dict[str, Any], lock: dict[str, Any]) -> None:
     if manifest.get("schema") != 2:
@@ -108,9 +125,25 @@ def validate(manifest: dict[str, Any], lock: dict[str, Any]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", default="automation/patch-sources.json")
+    parser.add_argument("--overrides", default="automation/patch-source-overrides.json")
     parser.add_argument("--lock", default="logs/patch-lock.json")
     args = parser.parse_args()
-    validate(load(Path(args.manifest)), load(Path(args.lock)))
+    manifest = load(Path(args.manifest))
+    override_path = Path(args.overrides)
+    if override_path.is_file():
+        overrides = load(override_path)
+        if overrides.get("schema") != 1:
+            raise ValidationError("unsupported patch source override schema")
+        for group_name in ("components", "auxiliary_components"):
+            by_name = {
+                str(item.get("name", "")): item
+                for item in components(manifest, group_name)
+            }
+            for name, values in overrides.get(group_name, {}).items():
+                if name not in by_name or not isinstance(values, dict):
+                    raise ValidationError(f"invalid override for {group_name}.{name}")
+                by_name[name].update(values)
+    validate(manifest, load(Path(args.lock)))
     print("Patch lock is complete and every reviewed local port is current")
     return 0
 

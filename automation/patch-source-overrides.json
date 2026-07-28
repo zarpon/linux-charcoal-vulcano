@@ -1,0 +1,12 @@
+{
+  "components": {
+    "bore": {
+      "local_port_overlays": [
+        "6.16.12-bore-6.8.0-final.patch"
+      ],
+      "local_port_project_version": "6.8.0",
+      "local_port_upstream_sha256": null
+    }
+  },
+  "schema": 1
+}

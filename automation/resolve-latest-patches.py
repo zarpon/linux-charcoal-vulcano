@@ -299,7 +299,8 @@ def resolve_github_component(
         return {**upstream, "origin": "upstream-compatible"}
 
     path = root / str(local_port)
-    if not path.is_file() or not looks_like_patch(path.read_bytes()):
+    base_data = path.read_bytes() if path.is_file() else b""
+    if not base_data or not looks_like_patch(base_data):
         raise ResolveError(f"local port is missing or invalid: {local_port}")
     official = request_bytes(candidate.url, token)
     if not looks_like_patch(official):
@@ -331,6 +332,27 @@ def resolve_github_component(
             "local_port_upstream_sha256"
         )
 
+    data = base_data
+    overlay_records: list[dict[str, Any]] = []
+    for overlay_value in spec.get("local_port_overlays", []):
+        overlay_path = root / str(overlay_value)
+        overlay_data = overlay_path.read_bytes() if overlay_path.is_file() else b""
+        if not overlay_data or not looks_like_patch(overlay_data):
+            raise ResolveError(f"local port overlay is missing or invalid: {overlay_value}")
+        diff_start = overlay_data.find(b"diff --git ")
+        if diff_start < 0:
+            raise ResolveError(f"local port overlay has no unified diff: {overlay_value}")
+        if not data.endswith(b"\n"):
+            data += b"\n"
+        data += overlay_data[diff_start:]
+        overlay_records.append(
+            {
+                "path": str(overlay_value),
+                "sha256": hashlib.sha256(overlay_data).hexdigest(),
+                "size": len(overlay_data),
+            }
+        )
+
     upstream |= {"sha256": official_sha, "size": len(official)}
     return {
         "repository": "zarpon/linux-charcoal-vulcano",
@@ -340,7 +362,8 @@ def resolve_github_component(
         "origin": "local-port",
         "selection": selection,
         "upstream": upstream,
-        "content_bytes": path.read_bytes(),
+        "local_port_overlays": overlay_records,
+        "content_bytes": data,
     }
 
 
@@ -463,6 +486,7 @@ def validate_manifest(manifest: dict[str, Any]) -> dict[str, list[dict[str, Any]
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", default="automation/patch-sources.json")
+    parser.add_argument("--overrides", default="automation/patch-source-overrides.json")
     parser.add_argument("--pkgbuild", default="PKGBUILD")
     parser.add_argument("--lock", default="logs/patch-lock.json")
     parser.add_argument("--write", action="store_true")
@@ -471,6 +495,24 @@ def main() -> int:
 
     root = Path.cwd()
     manifest = json.loads((root / args.manifest).read_text(encoding="utf-8"))
+    override_path = root / args.overrides
+    if override_path.is_file():
+        overrides = json.loads(override_path.read_text(encoding="utf-8"))
+        if overrides.get("schema") != 1:
+            raise ResolveError("unsupported patch source override schema")
+        for group_name in ("components", "auxiliary_components"):
+            configured = overrides.get(group_name, {})
+            if not isinstance(configured, dict):
+                raise ResolveError(f"override group {group_name!r} must be an object")
+            by_name = {
+                str(item.get("name", "")): item
+                for item in manifest.get(group_name, [])
+                if isinstance(item, dict)
+            }
+            for name, values in configured.items():
+                if name not in by_name or not isinstance(values, dict):
+                    raise ResolveError(f"invalid override for {group_name}.{name}")
+                by_name[name].update(values)
     groups = validate_manifest(manifest)
     all_components = groups["components"] + groups["auxiliary_components"]
     pkgbuild_path = root / args.pkgbuild
