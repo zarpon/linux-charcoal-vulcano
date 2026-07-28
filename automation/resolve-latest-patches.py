@@ -311,6 +311,26 @@ def resolve_github_component(
             f"local port for {spec['name']} follows upstream SHA-256 {expected}, "
             f"but current upstream is {official_sha}; refresh and validate the port"
         )
+
+    expected_project_version = spec.get("local_port_project_version")
+    if candidate.project_version:
+        if expected_project_version is None:
+            raise ResolveError(
+                f"local port for {spec['name']} must declare "
+                "local_port_project_version to track the selected upstream release"
+            )
+        if str(expected_project_version) != candidate.project_version:
+            raise ResolveError(
+                f"local port for {spec['name']} implements project version "
+                f"{expected_project_version}, but the selected closest upstream "
+                f"source is {candidate.project_version}; refresh and validate the port"
+            )
+    elif not expected:
+        raise ResolveError(
+            f"unversioned local port for {spec['name']} must declare "
+            "local_port_upstream_sha256"
+        )
+
     upstream |= {"sha256": official_sha, "size": len(official)}
     return {
         "repository": "zarpon/linux-charcoal-vulcano",
