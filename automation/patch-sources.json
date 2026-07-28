@@ -87,8 +87,7 @@
       "kernel_version_regex": "(?i)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$",
       "port_when_incompatible": true,
-      "local_port": "6.16-poc-selector-v2.6.1r2.patch",
-      "local_port_project_version": "2.6.1r2"
+      "adaptive_port": "poc-selector-valve"
     },
     {
       "name": "nap",

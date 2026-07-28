@@ -52,8 +52,20 @@ def validate_record(name: str, spec: dict[str, Any], record: dict[str, Any]) -> 
             raise ValidationError(f"{name}: upstream path or URL is missing")
 
     local_port = spec.get("local_port")
+    adaptive_port = spec.get("adaptive_port")
     expected_version = spec.get("local_port_project_version")
     expected_upstream_sha = spec.get("local_port_upstream_sha256")
+    if local_port and adaptive_port:
+        raise ValidationError(f"{name}: local_port and adaptive_port are mutually exclusive")
+
+    if adaptive_port:
+        if record.get("origin") != "adaptive-port":
+            raise ValidationError(f"{name}: manifest requires an adaptive port")
+        if record.get("adapter") != adaptive_port:
+            raise ValidationError(
+                f"{name}: adaptive port adapter differs from the manifest"
+            )
+
     if local_port:
         if record.get("origin") != "local-port":
             raise ValidationError(f"{name}: manifest requires a reviewed local port")
@@ -144,7 +156,7 @@ def main() -> int:
                     raise ValidationError(f"invalid override for {group_name}.{name}")
                 by_name[name].update(values)
     validate(manifest, load(Path(args.lock)))
-    print("Patch lock is complete and every reviewed local port is current")
+    print("Patch lock is complete and every port policy is current")
     return 0
 
 
