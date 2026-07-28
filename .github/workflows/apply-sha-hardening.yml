@@ -35,11 +35,17 @@ jobs:
           from pathlib import Path
           path = Path('automation/.apply-sha-hardening.py')
           text = path.read_text(encoding='utf-8')
-          old = 'updated, count = re.subn(pattern, replacement, text, count=1, flags=re.DOTALL)'
-          new = 'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.DOTALL)'
-          if text.count(old) != 1:
-              raise SystemExit('sub_once implementation did not match exactly once')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          replacements = {
+              'updated, count = re.subn(pattern, replacement, text, count=1, flags=re.DOTALL)':
+                  'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.DOTALL)',
+              'assert \'SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay':
+                  'assert \'+#define SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'transform source did not match exactly once: {old}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
           PY
           python3 automation/.apply-sha-hardening.py
 
