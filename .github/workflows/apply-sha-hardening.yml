@@ -30,12 +30,14 @@ jobs:
       - name: Apply deterministic transform
         run: python3 automation/.apply-sha-hardening.py
 
-      - name: Compile transformed Python
-        run: |
-          python3 -m py_compile \
-            automation/resolve-latest-patches.py \
-            automation/validate-patch-lock.py \
-            tests/test-bore-overlay.py
+      - name: Compile patch resolver
+        run: python3 -m py_compile automation/resolve-latest-patches.py
+
+      - name: Compile patch-lock validator
+        run: python3 -m py_compile automation/validate-patch-lock.py
+
+      - name: Compile overlay test
+        run: python3 -m py_compile tests/test-bore-overlay.py
 
       - name: Validate BORE overlay policy
         run: python3 tests/test-bore-overlay.py
@@ -50,6 +52,9 @@ jobs:
 
       - name: Validate generated diff
         run: git diff --check
+
+      - name: Exclude workflow files from runner commit
+        run: git checkout -- .github/workflows/push.yml .github/workflows/apply-sha-hardening.yml
 
       - name: Prepare validated commit
         shell: bash
