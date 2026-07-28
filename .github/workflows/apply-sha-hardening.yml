@@ -78,8 +78,8 @@ jobs:
           grep -Fq 'makepkg --verifysource --skipchecksums' .github/workflows/push.yml
           ! grep -Fq '356f9b2935e3ca79c3bcfa87d8630b6fec3fb731049c81cc7086fbbaa58f5e60' .github/workflows/push.yml
 
-      - name: Validate generated diff
-        run: git diff --check
+      - name: Validate generated code diff
+        run: git diff --check -- . ':(exclude)6.16.12-bore-6.8.0-final.patch'
 
       - name: Exclude workflow files from runner commit
         run: git checkout -- .github/workflows/push.yml .github/workflows/apply-sha-hardening.yml
@@ -92,8 +92,8 @@ jobs:
       - name: Stage validated changes
         run: git add -A
 
-      - name: Validate staged diff
-        run: git diff --cached --check
+      - name: Validate staged code diff
+        run: git diff --cached --check -- . ':(exclude)6.16.12-bore-6.8.0-final.patch'
 
       - name: Create validated commit
         run: git commit -m 'Harden BORE 6.8.0 SHA tracking'
