@@ -1,0 +1,54 @@
+name: Apply BORE SHA hardening
+
+on:
+  push:
+    branches:
+      - agent/bore-680-sha-hardening-20260728
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-bore-sha-hardening-vulcano
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/bore-680-sha-hardening-20260728
+          fetch-depth: 0
+
+      - name: Apply deterministic transform
+        run: python3 automation/.apply-sha-hardening.py
+
+      - name: Validate transformation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile \
+            automation/resolve-latest-patches.py \
+            automation/validate-patch-lock.py \
+            tests/test-bore-overlay.py
+          python3 tests/test-bore-overlay.py
+          python3 -m json.tool automation/patch-source-overrides.json >/dev/null
+          grep -Fq 'makepkg --verifysource --skipchecksums' .github/workflows/push.yml
+          ! grep -Fq '356f9b2935e3ca79c3bcfa87d8630b6fec3fb731049c81cc7086fbbaa58f5e60' .github/workflows/push.yml
+          git diff --check
+
+      - name: Commit validated changes
+        env:
+          BRANCH: agent/bore-680-sha-hardening-20260728
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Harden BORE 6.8.0 SHA tracking'
+          git push origin "HEAD:${BRANCH}"
