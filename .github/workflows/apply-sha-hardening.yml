@@ -40,7 +40,6 @@ jobs:
                   'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.DOTALL)',
               'assert \'SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay':
                   'assert \'+#define SCHED_BORE_VERSION  "6.8.0-rc1"\' not in overlay',
-              '-- \\n2.50.1': '--\\n2.50.1',
           }
           for old, new in replacements.items():
               if text.count(old) != 1:
@@ -49,6 +48,15 @@ jobs:
           path.write_text(text, encoding='utf-8')
           PY
           python3 automation/.apply-sha-hardening.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('6.16.12-bore-6.8.0-final.patch')
+          text = path.read_text(encoding='utf-8')
+          old = '-- \n2.50.1\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'generated patch footer matched {text.count(old)} times')
+          path.write_text(text.replace(old, '--\n2.50.1\n'), encoding='utf-8')
+          PY
 
       - name: Compile patch resolver
         run: python3 -m py_compile automation/resolve-latest-patches.py
