@@ -1,0 +1,66 @@
+From 2e2dd782fc1c647d089194b823fd2f3580905db3 Mon Sep 17 00:00:00 2001
+From: Charcoal Validation <noreply@localhost>
+Date: Wed, 29 Jul 2026 16:03:33 +0530
+Subject: [PATCH] cpufreq/amd-pstate: Port 2/4 cached request ordering to Valve
+ 6.16
+
+Move the cached CPPC request update before the MSR write and restore it
+if a cross-CPU write fails.  Valve's 6.16 fast-switch branch returned
+before the old cache write, so the port also removes that early return
+to retain the upstream ordering guarantee for both paths.
+
+---
+ drivers/cpufreq/amd-pstate.c | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/cpufreq/amd-pstate.c b/drivers/cpufreq/amd-pstate.c
+index b2cf783b7..779b751ee 100644
+--- a/drivers/cpufreq/amd-pstate.c
++++ b/drivers/cpufreq/amd-pstate.c
+@@ -257,18 +257,19 @@ static int msr_update_perf(struct cpufreq_policy *policy, u8 min_perf,
+ 	if (value == prev)
+ 		return 0;
+
++	WRITE_ONCE(cpudata->cppc_req_cached, value);
++
+ 	if (fast_switch) {
+ 		wrmsrq(MSR_AMD_CPPC_REQ, value);
+-		return 0;
+ 	} else {
+ 		int ret = wrmsrq_on_cpu(cpudata->cpu, MSR_AMD_CPPC_REQ, value);
+
+-		if (ret)
++		if (ret) {
++			WRITE_ONCE(cpudata->cppc_req_cached, prev);
+ 			return ret;
++		}
+ 	}
+
+-	WRITE_ONCE(cpudata->cppc_req_cached, value);
+-
+ 	return 0;
+ }
+
+@@ -309,16 +310,16 @@ static int msr_set_epp(struct cpufreq_policy *policy, u8 epp)
+ 	if (value == prev)
+ 		return 0;
+
++	WRITE_ONCE(cpudata->cppc_req_cached, value);
++
+ 	ret = wrmsrq_on_cpu(cpudata->cpu, MSR_AMD_CPPC_REQ, value);
+ 	if (ret) {
++		WRITE_ONCE(cpudata->cppc_req_cached, prev);
+ 		pr_err("failed to set energy perf value (%d)\n", ret);
+ 		return ret;
+ 	}
+
+-	/* update both so that msr_update_perf() can effectively check */
+-	WRITE_ONCE(cpudata->cppc_req_cached, value);
+-
+-	return ret;
++	return 0;
+ }
+
+ DEFINE_STATIC_CALL(amd_pstate_set_epp, msr_set_epp);
+--
+2.51.1

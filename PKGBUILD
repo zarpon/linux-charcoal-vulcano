@@ -78,49 +78,53 @@ source=(
   99-charcoal.sh
   vangogh_allow_higher_cpu_freq.patch
   vangogh_higher_max_power_limit.patch
-  6.16.12-lru_marie-0.6.7.patch
-  0001-linux6.16.12-zram-ir-1.2.patch
+  latest-lru_marie.patch
+  latest-zram-ir.patch
+  latest-amd-pstate-epp-boost-01-kernel-doc.patch
+  latest-amd-pstate-epp-boost-02-cache-order.patch
+  latest-amd-pstate-epp-boost-03-core.patch
+  latest-amd-pstate-epp-boost-04-docs.patch
   ryzen_smu.diff
   xpad-noone.diff
-  "c23.patch::https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/patch/?id=d70f79fef65810faf64dbae1f3a1b5623cdb2345"
-  "https://raw.githubusercontent.com/Frogging-Family/linux-tkg/d837d80398a62ea884caabad36530093f9711d49/linux-tkg-patches/6.16/0002-clear-patches.patch"
-  "https://raw.githubusercontent.com/Frogging-Family/linux-tkg/d837d80398a62ea884caabad36530093f9711d49/linux-tkg-patches/6.11/0007-v6.11-fsync1_via_futex_waitv.patch"
-  "https://raw.githubusercontent.com/Frogging-Family/linux-tkg/d837d80398a62ea884caabad36530093f9711d49/linux-tkg-patches/6.16/0013-optimize_harder_O3.patch"
-  "https://dev.gentoo.org/~alicef/genpatches/trunk/6.16/2000_BT-Check-key-sizes-only-if-Secure-Simple-Pairing-enabled.patch"
-  "https://dev.gentoo.org/~alicef/genpatches/trunk/6.16/2990_libbpf-v2-workaround-Wmaybe-uninitialized-false-pos.patch"
-  "https://dev.gentoo.org/~alicef/genpatches/trunk/6.16/5010_enable-cpu-optimizations-universal.patch"
-  "https://raw.githubusercontent.com/CachyOS/kernel-patches/refs/heads/master/6.16/misc/dkms-clang.patch"
-  "https://raw.githubusercontent.com/CachyOS/kernel-patches/refs/heads/master/6.16/misc/0001-clang-polly.patch"
-  "0001-always-print-firmware-file-name.patch::https://732852.bugs.gentoo.org/attachment.cgi?id=649432"
-  "302-mac80211-minstrel_ht-fix-MINSTREL_FRAC-macro.patch::https://git.openwrt.org/openwrt/openwrt/plain/package/kernel/mac80211/patches/subsys/302-mac80211-minstrel_ht-fix-MINSTREL_FRAC-macro.patch?id=0ff1553bd731c0db28043fc9caab90bdc32587f3"
-  "303-mac80211-minstrel_ht-reduce-fluctuations-in-rate-pro.patch::https://git.openwrt.org/openwrt/openwrt/plain/package/kernel/mac80211/patches/subsys/303-mac80211-minstrel_ht-reduce-fluctuations-in-rate-pro.patch?id=0ff1553bd731c0db28043fc9caab90bdc32587f3"
-  "304-mac80211-minstrel_ht-rework-rate-downgrade-code-and-.patch::https://git.openwrt.org/openwrt/openwrt/plain/package/kernel/mac80211/patches/subsys/304-mac80211-minstrel_ht-rework-rate-downgrade-code-and-.patch?id=0ff1553bd731c0db28043fc9caab90bdc32587f3"
-  "910-ath11k-fix-remapped-ce-accessing-issue-on-64bit-OS.patch::https://git.openwrt.org/openwrt/openwrt/plain/package/kernel/mac80211/patches/ath11k/910-ath11k-fix-remapped-ce-accessing-issue-on-64bit-OS.patch?id=0ff1553bd731c0db28043fc9caab90bdc32587f3"
-  "https://git.codelinaro.org/clo/qsdk/oss/system/feeds/wlan-open/-/raw/win.wlan_host_opensource.3.0.r24/patches/ath11k/350-ath11k-Revert-clear-the-keys-properly-when-DISABLE_K.patch"
-  "ath11k-upstream.patch::https://lore.kernel.org/all/20260319065608.2408179-1-reshma.rajkumar@oss.qualcomm.com/raw"
-  6.16.12-ADIOS-3.2.0.patch
-  "https://raw.githubusercontent.com/firelzrd/adios/d90faa7c84be86cd89a54acc610ed4cdf88347ac/patches/0002-Make-ADIOS-the-Default-I-O-scheduler.patch"
-  6.16.12-bore-6.8.0-rc1.patch
-  6.16.12-bore-sched-ext-coexistence-fix.patch
-  "https://github.com/zen-kernel/zen-kernel/commit/f6ed65cd7bda9cb6009c6a12efd7c4311df31936.patch"
-  "https://github.com/zen-kernel/zen-kernel/commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287.patch"
-  "https://github.com/zen-kernel/zen-kernel/commit/fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54.patch"
-  "https://github.com/zen-kernel/zen-kernel/commit/21dd0495958b7c1bd34f2d83537a4f3af5b804c3.patch"
-  "https://github.com/zen-kernel/zen-kernel/commit/b418708702f7927a7922b90871ab1cdf1df9bb94.patch"
-  "https://github.com/zen-kernel/zen-kernel/commit/92850f57d0d3dd0c55a6556f4c4a9afd38da7f8a.patch"
-  "https://github.com/zen-kernel/zen-kernel/commit/e3afdec765f5277bbd3b2196e0facb8b428fb9d2.patch"
+  latest-c23-libbpf.patch
+  latest-clear.patch
+  latest-fsync-futex-waitv.patch
+  latest-o3.patch
+  latest-bt-ssp-key-size.patch
+  latest-libbpf-uninitialized.patch
+  latest-cpu-optimizations.patch
+  latest-dkms-clang.patch
+  latest-clang-polly.patch
+  latest-firmware-name.patch
+  latest-minstrel-frac.patch
+  latest-minstrel-fluctuation.patch
+  latest-minstrel-downgrade.patch
+  latest-ath11k-remapped-ce.patch
+  latest-ath11k-disable-key.patch
+  latest-ath11k-upstream.patch
+  latest-adios.patch
+  latest-adios-default.patch
+  latest-bore.patch
+  latest-bore-sched-ext-coexistence-fix.patch
+  latest-zen-01.patch
+  latest-zen-02.patch
+  latest-zen-03.patch
+  latest-zen-04.patch
+  latest-zen-05.patch
+  latest-zen-06.patch
+  latest-zen-07.patch
   "git+https://github.com/amkillam/ryzen_smu.git#commit=9f9569f889935f7c7294cc32c1467e5a4081701a"
   "git+https://github.com/dlundqvist/xone.git#tag=v0.5.8"
   "git+https://github.com/forkymcforkface/xpad-noone.git#commit=8e903676dd9514c07ce5e06e43c5f7d8cc51cb7d"
   "git+https://github.com/atar-axis/xpadneo.git#tag=v$_xpadneo_version"
    latest-poc-selector.patch
-   6.16-nap-v0.5.0.patch
+  latest-nap.patch
 )
 sha256sums=(
   'SKIP'
   '37452b4d09e5e42134ae24a61f2f656790837c327268074cf79d7dab3558b972'
   'd88eaf0f94bae470040e4882f334c05b1bb2ab0a99e4b7299aa0b2337810ab8d'
-  '0e164fec1812d41b3846c5b7fbb897c7669acc9f25fa7114dc9020ccc0de8a5c'
+  '90e493cf909bd3d6c38007f9f3bfca589c40c92bb965b3f58d461ba8539d73fa'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
   'dc8d23ada60ea089c4f21514f72a22962747fd5fbf625d135236e8c82e4a5a6c'
   'f74713691121b2826220c519a6ceb088a11b757f6ddccfe61535490cee244a3c'
@@ -133,45 +137,49 @@ sha256sums=(
   '1f7df01db0bcd7c18230878003466ac3f651f8f21e74323b7e8178871d824f74'
   '375c8e17daf9e60bc6c211dd73f0c67ec241bd40a83d812a08eeb42aab6128d9'
   '1c49146dc5878bfab32b331d11cb66d493670bbe590ff07c2050305911c281c3'
-  '57420d0609b59ea7d9fc30da201fcf3c0ce13a601068a543acc073d85c369bc4'
-  '44deb0f6b0698ddd0739a6b7457b5d68659d02c185d03425520c428f2395801b'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
   '4bcf61814a6daac8f72c46a425b9ce88c07f6bd95f6a0ac287d73dfd4d5da60b'
   'ff3bbe78d6f072d57f567878e870956242ee78ccddd258b1ec2e4729621138fe'
-  'ab6b17b1f9cc4b322f0050d2e8cede75e44e069854e9bdc22068356530d628e8'
-  '11fe52062dedc9c2016fafc98899f4afb4cbd5327bd985c8d813dc72461f503a'
-  '9df628fd530950e37d31da854cb314d536f33c83935adf5c47e71266a55f7004'
-  '9e7b20068cdfe6a00b64d7488bdc47966fa130a07a3eae02fa57caef5d35d4ec'
-  '882156f8dfb21b5b1a85e9aaa48280540b4d1348f1bde0c358b47678aea9065a'
-  'a08fa9d2e7a943399fec7fb08eead6308bb51642c4592a9f57d1b79b06d5495c'
-  'ed36bcab65f959200c91991e3337fd716883ef0915fbec65d6252f09fd72c666'
-  '65b5745c2e07d93495a5aa1ff7269c89e7aef42acff0d018ab05663560bdf8f7'
-  '71e5926efc30833a6fd756b9358529ac695fa688ae71cd74e31dd274ae1ecf05'
-  '6d5371c96444e87ef912f476ff0a34f961579f7adcacafa2aec151a951ad4e7e'
-  'bf2186776d96122136019b7b11aea1f0f46914bf107aa83c949e654290f7eed3'
-  '78da5c2c011b2679f1309366c3964a919607db5fa1b76a3e426c5af67eded5a1'
-  '4929f7a8033f34715c2a19b606c45d0d711e7328452ed1b31a5bf52a0c1a7232'
-  'e261cfdf1d03f741ba111c812f3c1d0be2bf2d58e68efe2477a5bd542cd85f2e'
-  '49931b2d29f2501bb7d11f0f0cc978d98c90b5556e9ecfe11ca82672445d4cbf'
-  '74db38cd3c353c295d2bd11159ccafc4396b8fb21735a536f5bb5ab71093a90f'
-  'b7104fc9af642fa20e0a6cb8ab6dfba634132737948d5843dec76e7abd3a3530'
-  '5ef2f14326a5fab8980d1ebb6734ece576f930c173b4980eb026513aa3b1b9d0'
-  '4281ddf1d3e7d14544d6731698abc26822379a1800c6a08ac3268e3a85142768'
-  '2ecad40a3e13ddd2933414010f78a485132966a7b61a68646533052d8adb56f4'
-  'bc647f73ec860a0fe7d074c2377588816a616dc2a651b30d7b9cd168863a17c6'
-  '5059762e54c8dbe4262d48eafb8d486a54244eec71da5d7b61fc0f5f1c5c2ea7'
-  'f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262'
-  'ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc'
-  '8791520229802e19a4f50fcf70422e20bcff63656e1acf0920d3ec2c0f35107f'
-  '281787a4aaed0cf098554964865892404ceb17bdd966db4dcaa5cddfce093c21'
-  '4efdfcea27b787f0c6d5fc46fb652b2bba7c994a3ab9a681184bca4fd10a234f'
-  '26aed703ca1a74aa33bd76e632a63810840f7549849435c2a8e893985ff6e2c9'
-  '7ba61ccf2ddb508d6adb30906d3d57dc0ce1bc64a6d1a41796eb94a8584ea63b'
-  '1055bbbd32985017f4501d375648873bd598db084177d302aeeade56b47920e1'
-  '26b3a811d38471a42229fa037cb6d2bb5ff78f19f45a17c7f263339ee67769a7'
-  '14dabfb0452a3a817e8d809fb28eb7565512e95386d789c627b62baf136e001f'
-  'f665d6ba6fc18579083bf8ec7ec741d43495f16f9dcbc482a5bd928b1778b2d3'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
 )
-
 export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase
 export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"

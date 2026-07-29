@@ -116,6 +116,70 @@
       ]
     },
     {
+      "name": "amd_pstate_epp_boost_kernel_doc",
+      "kind": "http_patch",
+      "repository": "lore.kernel.org/linux-pm",
+      "path": "20260728073150.54964-2-void@manifault.com",
+      "commit": "20260728073150.54964-2-void@manifault.com",
+      "target": "latest-amd-pstate-epp-boost-01-kernel-doc.patch",
+      "source_regex": "6\\.16\\.12-amd-pstate-epp-boost-01-kernel-doc\\.port\\.patch",
+      "mailbox": true,
+      "local_port": "6.16.12-amd-pstate-epp-boost-01-kernel-doc.port.patch",
+      "local_port_upstream_sha256": "74f02a5cd603afe2b714a7cccff92a715b25a643af51f3d66c959a0724e78bae",
+      "urls": [
+        "https://lore.kernel.org/linux-pm/20260728073150.54964-2-void%40manifault.com/raw",
+        "https://patchew.org/linux/20260728073150.54964-2-void%40manifault.com/mbox"
+      ]
+    },
+    {
+      "name": "amd_pstate_epp_boost_cache_order",
+      "kind": "http_patch",
+      "repository": "lore.kernel.org/linux-pm",
+      "path": "20260728073150.54964-3-void@manifault.com",
+      "commit": "20260728073150.54964-3-void@manifault.com",
+      "target": "latest-amd-pstate-epp-boost-02-cache-order.patch",
+      "source_regex": "6\\.16\\.12-amd-pstate-epp-boost-02-cache-order\\.port\\.patch",
+      "mailbox": true,
+      "local_port": "6.16.12-amd-pstate-epp-boost-02-cache-order.port.patch",
+      "local_port_upstream_sha256": "9b5caecdd70729103f04f6ec5b3e1aa8a05d91bbf79b97ad050c10c8dbb5fbe1",
+      "urls": [
+        "https://lore.kernel.org/linux-pm/20260728073150.54964-3-void%40manifault.com/raw",
+        "https://patchew.org/linux/20260728073150.54964-3-void%40manifault.com/mbox"
+      ]
+    },
+    {
+      "name": "amd_pstate_epp_boost_core",
+      "kind": "http_patch",
+      "repository": "lore.kernel.org/linux-pm",
+      "path": "20260728073150.54964-4-void@manifault.com",
+      "commit": "20260728073150.54964-4-void@manifault.com",
+      "target": "latest-amd-pstate-epp-boost-03-core.patch",
+      "source_regex": "6\\.16\\.12-amd-pstate-epp-boost-03-core\\.port\\.patch",
+      "mailbox": true,
+      "local_port": "6.16.12-amd-pstate-epp-boost-03-core.port.patch",
+      "local_port_upstream_sha256": "991cd0df7c2fabcef05e2009eb833b6087a6a3f5d1b11fc9d1f027192e131162",
+      "urls": [
+        "https://lore.kernel.org/linux-pm/20260728073150.54964-4-void%40manifault.com/raw",
+        "https://patchew.org/linux/20260728073150.54964-4-void%40manifault.com/mbox"
+      ]
+    },
+    {
+      "name": "amd_pstate_epp_boost_documentation",
+      "kind": "http_patch",
+      "repository": "lore.kernel.org/linux-pm",
+      "path": "20260728073150.54964-5-void@manifault.com",
+      "commit": "20260728073150.54964-5-void@manifault.com",
+      "target": "latest-amd-pstate-epp-boost-04-docs.patch",
+      "source_regex": "6\\.16\\.12-amd-pstate-epp-boost-04-docs\\.port\\.patch",
+      "mailbox": true,
+      "local_port": "6.16.12-amd-pstate-epp-boost-04-docs.port.patch",
+      "local_port_upstream_sha256": "6ff36ba97524ce21a8b8a9e127f37c8fe1016f6a2b10ca439d2705539630d096",
+      "urls": [
+        "https://lore.kernel.org/linux-pm/20260728073150.54964-5-void%40manifault.com/raw",
+        "https://patchew.org/linux/20260728073150.54964-5-void%40manifault.com/mbox"
+      ]
+    },
+    {
       "name": "clear",
       "kind": "github_tree",
       "repository": "Frogging-Family/linux-tkg",

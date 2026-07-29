@@ -93,6 +93,45 @@ def adaptive_lock(adapter: str = "poc-selector-valve") -> dict:
     }
 
 
+def http_port_manifest() -> dict:
+    return {
+        "schema": 2,
+        "components": [],
+        "auxiliary_components": [
+            {
+                "name": "mailing_list_port",
+                "kind": "http_patch",
+                "target": "latest-mailing-list-port.patch",
+                "local_port": "mailing-list-port.patch",
+                "local_port_upstream_sha256": "c" * 64,
+            }
+        ],
+    }
+
+
+def http_port_lock() -> dict:
+    return {
+        "schema": 3,
+        "components": {},
+        "auxiliary_components": {
+            "mailing_list_port": {
+                "origin": "local-port",
+                "target": "latest-mailing-list-port.patch",
+                "sha256": "a" * 64,
+                "size": 1,
+                "upstream": {
+                    "repository": "lore.kernel.org/linux-pm",
+                    "path": "message@example.invalid",
+                    "commit": "message@example.invalid",
+                    "url": "https://example.invalid/message.mbox",
+                    "sha256": "c" * 64,
+                    "size": 1,
+                },
+            }
+        },
+    }
+
+
 class PatchLockValidationTests(unittest.TestCase):
     def test_current_local_port_passes(self) -> None:
         validator.validate(manifest(), lock())
@@ -115,6 +154,13 @@ class PatchLockValidationTests(unittest.TestCase):
     def test_adaptive_port_rejects_an_unexpected_adapter(self) -> None:
         with self.assertRaisesRegex(validator.ValidationError, "adapter"):
             validator.validate(adaptive_manifest(), adaptive_lock("different-adapter"))
+
+    def test_local_http_port_requires_complete_upstream_lock(self) -> None:
+        validator.validate(http_port_manifest(), http_port_lock())
+        incomplete = http_port_lock()
+        del incomplete["auxiliary_components"]["mailing_list_port"]["upstream"]["size"]
+        with self.assertRaisesRegex(validator.ValidationError, "upstream size"):
+            validator.validate(http_port_manifest(), incomplete)
 
 
 if __name__ == "__main__":

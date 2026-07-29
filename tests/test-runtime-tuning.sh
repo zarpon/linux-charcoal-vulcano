@@ -89,9 +89,13 @@ require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/min_ttl_
 require_line "$root/config-charcoal" "CONFIG_ZRAM_DEF_COMP_LZ4=y"
 require_line "$root/config-charcoal" "# CONFIG_ZRAM_DEF_COMP_ZSTD is not set"
 require_line "$root/config-charcoal" 'CONFIG_ZRAM_DEF_COMP="lz4"'
+require_line "$root/config-charcoal" "CONFIG_CMDLINE_BOOL=y"
+require_line "$root/config-charcoal" 'CONFIG_CMDLINE="amd_pstate.epp_boost=1"'
+require_line "$root/config-charcoal" "# CONFIG_CMDLINE_OVERRIDE is not set"
 require_line "$root/config" "CONFIG_ZRAM_BACKEND_LZ4=y"
 require_line "$root/config" "CONFIG_ZRAM_BACKEND_ZSTD=y"
 require_line "$root/config" "CONFIG_ZRAM_MULTI_COMP=y"
+grep -Fq 'module_param_cb(epp_boost' "$root/6.16.12-amd-pstate-epp-boost-03-core.port.patch" || fail "AMD P-State EPP boost parameter is missing"
 grep -Fq 'zram_recomp_immediate' "$root/0001-linux6.16.12-zram-ir-1.2.patch" || fail "ZRAM-IR sysctl patch is missing"
 grep -Fq '/usr/lib/charcoal/configure-zram-ir' "$root/60-charcoal-zram-ir.rules" || fail "udev helper path is missing"
 grep -Fq 'ACTION=="add"' "$root/60-charcoal-zram-ir.rules" || fail "udev add rule is missing"

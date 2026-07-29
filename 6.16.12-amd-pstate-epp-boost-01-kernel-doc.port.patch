@@ -1,0 +1,38 @@
+From fea53bd131f5b1ce57e5b6015b5a4d2a56f28af9 Mon Sep 17 00:00:00 2001
+From: Charcoal Validation <noreply@localhost>
+Date: Wed, 29 Jul 2026 16:03:11 +0530
+Subject: [PATCH] cpufreq/amd-pstate: Port 1/4 kernel-doc update to Valve 6.16
+
+Valve's 6.16 amd-pstate predates the upstream raw-EPP and platform-profile
+members.  Document the union raw value and the members actually present in
+this older tree, while removing its stale epp_cached kernel-doc entry.
+
+---
+ drivers/cpufreq/amd-pstate.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/cpufreq/amd-pstate.h b/drivers/cpufreq/amd-pstate.h
+index cb45fdca2..ca5aded15 100644
+--- a/drivers/cpufreq/amd-pstate.h
++++ b/drivers/cpufreq/amd-pstate.h
+@@ -31,6 +31,7 @@
+  * @min_limit_perf: Cached value of the performance corresponding to policy->min
+  * @max_limit_perf: Cached value of the performance corresponding to policy->max
+  * @bios_min_perf: Cached perf value corresponding to the "Requested CPU Min Frequency" BIOS option
++ * @val: Raw 64-bit value for atomic access via READ_ONCE()/WRITE_ONCE()
+  */
+ union perf_cached {
+ 	struct {
+@@ -76,8 +77,9 @@ struct amd_aperf_mperf {
+  * @hw_prefcore: check whether HW supports preferred core featue.
+  * 		  Only when hw_prefcore and early prefcore param are true,
+  * 		  AMD P-State driver supports preferred core featue.
+- * @epp_cached: Cached CPPC energy-performance preference value
+  * @policy: Cpufreq policy value
++ * @suspended: Whether the policy is suspended
++ * @epp_default: Default EPP value used at policy initialization
+  *
+  * The amd_cpudata is key private data for each CPU thread in AMD P-State, and
+  * represents all the attributes and goals that AMD P-State requests at runtime.
+--
+2.51.1

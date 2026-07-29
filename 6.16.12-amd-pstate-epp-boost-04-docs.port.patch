@@ -1,0 +1,41 @@
+From 804e3a677932a49288eb436d6e556622269ce35b Mon Sep 17 00:00:00 2001
+From: Charcoal Validation <noreply@localhost>
+Date: Wed, 29 Jul 2026 16:04:55 +0530
+Subject: [PATCH] Documentation: Port 4/4 amd-pstate EPP boost docs to Valve
+ 6.16
+
+Place the new EPP-boost documentation under the active-mode section used by
+Valve's older amd-pstate documentation.
+
+---
+ Documentation/admin-guide/pm/amd-pstate.rst | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/Documentation/admin-guide/pm/amd-pstate.rst b/Documentation/admin-guide/pm/amd-pstate.rst
+index 412423c54..58b260493 100644
+--- a/Documentation/admin-guide/pm/amd-pstate.rst
++++ b/Documentation/admin-guide/pm/amd-pstate.rst
+@@ -356,6 +356,21 @@ then CPPC power algorithm will calculate the runtime workload and adjust the rea
+ cores frequency according to the power supply and thermal, core voltage and some other
+ hardware conditions.
+
++Energy performance preference boosting
++--------------------------------------
++On MSR-based systems running in the ``active mode``, the driver can optionally
++bias the energy performance preference of a recently-busy CPU toward
++performance while leaving all other CPUs at the policy value. C0 residency is
++sampled at most every 10 ms; while a CPU has been at least 50% busy within the
++last 300 ms, the EPP field of its CPPC request is set to ``performance`` (0).
++The policy value is restored once 300 ms pass without a busy sample.
++
++This behavior is disabled by default. It can be enabled with the module
++parameter ``amd_pstate.epp_boost=1`` on the kernel command line, or at runtime
++by writing ``1`` to ``/sys/module/amd_pstate/parameters/epp_boost``. The
++mechanism only runs while the parameter is enabled and has no effect in the
++``passive`` and ``guided`` modes or on shared-memory (non-MSR) systems.
++
+ Passive Mode
+ ------------
+
+--
+2.51.1
