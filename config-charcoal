@@ -13,9 +13,14 @@ CONFIG_CPU_SUP_HYGON=n
 CONFIG_CPU_SUP_CENTAUR=n
 CONFIG_CPU_SUP_ZHAOXIN=n
 
-# Enable AMD P-State active (EPP) mode by default
+# Enable AMD P-State active (EPP) mode and per-core EPP boost by default.
+# Keep boot-loader arguments active so amd_pstate.epp_boost=0 remains an
+# explicit user opt-out.
 CONFIG_X86_AMD_PSTATE=y
 CONFIG_X86_AMD_PSTATE_DEFAULT_MODE=3
+CONFIG_CMDLINE_BOOL=y
+CONFIG_CMDLINE="amd_pstate.epp_boost=1"
+# CONFIG_CMDLINE_OVERRIDE is not set
 
 # Enable lru_marie 
 CONFIG_LRU_MARIE=y
