@@ -72,6 +72,14 @@ def validate_record(name: str, spec: dict[str, Any], record: dict[str, Any]) -> 
         upstream = record.get("upstream")
         if not isinstance(upstream, dict):
             raise ValidationError(f"{name}: local port has no upstream lock")
+        if kind == "http_patch":
+            if not upstream.get("repository") or not upstream.get("path") or not upstream.get("url"):
+                raise ValidationError(f"{name}: local HTTP port has incomplete upstream metadata")
+            digest = upstream.get("sha256")
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValidationError(f"{name}: local HTTP port has invalid upstream SHA-256")
+            if not isinstance(upstream.get("size"), int) or upstream["size"] <= 0:
+                raise ValidationError(f"{name}: local HTTP port has invalid upstream size")
         if spec.get("project_version_regex") and not expected_version:
             raise ValidationError(
                 f"{name}: versioned local port must declare local_port_project_version"

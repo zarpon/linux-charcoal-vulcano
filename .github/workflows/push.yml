@@ -83,6 +83,10 @@ jobs:
           grep -Fq 'latest-adios.patch' PKGBUILD
           grep -Fq 'latest-lru_marie.patch' PKGBUILD
           grep -Fq 'latest-zram-ir.patch' PKGBUILD
+          grep -Fq 'latest-amd-pstate-epp-boost-01-kernel-doc.patch' PKGBUILD
+          grep -Fq 'latest-amd-pstate-epp-boost-02-cache-order.patch' PKGBUILD
+          grep -Fq 'latest-amd-pstate-epp-boost-03-core.patch' PKGBUILD
+          grep -Fq 'latest-amd-pstate-epp-boost-04-docs.patch' PKGBUILD
           grep -Fq 'latest-poc-selector.patch' PKGBUILD
           grep -Fq 'latest-nap.patch' PKGBUILD
           grep -Fq 'latest-bore.patch' PKGBUILD

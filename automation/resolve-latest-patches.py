@@ -12,6 +12,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -246,7 +248,40 @@ def upstream_candidates(
 
 
 def looks_like_patch(data: bytes) -> bool:
-    return bool(data) and data.startswith((b"From ", b"From:", b"diff --git", b"--- "))
+    return bool(data) and data.startswith(
+        (b"From ", b"From:", b"diff --git", b"--- ", b"---\n")
+    )
+
+
+def decode_mailbox_patch(data: bytes) -> bytes:
+    """Extract the patch payload from a MIME-encoded mailing-list message."""
+    message = BytesParser(policy=policy.default).parsebytes(data)
+    part = message.get_body(preferencelist=("plain",)) or message
+    payload = part.get_payload(decode=True)
+    if payload is None:
+        content = part.get_content()
+        if isinstance(content, bytes):
+            payload = content
+        elif isinstance(content, str):
+            payload = content.encode(part.get_content_charset() or "utf-8")
+        else:
+            raise ResolveError("mailbox body is not text")
+
+    payload = payload.replace(b"\r\n", b"\n")
+    if payload.startswith(b"---\n"):
+        patch = payload
+    else:
+        separator = payload.find(b"\n---\n")
+        if separator < 0:
+            raise ResolveError("mailbox body does not contain a patch separator")
+        patch = payload[separator + 1 :]
+
+    trailer = patch.find(b"\n-- \n")
+    if trailer >= 0:
+        patch = patch[:trailer]
+    if not looks_like_patch(patch):
+        raise ResolveError("decoded mailbox body is not a patch")
+    return patch
 
 
 def resolve_github_component(
@@ -403,7 +438,7 @@ def resolve_github_component(
 
 
 def resolve_http_component(
-    spec: dict[str, Any], kernel_version: str, token: str | None
+    spec: dict[str, Any], kernel_version: str, token: str | None, root: Path
 ) -> dict[str, Any]:
     series = ".".join(kernel_version.split(".")[:2])
     errors: list[str] = []
@@ -411,16 +446,55 @@ def resolve_http_component(
         url = str(template).format(kernel_version=kernel_version, series=series)
         try:
             data = request_bytes(url, token)
+            if spec.get("mailbox"):
+                data = decode_mailbox_patch(data)
             if not looks_like_patch(data):
                 raise ResolveError("response is not a patch")
-            return {
+            upstream = {
                 "repository": spec.get("repository", url),
                 "path": spec.get("path"),
                 "commit": spec.get("commit"),
                 "url": url,
-                "origin": "upstream-fixed",
                 "selection": "first-valid",
-                "content_bytes": data,
+            }
+            local_port = spec.get("local_port")
+            if not local_port:
+                return {
+                    **upstream,
+                    "origin": "upstream-fixed",
+                    "content_bytes": data,
+                }
+
+            path = root / str(local_port)
+            local_data = path.read_bytes() if path.is_file() else b""
+            if not local_data or not looks_like_patch(local_data):
+                raise ResolveError(f"local port is missing or invalid: {local_port}")
+
+            official_sha = hashlib.sha256(data).hexdigest()
+            expected_sha = spec.get("local_port_upstream_sha256")
+            if not expected_sha:
+                raise ResolveError(
+                    f"unversioned local port for {spec['name']} must declare "
+                    "local_port_upstream_sha256"
+                )
+            if official_sha != expected_sha:
+                raise ResolveError(
+                    f"local port for {spec['name']} follows upstream SHA-256 "
+                    f"{expected_sha}, but current upstream is {official_sha}; "
+                    "refresh and validate the port"
+                )
+
+            upstream |= {"sha256": official_sha, "size": len(data)}
+            return {
+                "repository": "zarpon/linux-charcoal-vulcano",
+                "path": str(local_port),
+                "commit": "repository-local",
+                "url": None,
+                "origin": "local-port",
+                "selection": "first-valid-port",
+                "upstream": upstream,
+                "local_port_overlays": [],
+                "content_bytes": local_data,
             }
         except ResolveError as exc:
             errors.append(f"{url}: {exc}")
@@ -434,7 +508,7 @@ def resolve_component(
     if kind == "github_tree":
         return resolve_github_component(spec, kernel_version, token, root)
     if kind == "http_patch":
-        return resolve_http_component(spec, kernel_version, token)
+        return resolve_http_component(spec, kernel_version, token, root)
     raise ResolveError(f"unknown component kind {kind!r} for {spec['name']}")
 
 
@@ -518,12 +592,21 @@ def validate_manifest(manifest: dict[str, Any]) -> dict[str, list[dict[str, Any]
     for item in all_components:
         local_port = item.get("local_port")
         adaptive_port = item.get("adaptive_port")
+        kind = item.get("kind", "github_tree")
         if local_port and adaptive_port:
             raise ResolveError(
                 f"{item['name']}: local_port and adaptive_port are mutually exclusive"
             )
+        if item.get("mailbox") and kind != "http_patch":
+            raise ResolveError(f"{item['name']}: mailbox decoding requires http_patch")
+        if kind == "http_patch" and local_port and not item.get(
+            "local_port_upstream_sha256"
+        ):
+            raise ResolveError(
+                f"{item['name']}: local http port requires local_port_upstream_sha256"
+            )
         if adaptive_port and (
-            item.get("kind", "github_tree") != "github_tree"
+            kind != "github_tree"
             or not isinstance(adaptive_port, str)
             or not adaptive_port
         ):
