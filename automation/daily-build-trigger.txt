@@ -1,0 +1,4 @@
+Daily full kernel build trigger.
+
+Last requested build: 2026-08-01T09:30:00-03:00
+Source: scheduled maintenance workflow
