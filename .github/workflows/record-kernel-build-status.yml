@@ -1,0 +1,78 @@
+name: Record Charcoal kernel build status
+
+on:
+  workflow_run:
+    workflows:
+      - Build latest SteamOS Charcoal kernel
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    if: >-
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Write machine-readable build result
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVENT_NAME: ${{ github.event.workflow_run.event }}
+          STATUS: ${{ github.event.workflow_run.status }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
+          HTML_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p automation
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          data = {
+              "workflow": os.environ["WORKFLOW_NAME"],
+              "run_id": int(os.environ["RUN_ID"]),
+              "run_number": int(os.environ["RUN_NUMBER"]),
+              "run_attempt": int(os.environ["RUN_ATTEMPT"]),
+              "event": os.environ["EVENT_NAME"],
+              "status": os.environ["STATUS"],
+              "conclusion": os.environ["CONCLUSION"],
+              "head_sha": os.environ["HEAD_SHA"],
+              "head_branch": os.environ["HEAD_BRANCH"],
+              "created_at": os.environ["CREATED_AT"],
+              "updated_at": os.environ["UPDATED_AT"],
+              "html_url": os.environ["HTML_URL"],
+          }
+          Path("automation/last-build-status.json").write_text(
+              json.dumps(data, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Commit result without starting another build
+        run: |
+          set -Eeuo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add automation/last-build-status.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'ci: record kernel build status [skip ci]'
+          git push origin HEAD:master
