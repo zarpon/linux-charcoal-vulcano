@@ -5,10 +5,16 @@ on:
     workflows:
       - Build latest SteamOS Charcoal kernel
     types:
+      - requested
+      - in_progress
       - completed
 
 permissions:
   contents: write
+
+concurrency:
+  group: record-charcoal-build-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
 
 jobs:
   record:
