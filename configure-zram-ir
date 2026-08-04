@@ -23,16 +23,17 @@ log_notice() {
   fi
 }
 
-# ZRAM-IR's value 1 makes the write path try priority 0 and priority 1.
-# The kernel patch defaults it to 1, but this reasserts it whenever zram appears
+# ZRAM-IR's value 2 makes the write path try priority 0, priority 1, and
+# priority 2. The kernel patch defaults it to 2, but this reasserts it whenever
+# zram appears
 # after an early systemd-sysctl pass that ran before the module was loaded.
 if [ -w "$proc_sys_root/vm/zram_recomp_immediate" ]; then
-  printf '%s\n' 1 > "$proc_sys_root/vm/zram_recomp_immediate"
+  printf '%s\n' 2 > "$proc_sys_root/vm/zram_recomp_immediate"
 fi
 
 # Compressor choice is immutable after the zram disksize is set. The packaged
-# zram-generator drop-in configures LZ4 and ZSTD before that point; this
-# fallback must preserve a live device rather than resetting active swap.
+# zram-generator drop-in configures LZ4, LZO-RLE, and ZSTD before that point;
+# this fallback must preserve a live device rather than resetting active swap.
 if [ "$(cat "$sys/initstate" 2>/dev/null || printf 1)" != 0 ]; then
   log_notice "$name already initialized; preserving its active compressor setup"
   exit 0
@@ -43,25 +44,19 @@ if [ ! -w "$sys/comp_algorithm" ] || ! grep -qw lz4 "$sys/comp_algorithm"; then
   exit 0
 fi
 
-if [ ! -w "$sys/recomp_algorithm" ] || ! grep -qw zstd "$sys/recomp_algorithm"; then
+if [ ! -w "$sys/recomp_algorithm" ] || ! grep -qw lzo-rle "$sys/recomp_algorithm"; then
+  log_notice "$name does not expose lzo-rle recompression; ZRAM-IR setup skipped"
+  exit 0
+fi
+
+if ! grep -qw zstd "$sys/recomp_algorithm"; then
   log_notice "$name does not expose zstd recompression; ZRAM-IR setup skipped"
   exit 0
 fi
 
 printf '%s\n' lz4 > "$sys/comp_algorithm"
-printf '%s\n' 'algo=zstd priority=1' > "$sys/recomp_algorithm"
-
-# `recomp_algorithm` selects the secondary slot; its tunables are configured
-# separately through algorithm_params.  Keep ZSTD at level 4 only for the
-# priority-1 recompressor, leaving the latency-sensitive LZ4 primary path
-# unchanged.
-if [ -w "$sys/algorithm_params" ]; then
-  printf '%s\n' 'priority=1 level=4' > "$sys/algorithm_params"
-else
-  # Keep the existing LZ4 -> ZSTD setup functional on an older kernel that
-  # lacks per-algorithm parameters, rather than resetting an active device.
-  log_notice "$name does not expose algorithm_params; zstd uses its kernel default level"
-fi
+printf '%s\n' 'algo=lzo-rle priority=1' > "$sys/recomp_algorithm"
+printf '%s\n' 'algo=zstd priority=2' > "$sys/recomp_algorithm"
 
 # Real sysfs shows the active algorithm in brackets. Accept the write form too
 # so the exact same helper can be tested against regular files in CI.
@@ -74,4 +69,4 @@ is_selected() {
 is_selected lz4 "$sys/comp_algorithm"
 is_selected zstd "$sys/recomp_algorithm"
 
-log_notice "$name configured for ZRAM-IR: lz4 priority 0 -> zstd priority 1 level 4"
+log_notice "$name configured for ZRAM-IR: lz4 priority 0 -> lzo-rle priority 1 -> zstd priority 2 level 1"

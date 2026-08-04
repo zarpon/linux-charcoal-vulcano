@@ -29,7 +29,7 @@ bash -n "$root/PKGBUILD"
 sh -n "$helper"
 
 require_line "$zram_generator_dropin" "[zram0]"
-require_line "$zram_generator_dropin" "compression-algorithm = lz4 zstd"
+require_line "$zram_generator_dropin" "compression-algorithm = lz4 lzo-rle zstd"
 require_line "$zram_setup_dropin" "[Service]"
 require_line "$zram_setup_dropin" "ExecStartPre=/usr/lib/charcoal/configure-zram-ir %I"
 
@@ -53,7 +53,7 @@ parser.read_string(base)
 parser.read(sys.argv[1], encoding="utf-8")
 
 zram0 = parser["zram0"]
-assert zram0["compression-algorithm"] == "lz4 zstd"
+assert zram0["compression-algorithm"] == "lz4 lzo-rle zstd"
 assert zram0["zram-size"] == "ram/2"
 assert zram0["swap-priority"] == "100"
 assert zram0["fs-type"] == "swap"
@@ -69,7 +69,7 @@ require_line "$root/99-charcoal-sysctl.conf" "kernel.split_lock_mitigate=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_background_bytes=209715200"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_bytes=409430400"
 require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=125"
-require_line "$root/99-charcoal-sysctl.conf" "-vm.zram_recomp_immediate=1"
+require_line "$root/99-charcoal-sysctl.conf" "-vm.zram_recomp_immediate=2"
 
 require_line "$root/99-charcoal-gaming.conf" "MESA_SHADER_CACHE_MAX_SIZE=10G"
 require_line "$root/99-charcoal-gaming.conf" "MESA_DISK_CACHE_DATABASE=1"
@@ -94,14 +94,22 @@ require_line "$root/config-charcoal" 'CONFIG_CMDLINE="amd_pstate.epp_boost=1"'
 require_line "$root/config-charcoal" "# CONFIG_CMDLINE_OVERRIDE is not set"
 require_line "$root/config" "CONFIG_ZRAM_BACKEND_LZ4=y"
 require_line "$root/config" "CONFIG_ZRAM_BACKEND_ZSTD=y"
+require_line "$root/config" "CONFIG_ZRAM_BACKEND_LZO=y"
 require_line "$root/config" "CONFIG_ZRAM_MULTI_COMP=y"
 grep -Fq 'module_param_cb(epp_boost' "$root/6.16.12-amd-pstate-epp-boost-03-core.port.patch" || fail "AMD P-State EPP boost parameter is missing"
 grep -Fq 'zram_recomp_immediate' "$root/0001-linux6.16.12-zram-ir-1.2.patch" || fail "ZRAM-IR sysctl patch is missing"
+grep -Fq 'sysctl_zram_recomp_immediate = 2' "$root/0001-linux6.16.12-zram-ir-1.2.patch" || fail "ZRAM-IR does not try both recompressors"
+grep -Fq 'params->level = 1' "$root/0001-linux6.16.12-zram-ir-1.2.patch" || fail "kernel ZSTD default level is not fixed at 1"
+grep -Eq '^-.*if \(params->level == ZCOMP_PARAM_NOT_SET\)' "$root/0001-linux6.16.12-zram-ir-1.2.patch" \
+  || fail "kernel ZSTD level still permits an algorithm_params override"
 grep -Fq '/usr/lib/charcoal/configure-zram-ir' "$root/60-charcoal-zram-ir.rules" || fail "udev helper path is missing"
 grep -Fq 'ACTION=="add"' "$root/60-charcoal-zram-ir.rules" || fail "udev add rule is missing"
 grep -Fq 'ACTION=="change"' "$root/60-charcoal-zram-ir.rules" || fail "udev change rule is missing"
-grep -Fq 'algo=zstd priority=1' "$helper" || fail "zstd priority-1 setup is missing"
-grep -Fq 'priority=1 level=4' "$helper" || fail "zstd level-4 setup is missing"
+grep -Fq 'algo=lzo-rle priority=1' "$helper" || fail "lzo-rle priority-1 setup is missing"
+grep -Fq 'algo=zstd priority=2' "$helper" || fail "zstd priority-2 setup is missing"
+if grep -Fq 'algorithm_params' "$helper"; then
+  fail "userspace algorithm_params must not control the ZSTD level"
+fi
 grep -Fq 'lz4 > "$sys/comp_algorithm"' "$helper" || fail "lz4 primary setup is missing"
 
 for package_path in \
@@ -128,9 +136,8 @@ done
 # Exercise the exact helper against regular files standing in for sysfs/procfs.
 mkdir -p "$sandbox/sys/block/zram0" "$sandbox/proc/sys/vm" "$sandbox/bin"
 printf '0\n' > "$sandbox/sys/block/zram0/initstate"
-printf 'zstd lz4\n' > "$sandbox/sys/block/zram0/comp_algorithm"
-printf 'zstd lz4\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
-printf '\n' > "$sandbox/sys/block/zram0/algorithm_params"
+printf 'zstd lzo-rle lz4\n' > "$sandbox/sys/block/zram0/comp_algorithm"
+printf 'zstd lzo-rle lz4\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
 printf '0\n' > "$sandbox/proc/sys/vm/zram_recomp_immediate"
 printf '#!/bin/sh\nexit 0\n' > "$sandbox/bin/logger"
 chmod +x "$sandbox/bin/logger"
@@ -139,38 +146,35 @@ PATH="$sandbox/bin:$PATH" \
   CHARCOAL_SYS_ROOT="$sandbox/sys" \
   CHARCOAL_PROC_SYS_ROOT="$sandbox/proc/sys" \
   sh "$helper" zram0
-require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "1"
+require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "2"
 require_value "$sandbox/sys/block/zram0/comp_algorithm" "lz4"
-require_value "$sandbox/sys/block/zram0/recomp_algorithm" "algo=zstd priority=1"
-require_value "$sandbox/sys/block/zram0/algorithm_params" "priority=1 level=4"
+require_value "$sandbox/sys/block/zram0/recomp_algorithm" "algo=zstd priority=2"
 
 # Older kernels may lack algorithm_params. The helper must keep the established
-# LZ4 -> ZSTD setup working instead of failing or resetting ZRAM.
+# LZ4 -> LZO-RLE -> ZSTD setup working instead of failing or resetting ZRAM.
 mkdir -p "$sandbox/sys/block/zram1"
 printf '0\n' > "$sandbox/sys/block/zram1/initstate"
-printf 'zstd lz4\n' > "$sandbox/sys/block/zram1/comp_algorithm"
-printf 'zstd lz4\n' > "$sandbox/sys/block/zram1/recomp_algorithm"
+printf 'zstd lzo-rle lz4\n' > "$sandbox/sys/block/zram1/comp_algorithm"
+printf 'zstd lzo-rle lz4\n' > "$sandbox/sys/block/zram1/recomp_algorithm"
 PATH="$sandbox/bin:$PATH" \
   CHARCOAL_SYS_ROOT="$sandbox/sys" \
   CHARCOAL_PROC_SYS_ROOT="$sandbox/proc/sys" \
   sh "$helper" zram1
 require_value "$sandbox/sys/block/zram1/comp_algorithm" "lz4"
-require_value "$sandbox/sys/block/zram1/recomp_algorithm" "algo=zstd priority=1"
+require_value "$sandbox/sys/block/zram1/recomp_algorithm" "algo=zstd priority=2"
 
 # A later udev change event must reassert the sysctl but leave active swap alone.
 printf '1\n' > "$sandbox/sys/block/zram0/initstate"
 printf 'already-active-primary\n' > "$sandbox/sys/block/zram0/comp_algorithm"
 printf 'already-active-secondary\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
-printf 'already-active-parameters\n' > "$sandbox/sys/block/zram0/algorithm_params"
 printf '0\n' > "$sandbox/proc/sys/vm/zram_recomp_immediate"
 PATH="$sandbox/bin:$PATH" \
   CHARCOAL_SYS_ROOT="$sandbox/sys" \
   CHARCOAL_PROC_SYS_ROOT="$sandbox/proc/sys" \
   sh "$helper" zram0
-require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "1"
+require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "2"
 require_value "$sandbox/sys/block/zram0/comp_algorithm" "already-active-primary"
 require_value "$sandbox/sys/block/zram0/recomp_algorithm" "already-active-secondary"
-require_value "$sandbox/sys/block/zram0/algorithm_params" "already-active-parameters"
 
 # Have systemd parse and apply the shipped tmpfiles payload in an isolated root.
 if command -v systemd-tmpfiles >/dev/null 2>&1; then
