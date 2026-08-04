@@ -34,7 +34,7 @@ patches usados.
 | Componente | O que é aplicado no Charcoal |
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Habilita o caminho de recuperação de memória LRU Marie (`CONFIG_LRU_MARIE=y`). |
-| [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. Um *drop-in* do `zram-generator` incluído substitui a configuração primária `zstd` do SteamOS antes da inicialização de `zram0`: LZ4 é o compressor primário e ZSTD é a recompressão de prioridade `1`. Um `ExecStartPre` de `systemd-zram-setup@` executa a mesma configuração antes de `disksize`, tornando o comportamento determinístico mesmo se uma versão antiga do generator não configurar algoritmos secundários. O helper udev reafirma o sysctl e fornece um fallback seguro; ele nunca redefine um dispositivo inicializado ou swap ativo e não cria um dispositivo zram adicional. |
+| [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. Um *drop-in* do `zram-generator` incluído substitui a configuração primária `zstd` do SteamOS antes da inicialização de `zram0`: LZ4 é o compressor primário e ZSTD é a recompressão de prioridade `1` no nível `4`. Um `ExecStartPre` de `systemd-zram-setup@` seleciona esse slot secundário e define seu nível pelo `algorithm_params` do ZRAM antes de `disksize`, tornando o comportamento determinístico mesmo se uma versão antiga do generator não configurar algoritmos secundários. O helper udev reafirma o sysctl e fornece um fallback seguro; ele nunca redefine um dispositivo inicializado ou swap ativo e não cria um dispositivo zram adicional. |
 | [RFC AMD P-State: boost EPP por núcleo](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Porta os quatro patches para Valve 6.16.12: limpeza de kernel-doc, ordenação do cache de requisições CPPC, boost EPP por núcleo recentemente ocupado e documentação. O Charcoal ativa `amd_pstate.epp_boost=1` em sua linha de comando interna por padrão; ele só atua no modo ativo baseado em MSR e pode ser desativado explicitamente com `amd_pstate.epp_boost=0` nos argumentos do boot loader. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adiciona o escalonador Adaptive Deadline I/O Scheduler e o torna o escalonador MQ de I/O padrão. A regra udev instalada também seleciona `adios` para dispositivos de bloco compatíveis, exceto dispositivos loop e zram. |
 | [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Habilita o escalonador de CPU Burst-Oriented Response Enhancer (`CONFIG_SCHED_BORE=y`) por meio do porte revisado para o Valve 6.16.12 do patch BORE 6.18 oficial mais recente. |
@@ -126,7 +126,7 @@ uname -a  # deve conter "charcoal"
 
 O instalador intencionalmente não redefine o swap zram que já está ativo, pois
 o kernel não permite trocar o compressor após a inicialização. O compressor
-primário LZ4 e o recompressor ZSTD de prioridade `1` entram em vigor no
+primário LZ4 e o recompressor ZSTD de prioridade `1` no nível `4` entram em vigor no
 primeiro boot com o Charcoal. Após esse boot, confirme:
 
 ```bash
@@ -135,7 +135,8 @@ cat /sys/block/zram0/recomp_algorithm
 ```
 
 `[lz4]` indica o compressor primário selecionado. Em `recomp_algorithm`, o
-ZSTD aparece na linha de prioridade `1`.
+ZSTD aparece na linha de prioridade `1`; o helper define o nível de compressão
+`4` desse slot por meio de `algorithm_params` antes da inicialização do ZRAM.
 
 Também é possível ver a versão do kernel no modo Jogo em
 **Configurações → Sistema**.
