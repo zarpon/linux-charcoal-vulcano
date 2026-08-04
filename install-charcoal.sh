@@ -336,7 +336,7 @@ main() {
   _update_grub
 
   info "Charcoal ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
-  info "ZRAM switches to LZ4 with ZSTD priority-1 recompression after booting Charcoal; the active swap is not reset during installation."
+  info "ZRAM switches to LZ4 with ZSTD level-4 priority-1 recompression after booting Charcoal; the active swap is not reset during installation."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

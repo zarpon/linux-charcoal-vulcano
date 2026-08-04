@@ -101,6 +101,7 @@ grep -Fq '/usr/lib/charcoal/configure-zram-ir' "$root/60-charcoal-zram-ir.rules"
 grep -Fq 'ACTION=="add"' "$root/60-charcoal-zram-ir.rules" || fail "udev add rule is missing"
 grep -Fq 'ACTION=="change"' "$root/60-charcoal-zram-ir.rules" || fail "udev change rule is missing"
 grep -Fq 'algo=zstd priority=1' "$helper" || fail "zstd priority-1 setup is missing"
+grep -Fq 'priority=1 level=4' "$helper" || fail "zstd level-4 setup is missing"
 grep -Fq 'lz4 > "$sys/comp_algorithm"' "$helper" || fail "lz4 primary setup is missing"
 
 for package_path in \
@@ -129,6 +130,7 @@ mkdir -p "$sandbox/sys/block/zram0" "$sandbox/proc/sys/vm" "$sandbox/bin"
 printf '0\n' > "$sandbox/sys/block/zram0/initstate"
 printf 'zstd lz4\n' > "$sandbox/sys/block/zram0/comp_algorithm"
 printf 'zstd lz4\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
+printf '\n' > "$sandbox/sys/block/zram0/algorithm_params"
 printf '0\n' > "$sandbox/proc/sys/vm/zram_recomp_immediate"
 printf '#!/bin/sh\nexit 0\n' > "$sandbox/bin/logger"
 chmod +x "$sandbox/bin/logger"
@@ -140,11 +142,26 @@ PATH="$sandbox/bin:$PATH" \
 require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "1"
 require_value "$sandbox/sys/block/zram0/comp_algorithm" "lz4"
 require_value "$sandbox/sys/block/zram0/recomp_algorithm" "algo=zstd priority=1"
+require_value "$sandbox/sys/block/zram0/algorithm_params" "priority=1 level=4"
+
+# Older kernels may lack algorithm_params. The helper must keep the established
+# LZ4 -> ZSTD setup working instead of failing or resetting ZRAM.
+mkdir -p "$sandbox/sys/block/zram1"
+printf '0\n' > "$sandbox/sys/block/zram1/initstate"
+printf 'zstd lz4\n' > "$sandbox/sys/block/zram1/comp_algorithm"
+printf 'zstd lz4\n' > "$sandbox/sys/block/zram1/recomp_algorithm"
+PATH="$sandbox/bin:$PATH" \
+  CHARCOAL_SYS_ROOT="$sandbox/sys" \
+  CHARCOAL_PROC_SYS_ROOT="$sandbox/proc/sys" \
+  sh "$helper" zram1
+require_value "$sandbox/sys/block/zram1/comp_algorithm" "lz4"
+require_value "$sandbox/sys/block/zram1/recomp_algorithm" "algo=zstd priority=1"
 
 # A later udev change event must reassert the sysctl but leave active swap alone.
 printf '1\n' > "$sandbox/sys/block/zram0/initstate"
 printf 'already-active-primary\n' > "$sandbox/sys/block/zram0/comp_algorithm"
 printf 'already-active-secondary\n' > "$sandbox/sys/block/zram0/recomp_algorithm"
+printf 'already-active-parameters\n' > "$sandbox/sys/block/zram0/algorithm_params"
 printf '0\n' > "$sandbox/proc/sys/vm/zram_recomp_immediate"
 PATH="$sandbox/bin:$PATH" \
   CHARCOAL_SYS_ROOT="$sandbox/sys" \
@@ -153,6 +170,7 @@ PATH="$sandbox/bin:$PATH" \
 require_value "$sandbox/proc/sys/vm/zram_recomp_immediate" "1"
 require_value "$sandbox/sys/block/zram0/comp_algorithm" "already-active-primary"
 require_value "$sandbox/sys/block/zram0/recomp_algorithm" "already-active-secondary"
+require_value "$sandbox/sys/block/zram0/algorithm_params" "already-active-parameters"
 
 # Have systemd parse and apply the shipped tmpfiles payload in an isolated root.
 if command -v systemd-tmpfiles >/dev/null 2>&1; then
