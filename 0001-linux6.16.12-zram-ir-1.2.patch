@@ -4,7 +4,7 @@ Date: Sun, 19 Jul 2026 09:52:00 -0300
 Subject: [PATCH] linux6.16.12-zram-ir-1.2 port
 
 ---
- drivers/block/zram/backend_zstd.c | set the ZRAM ZSTD default to level 1
+ drivers/block/zram/backend_zstd.c | force ZRAM ZSTD to --fast=1
  drivers/block/zram/zram_drv.c     | port for SteamOS 6.16.12
  2 files changed
 
@@ -15,7 +15,7 @@ Subject: [PATCH] linux6.16.12-zram-ir-1.2 port
  				 u32 index);
  
 +#ifdef CONFIG_ZRAM_MULTI_COMP
-+u8 __read_mostly sysctl_zram_recomp_immediate = 2;
++u8 __read_mostly sysctl_zram_recomp_immediate = 1;
 +
 +static const struct ctl_table zram_sysctl_table[] = {
 +	{
@@ -185,6 +185,7 @@ diff --git a/drivers/block/zram/backend_zstd.c b/drivers/block/zram/backend_zstd
 @@ -61,2 +61 @@
 -	if (params->level == ZCOMP_PARAM_NOT_SET)
 -		params->level = zstd_default_clevel();
-+	params->level = 1;
++	/* Zstd CLI --fast=1 maps to compression level -1. */
++	params->level = -1;
 -- 
 2.34.1
