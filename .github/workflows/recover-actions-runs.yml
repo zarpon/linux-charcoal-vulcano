@@ -1,0 +1,58 @@
+name: Recover stuck Actions runs
+
+on:
+  push:
+    branches:
+      - automation/recover-actions-queue-20260806
+    paths:
+      - '.github/workflows/recover-actions-runs.yml'
+      - 'automation/recover-actions-runs.py'
+      - 'tests/test-recover-actions-runs.py'
+      - 'automation/actions-recovery-trigger.txt'
+  workflow_dispatch:
+    inputs:
+      run_ids:
+        description: Optional comma-separated workflow run IDs
+        required: false
+        default: ''
+        type: string
+      stale_minutes:
+        description: Minimum age before attempting deletion
+        required: true
+        default: '60'
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out recovery code
+        uses: actions/checkout@v4
+
+      - name: Validate recovery code
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile automation/recover-actions-runs.py tests/test-recover-actions-runs.py
+          python3 -m unittest -v tests/test-recover-actions-runs.py
+
+      - name: Recover non-terminal runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_IDS: ${{ inputs.run_ids }}
+          INPUT_STALE_MINUTES: ${{ inputs.stale_minutes }}
+        run: |
+          set -Eeuo pipefail
+          stale_minutes="${INPUT_STALE_MINUTES:-60}"
+          args=(
+            --include-all-active
+            --stale-minutes "$stale_minutes"
+          )
+          if [[ -n "${INPUT_RUN_IDS:-}" ]]; then
+            args+=(--run-id "$INPUT_RUN_IDS")
+          fi
+          python3 automation/recover-actions-runs.py "${args[@]}"
