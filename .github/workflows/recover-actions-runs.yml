@@ -3,6 +3,7 @@ name: Recover stuck Actions runs
 on:
   push:
     branches:
+      - master
       - automation/recover-actions-queue-20260806
     paths:
       - '.github/workflows/recover-actions-runs.yml'
