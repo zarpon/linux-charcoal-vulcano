@@ -19,9 +19,11 @@ on:
 permissions:
   contents: write
 
+# Each execution gets its own group. Stale runs cannot block newer builds,
+# and GitHub does not need to cancel a previous run before scheduling the next.
 concurrency:
-  group: charcoal-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: charcoal-${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   build-kernel:
