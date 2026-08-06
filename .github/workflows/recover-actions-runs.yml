@@ -8,7 +8,9 @@ on:
     paths:
       - '.github/workflows/recover-actions-runs.yml'
       - 'automation/recover-actions-runs.py'
+      - 'automation/harden-actions-workflow.py'
       - 'tests/test-recover-actions-runs.py'
+      - 'tests/test-harden-actions-workflow.py'
       - 'automation/actions-recovery-trigger.txt'
   pull_request:
     branches:
@@ -16,8 +18,6 @@ on:
   issue_comment:
     types:
       - created
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       run_ids:
@@ -33,7 +33,7 @@ on:
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 jobs:
   recover:
@@ -47,12 +47,33 @@ jobs:
     steps:
       - name: Check out recovery code
         uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
 
       - name: Validate recovery code
         run: |
           set -Eeuo pipefail
-          python3 -m py_compile automation/recover-actions-runs.py tests/test-recover-actions-runs.py
-          python3 -m unittest -v tests/test-recover-actions-runs.py
+          python3 -m py_compile \
+            automation/recover-actions-runs.py \
+            automation/harden-actions-workflow.py \
+            tests/test-recover-actions-runs.py \
+            tests/test-harden-actions-workflow.py
+          python3 -m unittest -v \
+            tests/test-recover-actions-runs.py \
+            tests/test-harden-actions-workflow.py
+
+      - name: Harden the main build concurrency
+        run: |
+          set -Eeuo pipefail
+          python3 automation/harden-actions-workflow.py .github/workflows/push.yml
+          if ! git diff --quiet -- .github/workflows/push.yml; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/workflows/push.yml
+            git commit -m "ci: isolate kernel build concurrency per run"
+            git push origin HEAD:master
+          fi
 
       - name: Recover non-terminal runs
         env:
