@@ -8,9 +8,7 @@ on:
     paths:
       - '.github/workflows/recover-actions-runs.yml'
       - 'automation/recover-actions-runs.py'
-      - 'automation/harden-actions-workflow.py'
       - 'tests/test-recover-actions-runs.py'
-      - 'tests/test-harden-actions-workflow.py'
       - 'automation/actions-recovery-trigger.txt'
   pull_request:
     branches:
@@ -33,7 +31,7 @@ on:
 
 permissions:
   actions: write
-  contents: write
+  contents: read
 
 jobs:
   recover:
@@ -56,24 +54,8 @@ jobs:
           set -Eeuo pipefail
           python3 -m py_compile \
             automation/recover-actions-runs.py \
-            automation/harden-actions-workflow.py \
-            tests/test-recover-actions-runs.py \
-            tests/test-harden-actions-workflow.py
-          python3 -m unittest -v \
-            tests/test-recover-actions-runs.py \
-            tests/test-harden-actions-workflow.py
-
-      - name: Harden the main build concurrency
-        run: |
-          set -Eeuo pipefail
-          python3 automation/harden-actions-workflow.py .github/workflows/push.yml
-          if ! git diff --quiet -- .github/workflows/push.yml; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add .github/workflows/push.yml
-            git commit -m "ci: isolate kernel build concurrency per run"
-            git push origin HEAD:master
-          fi
+            tests/test-recover-actions-runs.py
+          python3 -m unittest -v tests/test-recover-actions-runs.py
 
       - name: Recover non-terminal runs
         env:
