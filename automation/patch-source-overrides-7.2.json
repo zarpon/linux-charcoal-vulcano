@@ -46,6 +46,15 @@
     }
   },
   "auxiliary_components": {
+    "firmware_name": {
+      "repository": "gentoo/linux-patches",
+      "path": "3000_Support-printing-firmware-info.patch",
+      "commit": "369383f08d147fd98553defeff5423912d34e177",
+      "urls": [
+        "https://gitweb.gentoo.org/proj/linux-patches.git/plain/3000_Support-printing-firmware-info.patch?id=369383f08d147fd98553defeff5423912d34e177",
+        "https://732852.bugs.gentoo.org/attachment.cgi?id=649432"
+      ]
+    },
     "amd_pstate_epp_boost_kernel_doc": {
       "local_port": null,
       "source_regex": "(?:latest-amd-pstate-epp-boost-01-kernel-doc\\.patch|6\\.16\\.12-amd-pstate-epp-boost-01-kernel-doc\\.port\\.patch)"
