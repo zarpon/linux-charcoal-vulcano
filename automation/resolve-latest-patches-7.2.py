@@ -34,6 +34,9 @@ class Resolve72Error(BASE.ResolveError):
     pass
 
 
+CPU_OPTIMIZATIONS_ADAPTER = "cpu-optimizations-6.16plus-to-valve-7.2"
+
+
 def preferred_kernel_tag(config: dict[str, Any], token: str | None) -> tuple[str, str]:
     preferred = str(config.get("preferred_tag", "")).strip()
     if not preferred:
@@ -102,6 +105,97 @@ def kernel_series(manifest: dict[str, Any]) -> str:
     return series
 
 
+def adapt_cpu_optimizations_for_valve_72(data: bytes) -> bytes:
+    """Port the graysky 6.16+ Kconfig tail to Valve's 7.2 Kconfig layout.
+
+    Valve 7.2 made X86_TSC and X86_CX8 unconditional and simplified the
+    X86_MINIMUM_CPU_FAMILY fallback.  The upstream optimization patch still
+    carries 6.16-era context for those symbols, so its final three Kconfig
+    hunks cannot apply even though the processor choices and Makefile changes
+    remain valid.  Replace only that stale Kconfig tail, retaining Valve's
+    broader unconditional semantics while extending the remaining implication
+    lists for the CPU choices introduced by the upstream patch.
+    """
+    marker = re.search(
+        rb"@@ -\d+,\d+ \+\d+,\d+ @@ config X86_INTERNODE_CACHE_SHIFT\n",
+        data,
+    )
+    if not marker:
+        raise Resolve72Error(
+            "CPU optimization adapter could not find the expected 6.16 Kconfig tail"
+        )
+    makefile = data.find(b"diff --git a/arch/x86/Makefile b/arch/x86/Makefile\n", marker.start())
+    if makefile < 0:
+        raise Resolve72Error(
+            "CPU optimization adapter could not find the arch/x86/Makefile diff"
+        )
+
+    stale_tail = data[marker.start():makefile]
+    required = (
+        b'config X86_L1_CACHE_SHIFT',
+        b'config X86_INTEL_USERCOPY',
+        b'config X86_USE_PPRO_CHECKSUM',
+        b'config X86_TSC',
+        b'config X86_HAVE_PAE',
+        b'config X86_CMOV',
+        b'config X86_MINIMUM_CPU_FAMILY',
+    )
+    missing = [token.decode() for token in required if token not in stale_tail]
+    if missing:
+        raise Resolve72Error(
+            "CPU optimization upstream layout changed; refusing an unvalidated port: "
+            + ", ".join(missing)
+        )
+
+    ported_tail = b'''@@ -238,7 +649,7 @@ config X86_L1_CACHE_SHIFT
+ \tint
+-\tdefault "7" if MPENTIUM4
+-\tdefault "6" if MK7 || MPENTIUMM || MATOM || MVIAC7 || X86_GENERIC || X86_64
++\tdefault "7" if MPENTIUM4 || MPSC
++\tdefault "6" if MK7 || MK8 || MPENTIUMM || MCORE2 || MATOM || MVIAC7 || X86_GENERIC || GENERIC_CPU || MK8SSE3 || MK10 || MBARCELONA || MBOBCAT || MJAGUAR || MBULLDOZER || MPILEDRIVER || MSTEAMROLLER || MEXCAVATOR || MZEN || MZEN2 || MZEN3 || MZEN4 || MZEN5 || MNEHALEM || MWESTMERE || MSILVERMONT || MGOLDMONT || MGOLDMONTPLUS || MSANDYBRIDGE || MIVYBRIDGE || MHASWELL || MBROADWELL || MSKYLAKE || MSKYLAKEX || MCANNONLAKE || MICELAKE_CLIENT || MICELAKE_SERVER || MCASCADELAKE || MCOOPERLAKE || MTIGERLAKE || MSAPPHIRERAPIDS || MROCKETLAKE || MALDERLAKE || MRAPTORLAKE || MMETEORLAKE || MEMERALDRAPIDS || MDIAMONDRAPIDS || X86_NATIVE_CPU
+ \tdefault "4" if MGEODEGX1
+ \tdefault "5" if MCRUSOE || MEFFICEON || MCYRIXIII || MK6 || MPENTIUMIII || MPENTIUMII || M686 || M586MMX || M586TSC || MVIAC3_2 || MGEODE_LX
+ 
+@@ -252,18 +663,18 @@ config X86_ALIGNMENT_16
+ 
+ config X86_INTEL_USERCOPY
+ \tdef_bool y
+-\tdepends on MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M586MMX || X86_GENERIC || MK7 || MEFFICEON
++\tdepends on MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M586MMX || X86_GENERIC || MK8 || MK7 || MEFFICEON || MCORE2 || MNEHALEM || MWESTMERE || MSILVERMONT || MGOLDMONT || MGOLDMONTPLUS || MSANDYBRIDGE || MIVYBRIDGE || MHASWELL || MBROADWELL || MSKYLAKE || MSKYLAKEX || MCANNONLAKE || MICELAKE_CLIENT || MICELAKE_SERVER || MCASCADELAKE || MCOOPERLAKE || MTIGERLAKE || MSAPPHIRERAPIDS || MROCKETLAKE || MALDERLAKE || MRAPTORLAKE || MMETEORLAKE || MEMERALDRAPIDS || MDIAMONDRAPIDS
+ 
+ config X86_USE_PPRO_CHECKSUM
+ \tdef_bool y
+-\tdepends on MCYRIXIII || MK7 || MK6 || MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MVIAC3_2 || MVIAC7 || MEFFICEON || MGEODE_LX || MATOM
++\tdepends on MCYRIXIII || MK7 || MK6 || MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MK8 || MVIAC3_2 || MVIAC7 || MEFFICEON || MGEODE_LX || MCORE2 || MATOM || MK8SSE3 || MK10 || MBARCELONA || MBOBCAT || MJAGUAR || MBULLDOZER || MPILEDRIVER || MSTEAMROLLER || MEXCAVATOR || MZEN || MZEN2 || MZEN3 || MZEN4 || MZEN5 || MNEHALEM || MWESTMERE || MSILVERMONT || MGOLDMONT || MGOLDMONTPLUS || MSANDYBRIDGE || MIVYBRIDGE || MHASWELL || MBROADWELL || MSKYLAKE || MSKYLAKEX || MCANNONLAKE || MICELAKE_CLIENT || MICELAKE_SERVER || MCASCADELAKE || MCOOPERLAKE || MTIGERLAKE || MSAPPHIRERAPIDS || MROCKETLAKE || MALDERLAKE || MRAPTORLAKE || MMETEORLAKE || MEMERALDRAPIDS || MDIAMONDRAPIDS
+ 
+ config X86_TSC
+ \tdef_bool y
+ 
+ config X86_HAVE_PAE
+ \tdef_bool y
+-\tdepends on MCRUSOE || MEFFICEON || MCYRIXIII || MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MVIAC7 || MATOM || X86_64
++\tdepends on MCRUSOE || MEFFICEON || MCYRIXIII || MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MK8 || MVIAC7 || MCORE2 || MATOM || X86_64
+ 
+ config X86_CX8
+ \tdef_bool y
+@@ -272,10 +683,10 @@ config X86_CX8
+ # generates cmov.
+ config X86_CMOV
+ \tdef_bool y
+-\tdepends on (MK7 || MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MVIAC3_2 || MVIAC7 || MCRUSOE || MEFFICEON || MATOM || MGEODE_LX || X86_64)
++\tdepends on (MK8 || MK7 || MCORE2 || MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MVIAC3_2 || MVIAC7 || MCRUSOE || MEFFICEON || X86_64 || MATOM || MGEODE_LX)
+ 
+ config X86_MINIMUM_CPU_FAMILY
+ \tint
+ \tdefault "64" if X86_64
+-\tdefault "6" if X86_32 && (MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MVIAC3_2 || MVIAC7 || MEFFICEON || MATOM || MK7)
++\tdefault "6" if X86_32 && (MPENTIUM4 || MPENTIUMM || MPENTIUMIII || MPENTIUMII || M686 || MVIAC3_2 || MVIAC7 || MEFFICEON || MATOM || MCORE2 || MK7 || MK8)
+ \tdefault "5"
+
+'''
+    return data[: marker.start()] + ported_tail + data[makefile:]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", default="logs/patch-sources-7.2.json")
@@ -161,6 +255,15 @@ def main() -> int:
                 data = (root / item["path"]).read_bytes()
             else:
                 data = BASE.request_bytes(item["url"], token)
+
+            if item.get("adapter") == CPU_OPTIMIZATIONS_ADAPTER and not args.fixture:
+                upstream_data = data
+                data = adapt_cpu_optimizations_for_valve_72(upstream_data)
+                item = {
+                    **item,
+                    "upstream_sha256": hashlib.sha256(upstream_data).hexdigest(),
+                }
+
             if not (BASE.looks_like_patch(data) or data.startswith(b"fixture")):
                 raise Resolve72Error(f"patch for {name} does not look valid")
             clean = {
