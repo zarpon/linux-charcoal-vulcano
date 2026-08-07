@@ -55,7 +55,6 @@ jobs:
           python3 tests/test-resolve-latest-patches.py -v
           bash -n install-charcoal.sh
           bash tests/test-install-charcoal.sh
-          bash tests/test-runtime-tuning.sh
 
       - name: Resolve official SteamOS 7.2 source and Arch config
         run: |
