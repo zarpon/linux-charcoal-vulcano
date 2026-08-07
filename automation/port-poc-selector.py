@@ -3,9 +3,10 @@
 
 Native POC sources may place rq::poc_idle_committed next to either the older
 rq::ttwu_pending area or, for the native 7.2 patch, the NO_HZ/UCLAMP area.
-Valve/BORE can move that field context, so this adapter removes only a reviewed
-rq field hunk, inserts the same field at the unique Valve/BORE ttwu_pending
-anchor, and adds Valve's CONFIG_SMP context to the select_idle_sibling hunk.
+For native 7.2, this adapter preserves that upstream placement and strictly
+rebases the hunk against the post-BORE source. Only reviewed older layouts use
+the explicit ttwu_pending relocation. The adapter also adds Valve's CONFIG_SMP
+context to the select_idle_sibling hunk.
 The resolver locks the exact source bytes, commit, path and SHA-256 for every
 build; this adapter rejects unreviewed source shapes instead of silently using
 a port intended for another kernel line.
@@ -182,6 +183,13 @@ def insert_sched_hunk(text: str, header: str) -> str:
     return text[:first_hunk] + header + text[first_hunk:]
 
 
+def is_native_72_sched_context(body: str) -> bool:
+    return bool(
+        NATIVE_72_NOHZ_CONTEXT_RE.search(body)
+        and NATIVE_72_UCLAMP_CONTEXT_RE.search(body)
+    )
+
+
 def reviewed_sched_field_hunk(
     text: str, section_start: int, section_end: int
 ) -> tuple[int, int, str]:
@@ -195,10 +203,7 @@ def reviewed_sched_field_hunk(
         body = text[header_end + 1 : hunk_end]
         if EXPECTED_ADDITIONS in body:
             legacy_context = bool(TTWU_CONTEXT_RE.search(body))
-            native_72_context = bool(
-                NATIVE_72_NOHZ_CONTEXT_RE.search(body)
-                and NATIVE_72_UCLAMP_CONTEXT_RE.search(body)
-            )
+            native_72_context = is_native_72_sched_context(body)
             if body.count("poc_idle_committed") != 1 or not (
                 legacy_context or native_72_context
             ):
@@ -216,14 +221,33 @@ def adapt_patch(
     text: str, fair_source: str | None = None, sched_header: str | None = None
 ) -> str:
     section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
-    hunk, next_hunk, _ = reviewed_sched_field_hunk(text, section, section_end)
+    hunk, next_hunk, body = reviewed_sched_field_hunk(text, section, section_end)
 
-    adapted = text[:hunk] + text[next_hunk:]
-    adapted_sched = sched_section(adapted)
-    if "poc_idle_committed" in adapted_sched:
-        raise PortError("rq::poc_idle_committed hunk remains in sched.h")
-    if sched_header is not None:
-        adapted = insert_sched_hunk(adapted, sched_hunk(sched_header))
+    if is_native_72_sched_context(body):
+        # The native 7.2 POC patch is based on the same rq layout as Linux
+        # 7.2-rc1. BORE 6.8.0 does not modify this rq region, so do not
+        # transplant the field to the obsolete pre-7.2 ttwu_pending anchor.
+        # When the post-BORE source is available, require the complete old
+        # hunk context to match exactly once and rebase only its line number.
+        adapted = text
+        if sched_header is not None:
+            header_end = text.find("\n", hunk, section_end)
+            if header_end < 0:
+                raise PortError("native 7.2 rq hunk header is malformed")
+            header_end += 1
+            header = rebase_hunk_header(text[hunk:header_end], body, sched_header)
+            adapted = text[:hunk] + header + text[header_end:]
+    else:
+        # Compatibility path for the reviewed older layout only. Those POC
+        # variants placed the field next to ttwu_pending, which BORE/Valve
+        # could move, so preserve the existing explicit relocation adapter.
+        adapted = text[:hunk] + text[next_hunk:]
+        adapted_sched = sched_section(adapted)
+        if "poc_idle_committed" in adapted_sched:
+            raise PortError("rq::poc_idle_committed hunk remains in sched.h")
+        if sched_header is not None:
+            adapted = insert_sched_hunk(adapted, sched_hunk(sched_header))
+
     return adapt_idle_sibling_hunk(adapted, fair_source)
 
 
@@ -267,8 +291,8 @@ def main() -> None:
 
     args.output.write_text(adapted_patch, encoding="utf-8")
     print(
-        "Prepared the locked upstream POC port with an atomic Valve/BORE "
-        "ttwu_pending hunk and exact CONFIG_SMP context"
+        "Prepared the locked upstream POC port with native 7.2 rq placement "
+        "or reviewed legacy relocation and exact CONFIG_SMP context"
     )
 
 
