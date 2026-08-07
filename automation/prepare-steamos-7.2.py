@@ -179,16 +179,31 @@ def package_version_to_tag(pkgver: str) -> str:
     return tag
 
 
+def is_arch_x86_config_name(path: PurePosixPath) -> bool:
+    """Accept the config names used by Arch/Valve source packages.
+
+    Arch packaging has used both ``config`` and architecture-qualified names
+    such as ``config.x86_64``.  Some source snapshots also carry ``.config``.
+    Restrict matching to those known forms rather than accepting arbitrary
+    files named like configs.
+    """
+    name = path.name
+    return (
+        name in {"config", "config.x86_64", ".config"}
+        or name.startswith("config.x86_64.")
+    )
+
+
 def extract_config_from_tar(fileobj: BinaryIO, destination: Path) -> str:
-    """Extract the package's top-level Arch base config from a tar.gz stream."""
+    """Extract the package's shallowest usable Arch/Valve x86_64 base config."""
     candidates: list[tuple[int, tarfile.TarInfo, bytes]] = []
     try:
         with tarfile.open(fileobj=fileobj, mode="r|gz") as archive:
             for member in archive:
                 path = PurePosixPath(member.name)
-                if not member.isfile() or path.name != "config":
+                if not member.isfile() or not is_arch_x86_config_name(path):
                     continue
-                if member.size < 50_000 or member.size > 5_000_000:
+                if member.size < 10_000 or member.size > 5_000_000:
                     continue
                 extracted = archive.extractfile(member)
                 if extracted is None:
@@ -202,7 +217,10 @@ def extract_config_from_tar(fileobj: BinaryIO, destination: Path) -> str:
     except (tarfile.TarError, OSError) as exc:
         raise PrepareError(f"unable to extract Arch config: {exc}") from exc
     if not candidates:
-        raise PrepareError("source package does not contain a usable x86_64 config")
+        raise PrepareError(
+            "source package does not contain a usable Arch/Valve x86_64 config "
+            "(checked config, config.x86_64 and .config forms)"
+        )
     _, member, data = min(candidates, key=lambda item: item[0])
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
