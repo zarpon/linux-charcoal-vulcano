@@ -1,0 +1,192 @@
+name: Validate SteamOS 7.2 Charcoal kernel
+
+on:
+  push:
+    branches:
+      - kernel-7.2
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: charcoal-7.2-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build-kernel-7-2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out 7.2 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free runner space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          tool-cache: true
+
+      - name: Configure 16 GiB swap
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761
+        with:
+          swap-size-gb: 16
+
+      - name: Validate 7.2 automation locally
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile \
+            automation/prepare-steamos-7.2.py \
+            automation/prepare-pkgbuild-7.2.py \
+            automation/resolve-latest-patches-7.2.py \
+            automation/resolve-latest-patches.py \
+            tests/test-prepare-steamos-7.2.py \
+            tests/test-prepare-pkgbuild-7.2.py \
+            tests/test-resolve-latest-patches-7.2.py
+          python3 tests/test-prepare-steamos-7.2.py -v
+          python3 tests/test-prepare-pkgbuild-7.2.py -v
+          python3 tests/test-resolve-latest-patches-7.2.py -v
+          python3 tests/test-resolve-latest-patches.py -v
+          bash -n install-charcoal.sh
+          bash tests/test-install-charcoal.sh
+          bash tests/test-runtime-tuning.sh
+
+      - name: Resolve official SteamOS 7.2 source and Arch config
+        run: |
+          set -Eeuo pipefail
+          mkdir -p logs
+          python3 automation/prepare-pkgbuild-7.2.py --write PKGBUILD
+          python3 automation/prepare-steamos-7.2.py \
+            --manifest-in automation/patch-sources.json \
+            --manifest-out logs/patch-sources-7.2.json \
+            --metadata logs/steamos-7.2-source.json \
+            --config-out config \
+            --fetch-config | tee logs/steamos-7.2-prepare.log
+          python3 automation/resolve-latest-patches-7.2.py \
+            --manifest logs/patch-sources-7.2.json \
+            --overrides automation/patch-source-overrides-7.2.json \
+            --write | tee logs/resolver.log
+          python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
+          bash -n PKGBUILD
+
+      - name: Validate 7.2 contracts before source download
+        run: |
+          set -Eeuo pipefail
+          grep -Fq 'pkgbase=linux-charcoal-72' PKGBUILD
+          grep -Fq '_nepbase=linux-neptune-72' PKGBUILD
+          grep -Eq '^_tag=7\.2' PKGBUILD
+          grep -Fq 'CONFIG_RTW89_USB=m' config-neptune
+          grep -Fq 'CONFIG_ZSWAP_DEFAULT_ON=y' config-neptune
+          grep -Fq 'CONFIG_ZRAM_MULTI_COMP=y' config-charcoal
+          grep -Fq 'CONFIG_ZRAM_DEF_COMP_LZ4=y' config-charcoal
+          grep -Fq 'params->level = -1;' latest-zram-ir.patch
+          grep -Fq 'sysctl_zram_recomp_immediate = 1' latest-zram-ir.patch
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          pkgbuild = Path('PKGBUILD').read_text(encoding='utf-8')
+          required_order = [
+              'latest-bore.patch',
+              'latest-bore-sched-ext-coexistence-fix.patch',
+              'latest-poc-selector.patch',
+              'latest-adios.patch',
+              'latest-adios-default.patch',
+          ]
+          positions = [pkgbuild.index(name) for name in required_order]
+          assert positions == sorted(positions), positions
+
+          lock = json.loads(Path('logs/patch-lock.json').read_text(encoding='utf-8'))
+          assert lock['kernel']['version'] == '7.2'
+          assert lock['kernel']['tag'].startswith('7.2')
+          expected = {
+              'lru_marie', 'zram_ir', 'adios', 'bore',
+              'bore_sched_ext_coexistence', 'poc_selector', 'nap',
+          }
+          assert set(lock['components']) == expected
+          assert lock['components']['zram_ir']['origin'] == 'local-port'
+          assert lock['components']['zram_ir']['path'] == '0001-linux7.2-zram-ir-1.2.patch'
+          for native in ('lru_marie', 'bore', 'poc_selector'):
+              item = lock['components'][native]
+              assert item['origin'] == 'upstream-compatible', (native, item)
+              assert item.get('kernel_version', '').startswith('7.2'), (native, item)
+          for validated_nearest in ('adios', 'nap'):
+              assert lock['components'][validated_nearest]['origin'] == 'upstream-compatible'
+          PY
+
+      - name: Build Docker image
+        run: docker build . -t charcoal-72 2>&1 | tee logs/docker-build.log
+
+      - name: Fetch, verify and prepare all sources
+        run: |
+          set -Eeuo pipefail
+          restore_owner() {
+            sudo chown -R "$(id -u):$(id -g)" "$PWD/logs" "$PWD/.git" "$PWD/.cache" 2>/dev/null || true
+            sudo chown "$(id -u):$(id -g)" "$PWD" || true
+          }
+          trap restore_owner EXIT
+          mkdir -p .cache/ccache
+          docker run --rm -v "$PWD:/project" charcoal-72 chown -R nobody /project
+          docker run --rm -v "$PWD:/project" charcoal-72 sudo -u nobody bash -lc '
+            set -Eeuo pipefail
+            cd /project
+            export CCACHE_DIR=/project/.cache/ccache
+            export CCACHE_BASEDIR=/project
+            export CCACHE_COMPILERCHECK=content
+            export CCACHE_NOHASHDIR=true
+            export CCACHE_MAXSIZE=5G
+            export CCACHE_COMPRESS=true
+            makepkg --verifysource --skipchecksums 2>&1 | tee logs/verifysource-bootstrap.log
+            makepkg -g > logs/generated-sha256sums.txt
+            python3 automation/finalize-pkgbuild-checksums.py \
+              --generated logs/generated-sha256sums.txt \
+              --report logs/checksum-validation.txt
+            bash -n PKGBUILD
+            makepkg --verifysource 2>&1 | tee logs/verifysource.log
+            makepkg -Cof --noconfirm 2>&1 | tee logs/prepare-7.2.log
+          '
+          restore_owner
+          trap - EXIT
+
+      - name: Compile and package SteamOS 7.2 kernel
+        run: |
+          set -Eeuo pipefail
+          restore_owner() {
+            sudo chown -R "$(id -u):$(id -g)" "$PWD/logs" "$PWD/.git" "$PWD/.cache" 2>/dev/null || true
+            sudo chown "$(id -u):$(id -g)" "$PWD" || true
+          }
+          trap restore_owner EXIT
+          docker run --rm -v "$PWD:/project" charcoal-72 sudo -u nobody bash -lc '
+            set -Eeuo pipefail
+            cd /project
+            export CCACHE_DIR=/project/.cache/ccache
+            export CCACHE_BASEDIR=/project
+            export CCACHE_COMPILERCHECK=content
+            export CCACHE_NOHASHDIR=true
+            export CCACHE_MAXSIZE=5G
+            export CCACHE_COMPRESS=true
+            ccache --show-stats | tee logs/ccache-before.txt
+            makepkg -ef --noconfirm 2>&1 | tee logs/makepkg-7.2.log
+            ccache --show-stats | tee logs/ccache-after.txt
+          '
+          restore_owner
+          trap - EXIT
+          compgen -G 'linux-charcoal-72-*.pkg.tar.zst' >/dev/null
+          sha256sum linux-charcoal-72-*.pkg.tar.zst | tee logs/SHA256SUMS
+
+      - name: Upload 7.2 packages and validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-charcoal-7.2-${{ github.run_number }}
+          path: |
+            linux-charcoal-72-*.pkg.tar.zst
+            logs
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "components": {
+    "lru_marie": {
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux7\\.2(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*\\.patch$"
+    },
+    "zram_ir": {
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "local_port": "0001-linux7.2-zram-ir-1.2.patch",
+      "local_port_project_version": "1.2"
+    },
+    "adios": {
+      "port_for_kernel": null,
+      "port_when_incompatible": false,
+      "local_port": null,
+      "local_port_project_version": null,
+      "allow_nearest_upstream": true
+    },
+    "bore": {
+      "source_regex": "(?:latest-bore\\.patch|7\\.2(?:-rc[0-9]+)?-bore-[^\\s]+\\.patch)",
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux7\\.2(?:-rc[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?\\.patch$",
+      "always_latest": false,
+      "port_for_kernel": null,
+      "local_port": null,
+      "local_port_upstream_sha256": null,
+      "local_port_project_version": null,
+      "local_port_overlays": []
+    },
+    "bore_sched_ext_coexistence": {
+      "always_latest": true,
+      "port_for_kernel": null,
+      "local_port": null,
+      "local_port_upstream_sha256": null
+    },
+    "poc_selector": {
+      "adaptive_port": null,
+      "port_when_incompatible": false
+    },
+    "nap": {
+      "port_for_kernel": null,
+      "port_when_incompatible": false,
+      "local_port": null,
+      "local_port_project_version": null,
+      "allow_nearest_upstream": true
+    }
+  },
+  "auxiliary_components": {
+    "amd_pstate_epp_boost_kernel_doc": {
+      "local_port": null,
+      "source_regex": "(?:latest-amd-pstate-epp-boost-01-kernel-doc\\.patch|6\\.16\\.12-amd-pstate-epp-boost-01-kernel-doc\\.port\\.patch)"
+    },
+    "amd_pstate_epp_boost_cache_order": {
+      "local_port": null,
+      "source_regex": "(?:latest-amd-pstate-epp-boost-02-cache-order\\.patch|6\\.16\\.12-amd-pstate-epp-boost-02-cache-order\\.port\\.patch)"
+    },
+    "amd_pstate_epp_boost_core": {
+      "local_port": null,
+      "source_regex": "(?:latest-amd-pstate-epp-boost-03-core\\.patch|6\\.16\\.12-amd-pstate-epp-boost-03-core\\.port\\.patch)"
+    },
+    "amd_pstate_epp_boost_documentation": {
+      "local_port": null,
+      "source_regex": "(?:latest-amd-pstate-epp-boost-04-docs\\.patch|6\\.16\\.12-amd-pstate-epp-boost-04-docs\\.port\\.patch)"
+    }
+  }
+}
