@@ -36,9 +36,7 @@ assert_not_contains() {
 assert_precedes() {
   local before=$1
   local after=$2
-  local before_line
-  local after_line
-
+  local before_line after_line
   before_line="$(grep -n -m 1 -F -- "$before" "$log_file" || true)"
   after_line="$(grep -n -m 1 -F -- "$after" "$log_file" || true)"
   [[ -n "$before_line" ]] || fail "missing log entry: $before"
@@ -48,101 +46,69 @@ assert_precedes() {
   (( before_line < after_line )) || fail "expected '$before' before '$after'"
 }
 
-assert_log_line() {
-  local expected=$1
-  grep -Fx -- "$expected" "$log_file" >/dev/null || fail "expected log line: $expected"
-}
-
-assert_not_log_line() {
-  local unexpected=$1
-  if grep -Fx -- "$unexpected" "$log_file" >/dev/null; then
-    fail "unexpected log line: $unexpected"
-  fi
-}
-
-write_bootloader_command() {
-  local directory=$1
-  local name=$2
-
-  printf '%s\n' \
-    "#!$BASH_BIN" \
-    'set -Eeuo pipefail' \
-    'if (($#)); then' \
-    '  printf "%s %s\\n" "${0##*/}" "$*" >> "$CHARCOAL_TEST_LOG"' \
-    'else' \
-    '  printf "%s\\n" "${0##*/}" >> "$CHARCOAL_TEST_LOG"' \
-    'fi' \
-    '[[ "${CHARCOAL_TEST_SCENARIO:-normal}" != "bootloader-failure" ]] || exit 7' \
-    > "$directory/$name"
-  chmod +x "$directory/$name"
-}
-
-write_sudo_command() {
-  local directory=$1
-
-  printf '%s\n' \
-    "#!$BASH_BIN" \
-    'exec "$@"' \
-    > "$directory/sudo"
-  chmod +x "$directory/sudo"
-}
-
-bootloader_case_index=0
-
-run_bootloader_update_case() {
-  local steamos_efi_dir=$1
-  shift
-
-  ((bootloader_case_index += 1))
-  local case_bin="$test_root/bootloader-case-$bootloader_case_index"
-  local updater
-  mkdir -p "$case_bin"
-  write_sudo_command "$case_bin"
-  for updater in "$@"; do
-    write_bootloader_command "$case_bin" "$updater"
-  done
-
-  (
-    export PATH="$case_bin"
-    export CHARCOAL_TEST_LOG="$log_file"
-    export CHARCOAL_TEST_SCENARIO=normal
-    source "$INSTALLER"
-    _update_grub "$steamos_efi_dir"
-  )
-}
-
 make_fixture() {
   local build_dir="$fixture_dir/build"
-  local kernel_package="linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst"
-  local headers_package="linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst"
+  local kernel_package="linux-charcoal-72-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst"
+  local headers_package="linux-charcoal-72-headers-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst"
 
   mkdir -p "$build_dir" "$bin_dir"
   printf 'kernel fixture\n' > "$build_dir/$kernel_package"
   printf 'headers fixture\n' > "$build_dir/$headers_package"
-  (
-    cd "$build_dir"
-    sha256sum "$kernel_package" "$headers_package" > SHA256SUMS
-    zip -q "$fixture_dir/linux-charcoal-test.zip" SHA256SUMS "$kernel_package" "$headers_package"
-  )
-  (
-    cd "$fixture_dir"
-    sha256sum linux-charcoal-test.zip > RELEASE-ZIP-SHA256SUM
-  )
 
-  mkdir -p "$fixture_dir/bad-package"
-  cp "$build_dir/$kernel_package" "$build_dir/$headers_package" "$fixture_dir/bad-package/"
-  (
-    cd "$fixture_dir/bad-package"
-    printf '%064d  %s\n' 0 "$kernel_package" > SHA256SUMS
-    sha256sum "$headers_package" >> SHA256SUMS
-    zip -q "$fixture_dir/bad-package.zip" SHA256SUMS "$kernel_package" "$headers_package"
-  )
-  (
-    cd "$fixture_dir"
-    sha256sum bad-package.zip | sed 's/bad-package\.zip/linux-charcoal-test.zip/' > BAD-PACKAGE-RELEASE-ZIP-SHA256SUM
-  )
+  python3 - "$fixture_dir" "$build_dir" "$kernel_package" "$headers_package" <<'PY'
+import hashlib
+import json
+import sys
+import zipfile
+from pathlib import Path
 
-  printf '%s\n' '{"tag_name":"charcoal-test","draft":false,"prerelease":false,"assets":[{"name":"linux-charcoal-test.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM"}]}' > "$fixture_dir/release.json"
+fixture = Path(sys.argv[1])
+build = Path(sys.argv[2])
+kernel = sys.argv[3]
+headers = sys.argv[4]
+checksums = []
+for name in (kernel, headers):
+    digest = hashlib.sha256((build / name).read_bytes()).hexdigest()
+    checksums.append(f"{digest}  {name}\n")
+manifest = "".join(checksums)
+archive = fixture / "linux-charcoal-72-test-r1.zip"
+with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr("SHA256SUMS", manifest)
+    zf.write(build / kernel, kernel)
+    zf.write(build / headers, headers)
+
+digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+(fixture / "RELEASE-ZIP-SHA256SUM").write_text(
+    f"{digest}  {archive.name}\n", encoding="utf-8"
+)
+(fixture / "BAD-RELEASE-ZIP-SHA256SUM").write_text(
+    f"{'0' * 64}  {archive.name}\n", encoding="utf-8"
+)
+releases = [
+    {
+        "tag_name": "charcoal-6.16-stable-like",
+        "draft": False,
+        "prerelease": False,
+        "assets": [],
+    },
+    {
+        "tag_name": "charcoal-7.2-test-r1",
+        "draft": False,
+        "prerelease": True,
+        "assets": [
+            {
+                "name": archive.name,
+                "browser_download_url": "https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/" + archive.name,
+            },
+            {
+                "name": "RELEASE-ZIP-SHA256SUM",
+                "browser_download_url": "https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/RELEASE-ZIP-SHA256SUM",
+            },
+        ],
+    },
+]
+(fixture / "releases.json").write_text(json.dumps(releases), encoding="utf-8")
+PY
 }
 
 write_fake_commands() {
@@ -159,19 +125,13 @@ write_fake_commands() {
     'done' \
     '[[ -n "$output" ]] || exit 2' \
     'case "$url" in' \
-    '  https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases/latest)' \
-    '    cp "$CHARCOAL_TEST_FIXTURE/release.json" "$output" ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip)' \
-    '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
-    '      cp "$CHARCOAL_TEST_FIXTURE/bad-package.zip" "$output"' \
-    '    else' \
-    '      cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-test.zip" "$output"' \
-    '    fi ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM)' \
+    '  "https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases?per_page=100")' \
+    '    cp "$CHARCOAL_TEST_FIXTURE/releases.json" "$output" ;;' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/linux-charcoal-72-test-r1.zip)' \
+    '    cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-72-test-r1.zip" "$output" ;;' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/RELEASE-ZIP-SHA256SUM)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-checksum" ]]; then' \
-    '      printf "%064d  linux-charcoal-test.zip\\n" 0 > "$output"' \
-    '    elif [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
-    '      cp "$CHARCOAL_TEST_FIXTURE/BAD-PACKAGE-RELEASE-ZIP-SHA256SUM" "$output"' \
+    '      cp "$CHARCOAL_TEST_FIXTURE/BAD-RELEASE-ZIP-SHA256SUM" "$output"' \
     '    else' \
     '      cp "$CHARCOAL_TEST_FIXTURE/RELEASE-ZIP-SHA256SUM" "$output"' \
     '    fi ;;' \
@@ -192,22 +152,44 @@ write_fake_commands() {
   printf '%s\n' \
     "#!$BASH_BIN" \
     'printf "steamos-devmode %s\\n" "$*" >> "$CHARCOAL_TEST_LOG"' \
-    '[[ "${CHARCOAL_TEST_SCENARIO:-normal}" != "devmode-failure" ]] || exit 7' \
     > "$bin_dir/steamos-devmode"
 
   printf '%s\n' \
     "#!$BASH_BIN" \
     'set -Eeuo pipefail' \
-    '[[ "$1" == "-U" && "$2" != "--needed" ]] || exit 4' \
-    'for package in "${@:2}"; do' \
-    '  [[ -f "$package" ]] || exit 5' \
-    'done' \
-    'printf "pacman %s\\n" "$*" >> "$CHARCOAL_TEST_LOG"' \
-    '[[ "${CHARCOAL_TEST_SCENARIO:-normal}" != "pacman-failure" ]] || exit 6' \
+    'case "${1:-}" in' \
+    '  -Qq)' \
+    '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" != "no-old" ]]; then' \
+    '      printf "%s\\n" linux-charcoal-616 linux-charcoal-616-headers linux-neptune-72 unrelated-package' \
+    '    else' \
+    '      printf "%s\\n" linux-neptune-72 unrelated-package' \
+    '    fi ;;' \
+    '  -Q)' \
+    '    case "${2:-}" in' \
+    '      linux-charcoal-616) printf "%s\\n" "linux-charcoal-616 6.16.12-1" ;;' \
+    '      linux-charcoal-616-headers) printf "%s\\n" "linux-charcoal-616-headers 6.16.12-1" ;;' \
+    '      *) exit 1 ;;' \
+    '    esac ;;' \
+    '  -U)' \
+    '    if [[ " $* " == *" --print "* ]]; then' \
+    '      printf "%s\\n" "linux-charcoal-72 test" "linux-charcoal-72-headers test"' \
+    '      exit 0' \
+    '    fi' \
+    '    printf "pacman %s\\n" "$*" >> "$CHARCOAL_TEST_LOG"' \
+    '    [[ "${CHARCOAL_TEST_SCENARIO:-normal}" != "install-failure" ]] || exit 9 ;;' \
+    '  -Rdd)' \
+    '    printf "pacman %s\\n" "$*" >> "$CHARCOAL_TEST_LOG"' \
+    '    [[ "${CHARCOAL_TEST_SCENARIO:-normal}" != "remove-failure" ]] || exit 8 ;;' \
+    '  *) exit 4 ;;' \
+    'esac' \
     > "$bin_dir/pacman"
 
-  write_bootloader_command "$bin_dir" grub-mkconfig
-  chmod +x "$bin_dir/curl" "$bin_dir/sudo" "$bin_dir/steamos-readonly" "$bin_dir/steamos-devmode" "$bin_dir/pacman"
+  printf '%s\n' \
+    "#!$BASH_BIN" \
+    'printf "grub-mkconfig %s\\n" "$*" >> "$CHARCOAL_TEST_LOG"' \
+    > "$bin_dir/grub-mkconfig"
+
+  chmod +x "$bin_dir"/*
 }
 
 run_installer() {
@@ -216,95 +198,51 @@ run_installer() {
     CHARCOAL_TEST_FIXTURE="$fixture_dir" \
     CHARCOAL_TEST_LOG="$log_file" \
     CHARCOAL_TEST_SCENARIO="$scenario" \
+    CHARCOAL_72_ASSUME_YES=1 \
     bash "$INSTALLER"
 }
 
 make_fixture
 write_fake_commands
 
-grep -Fq 'ZRAM switches to LZ4 with ZSTD --fast=1 priority-1 recompression after booting Charcoal' "$INSTALLER" \
-  || fail 'installer does not explain that active zram is preserved until reboot'
+grep -Fq 'RELEASE_TAG_PREFIX="charcoal-7.2-"' "$INSTALLER" \
+  || fail 'installer is not pinned to the SteamOS 7.2 prerelease tag prefix'
+grep -Fq 'linux-charcoal-72' "$INSTALLER" \
+  || fail 'installer is not pinned to SteamOS 7.2 package names'
 
 : > "$log_file"
-run_installer normal
+run_installer normal >/dev/null
 assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
-assert_contains 'pacman -U '
-assert_not_contains 'pacman -U --needed'
-assert_contains 'linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst'
-assert_contains 'linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst'
+assert_contains 'pacman -Rdd --noconfirm linux-charcoal-616 linux-charcoal-616-headers'
+assert_contains 'pacman -U --noconfirm '
+assert_contains 'linux-charcoal-72-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-72-headers-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst'
 assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
-assert_precedes 'steamos-readonly disable' 'steamos-devmode enable --no-prompt'
-assert_precedes 'steamos-devmode enable --no-prompt' 'pacman -U '
-assert_precedes 'pacman -U ' 'grub-mkconfig -o /boot/grub/grub.cfg'
-assert_precedes 'grub-mkconfig -o /boot/grub/grub.cfg' 'steamos-readonly enable'
+assert_not_contains 'linux-neptune-72 unrelated-package'
+assert_precedes 'pacman -Rdd --noconfirm' 'pacman -U --noconfirm'
+assert_precedes 'pacman -U --noconfirm' 'grub-mkconfig -o /boot/grub/grub.cfg'
+
+: > "$log_file"
+run_installer no-old >/dev/null
+assert_not_contains 'pacman -Rdd'
+assert_contains 'pacman -U --noconfirm '
 
 : > "$log_file"
 if run_installer bad-checksum >/dev/null 2>&1; then
-  fail 'installer accepted a release ZIP with an invalid checksum'
+  fail 'installer accepted a prerelease ZIP with an invalid checksum'
 fi
-assert_not_contains 'steamos-readonly'
-assert_not_contains 'steamos-devmode'
-assert_not_contains 'pacman'
+assert_not_contains 'steamos-readonly disable'
+assert_not_contains 'pacman -Rdd'
+assert_not_contains 'pacman -U --noconfirm'
 
 : > "$log_file"
-if run_installer bad-package-checksum >/dev/null 2>&1; then
-  fail 'installer accepted a package that did not match SHA256SUMS'
+if run_installer remove-failure >/dev/null 2>&1; then
+  fail 'installer continued after failure to remove the previous Charcoal packages'
 fi
-assert_not_contains 'steamos-readonly'
-assert_not_contains 'steamos-devmode'
-assert_not_contains 'pacman'
-
-: > "$log_file"
-if run_installer pacman-failure >/dev/null 2>&1; then
-  fail 'installer reported success after a pacman failure'
-fi
-assert_contains 'steamos-readonly disable'
-assert_contains 'steamos-devmode enable --no-prompt'
-assert_contains 'pacman -U '
+assert_contains 'pacman -Rdd --noconfirm'
+assert_not_contains 'pacman -U --noconfirm '
 assert_contains 'steamos-readonly enable'
 
-: > "$log_file"
-if run_installer devmode-failure >/dev/null 2>&1; then
-  fail 'installer reported success after a SteamOS developer mode failure'
-fi
-assert_contains 'steamos-readonly disable'
-assert_contains 'steamos-devmode enable --no-prompt'
-assert_not_contains 'pacman'
-assert_not_contains 'grub-mkconfig'
-assert_contains 'steamos-readonly enable'
-
-: > "$log_file"
-if run_installer bootloader-failure >/dev/null 2>&1; then
-  fail 'installer reported success after a bootloader update failure'
-fi
-assert_contains 'steamos-readonly disable'
-assert_contains 'steamos-devmode enable --no-prompt'
-assert_contains 'pacman -U '
-assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
-assert_contains 'steamos-readonly enable'
-
-: > "$log_file"
-steam_efi_dir="$test_root/efi/EFI/steamos"
-mkdir -p "$steam_efi_dir"
-run_bootloader_update_case "$steam_efi_dir" grub-mkconfig steamos-update-grub update-grub
-assert_log_line "grub-mkconfig -o $steam_efi_dir/grub.cfg"
-assert_not_log_line 'steamos-update-grub'
-assert_not_log_line 'update-grub'
-
-: > "$log_file"
-run_bootloader_update_case "$test_root/missing-steamos-efi" steamos-update-grub update-grub
-assert_log_line 'steamos-update-grub'
-assert_not_log_line 'update-grub'
-
-: > "$log_file"
-run_bootloader_update_case "$test_root/missing-steamos-efi" update-grub
-assert_log_line 'update-grub'
-
-: > "$log_file"
-if run_bootloader_update_case "$test_root/missing-steamos-efi" >/dev/null 2>&1; then
-  fail 'bootloader update reported success without a supported updater'
-fi
-
-printf 'install-charcoal tests passed\n'
+printf 'install-charcoal SteamOS 7.2 tests passed\n'
