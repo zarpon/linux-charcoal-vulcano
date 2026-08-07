@@ -15,6 +15,12 @@ PATCH_ORDER = [
     "latest-adios.patch",
     "latest-adios-default.patch",
 ]
+UPSTREAMED_72_PATCHES = {
+    "latest-c23-libbpf.patch": (
+        "upstream commit d70f79fef65810faf64dbae1f3a1b5623cdb2345 "
+        "is already present in Valve 7.2"
+    ),
+}
 
 
 class TransformError(RuntimeError):
@@ -68,7 +74,11 @@ def reorder_patches(text: str) -> str:
     # Insert the mandatory scheduler stack immediately before the first Zen
     # patch. This preserves all unrelated source ordering.
     insert_at = next(
-        (index for index, line in enumerate(retained) if normalized(line) == "latest-zen-01.patch"),
+        (
+            index
+            for index, line in enumerate(retained)
+            if normalized(line) == "latest-zen-01.patch"
+        ),
         len(retained) - 1,
     )
     ordered = [found[name] for name in PATCH_ORDER]
@@ -76,11 +86,40 @@ def reorder_patches(text: str) -> str:
     return text[:start] + "".join(retained) + text[end:]
 
 
+def skip_upstreamed_72_patches(text: str) -> str:
+    """Skip patches proven to be already integrated in the Valve 7.2 tree.
+
+    Keep them in source()/sha256sums so the resolver and checksum lock continue
+    to verify their exact upstream provenance. Only their application is skipped.
+    """
+    if "Valve 7.2 already contains the upstream change" in text:
+        return text
+
+    pattern = (
+        r"(?m)^(?P<indent>\s*)if \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then"
+    )
+    match = re.search(pattern, text)
+    if not match:
+        raise TransformError("prepare() patch dispatcher not found")
+
+    indent = match.group("indent")
+    names = " ".join(UPSTREAMED_72_PATCHES)
+    replacement = (
+        f'{indent}if [[ " {names} " == *" $src "* ]]; then\n'
+        f'{indent}  echo "Skipping $src: Valve 7.2 already contains the upstream change."\n'
+        f"{indent}  continue\n"
+        f"{indent}elif [[ $src == latest-poc-selector.patch ]]; then"
+    )
+    return re.sub(pattern, replacement, text, count=1)
+
+
 def transform(text: str) -> str:
     text = replace_assignment(text, "pkgbase", "linux-charcoal-72")
     text = replace_assignment(text, "_nepbase", "linux-neptune-72")
     text = replace_assignment(text, "_tag", BOOTSTRAP_TAG)
     text = reorder_patches(text)
+    text = skip_upstreamed_72_patches(text)
     return text
 
 
@@ -99,6 +138,11 @@ def validate(text: str) -> None:
     if text.count("latest-poc-selector.patch") != 2:
         # one source entry and one prepare() special case
         raise TransformError("unexpected POC selector reference count")
+    for patch in UPSTREAMED_72_PATCHES:
+        if patch not in text:
+            raise TransformError(f"upstreamed 7.2 patch source disappeared: {patch}")
+    if "Valve 7.2 already contains the upstream change" not in text:
+        raise TransformError("missing Valve 7.2 upstreamed-patch guard")
 
 
 def main() -> int:
