@@ -82,11 +82,26 @@ REMOVED_LINE = "-\tselect CPU_FREQ_GOV_SCHEDUTIL if SMP\n"
 ZEN_SWAP_PATCH = '''From test
 diff --git a/init/Kconfig b/init/Kconfig
 @@ -184,6 +184,7 @@ config ZEN_INTERACTIVE
+ config ZEN_INTERACTIVE
 +	    Swap-in readahead..............:   3    ->   0
 diff --git a/mm/swap.c b/mm/swap.c
 @@ -1091,6 +1091,10 @@ void __init swap_setup(void)
 +#ifdef CONFIG_ZEN_INTERACTIVE
 +	page_cluster = 0;
+'''
+
+
+VALVE_72_ZEN_KCONFIG = '''config ZEN_INTERACTIVE
+	bool "Zen Interactive Tunings"
+	help
+	    Background-reclaim hugepages...:   no   ->   yes
+	    Compact unevictable............:   yes  ->   no
+	    Watermark boost factor.........:   1.5  ->   0
+
+	  --- EEVDF CPU Scheduler --------------------------------
+
+config BROKEN
+	bool
 '''
 
 VALVE_72_SWAP = '''void __init swap_setup(void)
@@ -145,11 +160,17 @@ class TransformTests(unittest.TestCase):
 
     def test_zen_swap_adapter_preserves_valve_72_body(self) -> None:
         SWAP.validate_patch(ZEN_SWAP_PATCH)
-        adapted = SWAP.adapt_source(VALVE_72_SWAP)
+        adapted = SWAP.adapt_swap_source(VALVE_72_SWAP)
         self.assertIn("#ifdef CONFIG_ZEN_INTERACTIVE", adapted)
         self.assertIn("\tpage_cluster = 0;\n", adapted)
         self.assertIn("PAGES_TO_MB(totalram_pages())", adapted)
         self.assertIn("#else\n", adapted)
+        adapted_kconfig = SWAP.adapt_kconfig(VALVE_72_ZEN_KCONFIG)
+        self.assertIn(SWAP.HELP_LINE, adapted_kconfig)
+        self.assertLess(
+            adapted_kconfig.index(SWAP.HELP_ANCHOR),
+            adapted_kconfig.index(SWAP.HELP_LINE),
+        )
 
     def test_is_idempotent(self) -> None:
         once = MODULE.transform(SAMPLE)

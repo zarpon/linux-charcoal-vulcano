@@ -212,15 +212,13 @@ def wire_zen_02_72_port(text: str) -> str:
     return text[: match.end()] + compact_branch + text[match.end() :]
 
 
-
 def wire_zen_07_72_port(text: str) -> str:
     """Adapt the locked Zen swap readahead patch to Valve 7.2.
 
     Valve 7.2 replaced the legacy totalram_pages() shift expression in
     swap_setup() with PAGES_TO_MB(), which makes Zen e3afdec's mm/swap.c
-    hunk reject. Apply its init/Kconfig hunk unchanged, validate the locked
-    upstream patch, then reproduce the same CONFIG_ZEN_INTERACTIVE behavior
-    around Valve's current swap_setup body.
+    hunk reject. Apply the same reviewed Kconfig/help and swap semantics via
+    an explicit adapter, so no fuzz-dependent patch application is required.
     """
     if "port-zen-swap-7.2.py" in text:
         return text
@@ -230,10 +228,8 @@ def wire_zen_07_72_port(text: str) -> str:
     )
     production_branch = (
         '    elif [[ $src == latest-zen-07.patch ]]; then\n'
-        '      git apply --check --include=init/Kconfig "../$src"\n'
-        '      git apply --include=init/Kconfig "../$src"\n'
         '      python3 "$startdir/automation/port-zen-swap-7.2.py" \\\n'
-        '        "../$src" mm/swap.c\n'
+        '        "../$src" mm/swap.c init/Kconfig\n'
         '      git diff --check -- init/Kconfig mm/swap.c\n'
     )
     if text.count(production_anchor) == 1:
@@ -254,10 +250,8 @@ def wire_zen_07_72_port(text: str) -> str:
     indent = match.group("indent")
     compact_branch = (
         f"\n{indent}if [[ $src == latest-zen-07.patch ]]; then\n"
-        f'{indent}  git apply --check --include=init/Kconfig "../$src"\n'
-        f'{indent}  git apply --include=init/Kconfig "../$src"\n'
         f'{indent}  python3 "$startdir/automation/port-zen-swap-7.2.py" \\\n'
-        f'{indent}    "../$src" mm/swap.c\n'
+        f'{indent}    "../$src" mm/swap.c init/Kconfig\n'
         f'{indent}  git diff --check -- init/Kconfig mm/swap.c\n'
         f"{indent}fi"
     )
@@ -288,15 +282,12 @@ def validate(text: str) -> None:
     if positions != sorted(positions):
         raise TransformError("mandatory patch order is invalid")
     if text.count("latest-poc-selector.patch") != 2:
-        # one source entry and one prepare() special case
         raise TransformError("unexpected POC selector reference count")
     if text.count("latest-adios.patch") != 2:
-        # one source entry and one 7.2-only prepare() special case
         raise TransformError("unexpected ADIOS reference count")
     if text.count("port-adios-7.2.py") != 1:
         raise TransformError("explicit ADIOS 7.2 port is not wired exactly once")
     if text.count("latest-zen-02.patch") != 2:
-        # one source entry and one 7.2-only prepare() special case
         raise TransformError("unexpected Zen cpufreq reference count")
     if text.count("port-zen-cpufreq-7.2.py") != 1:
         raise TransformError("explicit Zen 7.2 cpufreq port is not wired exactly once")
