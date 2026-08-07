@@ -1,0 +1,53 @@
+From: Charcoal SteamOS 7.2 port
+Subject: [PATCH] kbuild: port Clang Polly support from CachyOS 7.1 to Valve 7.2
+
+Upstream: CachyOS/kernel-patches 7.1/misc/0001-clang-polly.patch
+Upstream-Git-Blob: 1bbdcf9d668ed14bcb5a22235b645469b0d45cf4
+Port-Target: evlaV/linux-integration 7.2.0-rc3-valve-beta1
+
+The 7.1 patch no longer applies verbatim because the top-level Makefile Rust
+flag block moved in Linux 7.2. Preserve the same Polly Kbuild/Kconfig behavior
+using the Valve 7.2 context.
+
+--- a/Makefile
++++ b/Makefile
+@@ -5,4 +5,18 @@
+ 		    -Crelocation-model=static \
+ 		    -Zfunction-sections=n \
+ 		    -Wclippy::float_arithmetic
++
++ifdef CONFIG_POLLY_CLANG
++KBUILD_CFLAGS	+= -fplugin=LLVMPolly.so \
++		   -mllvm -polly \
++		   -mllvm -polly-ast-use-context \
++		   -mllvm -polly-invariant-load-hoisting \
++		   -mllvm -polly-loopfusion-greedy \
++		   -mllvm -polly-run-inliner \
++		   -mllvm -polly-vectorizer=stripmine
++# Polly can expose dead loop paths beyond the linker's DCE visibility.
++ifdef CONFIG_LD_DEAD_CODE_DATA_ELIMINATION
++KBUILD_CFLAGS	+= -mllvm -polly-run-dce
++endif
++endif
+ KBUILD_RUSTFLAGS_OPTION_CHKS :=
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -7,5 +7,18 @@
+ 	  This is mostly useful for distributions which want to ensure the
+ 	  build is unique between builds. It's safe to leave the default.
+ 
++config POLLY_CLANG
++	bool "Use Clang Polly optimizations"
++	depends on CC_IS_CLANG && $(cc-option,-mllvm -polly -fplugin=LLVMPolly.so)
++	depends on !COMPILE_TEST
++	help
++	  This option enables Clang's polyhedral loop optimizer known as
++	  Polly. Polly is able to optimize various loops throughout the
++	  kernel for cache locality. This requires a Clang toolchain
++	  compiled with support for Polly. More information can be found
++	  from Polly's website:
++
++	    https://polly.llvm.org
++
+ config HAVE_KERNEL_GZIP
+ 	bool
