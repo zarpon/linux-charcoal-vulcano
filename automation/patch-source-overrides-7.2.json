@@ -61,6 +61,11 @@
     "amd_pstate_epp_boost_documentation": {
       "local_port": null,
       "source_regex": "(?:latest-amd-pstate-epp-boost-04-docs\\.patch|6\\.16\\.12-amd-pstate-epp-boost-04-docs\\.port\\.patch)"
+    },
+    "cpu_optimizations": {
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "adaptive_port": "cpu-optimizations-6.16plus-to-valve-7.2"
     }
   }
 }
