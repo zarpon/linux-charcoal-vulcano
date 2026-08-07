@@ -14,6 +14,13 @@ MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
+ZEN_PATH = ROOT / "automation/port-zen-cpufreq-7.2.py"
+ZEN_SPEC = importlib.util.spec_from_file_location("port_zen_cpufreq_72", ZEN_PATH)
+assert ZEN_SPEC and ZEN_SPEC.loader
+ZEN = importlib.util.module_from_spec(ZEN_SPEC)
+sys.modules[ZEN_SPEC.name] = ZEN
+ZEN_SPEC.loader.exec_module(ZEN)
+
 SAMPLE = '''pkgbase=linux-charcoal-616
 _nepbase=linux-neptune-616
 _tag=6.16.12-valve27
@@ -26,12 +33,43 @@ source=(
   latest-bore.patch
   latest-bore-sched-ext-coexistence-fix.patch
   latest-zen-01.patch
+  latest-zen-02.patch
   latest-poc-selector.patch
 )
 prepare() {
   if [[ $src == latest-poc-selector.patch ]]; then :; fi
 }
 '''
+
+ZEN_PATCH = '''From test
+diff --git a/drivers/cpufreq/Kconfig.x86 b/drivers/cpufreq/Kconfig.x86
+@@ -9,7 +9,6 @@ config X86_INTEL_PSTATE
+-	select CPU_FREQ_GOV_SCHEDUTIL if SMP
+@@ -39,7 +38,6 @@ config X86_AMD_PSTATE
+-	select CPU_FREQ_GOV_SCHEDUTIL if SMP
+'''
+
+VALVE_72_KCONFIG = '''config X86_INTEL_PSTATE
+	bool "Intel P state control"
+	select CPU_FREQ_GOV_PERFORMANCE
+	select CPU_FREQ_GOV_SCHEDUTIL if SMP
+	help
+
+config X86_AMD_PSTATE
+	bool "AMD Processor P-State driver"
+	depends on ACPI
+	select ACPI_PROCESSOR
+	select ACPI_CPPC_LIB if X86_64
+	select CPU_FREQ_GOV_SCHEDUTIL if SMP
+	select ACPI_PLATFORM_PROFILE
+	select POWER_SUPPLY
+	help
+
+config X86_ACPI_CPUFREQ
+	tristate "ACPI Processor P-States driver"
+'''
+
+REMOVED_LINE = "-\tselect CPU_FREQ_GOV_SCHEDUTIL if SMP\n"
 
 
 class TransformTests(unittest.TestCase):
@@ -52,6 +90,22 @@ class TransformTests(unittest.TestCase):
             result,
         )
         self.assertIn("continue", result)
+
+    def test_wires_explicit_zen_cpufreq_port(self) -> None:
+        result = MODULE.transform(SAMPLE)
+        self.assertEqual(result.count("latest-zen-02.patch"), 2)
+        self.assertEqual(result.count("port-zen-cpufreq-7.2.py"), 1)
+
+    def test_zen_cpufreq_adapter_handles_valve_72_layout(self) -> None:
+        ZEN.validate_patch(ZEN_PATCH)
+        adapted = ZEN.adapt_source(VALVE_72_KCONFIG)
+        self.assertNotIn(ZEN.TARGET, adapted)
+        self.assertIn("\tselect ACPI_PLATFORM_PROFILE\n", adapted)
+        self.assertIn("\tselect POWER_SUPPLY\n", adapted)
+
+    def test_zen_cpufreq_adapter_rejects_patch_shape_drift(self) -> None:
+        with self.assertRaisesRegex(ZEN.PortError, "exactly two"):
+            ZEN.validate_patch(ZEN_PATCH.replace(REMOVED_LINE, "", 1))
 
     def test_is_idempotent(self) -> None:
         once = MODULE.transform(SAMPLE)

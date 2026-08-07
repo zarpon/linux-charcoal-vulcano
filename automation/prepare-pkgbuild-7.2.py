@@ -166,6 +166,52 @@ def wire_adios_72_port(text: str) -> str:
     return text[: match.end()] + compact_branch + text[match.end() :]
 
 
+def wire_zen_02_72_port(text: str) -> str:
+    """Adapt the locked Zen cpufreq patch to the Valve 7.2 Kconfig layout.
+
+    Zen commit cab7ea1 removes the schedutil select from Intel/AMD P-State.
+    Valve 7.2 changed the AMD stanza enough that GNU patch rejects the second
+    hunk. Keep the upstream patch bytes locked, validate them at prepare time,
+    and apply the same two-line semantic change with an explicit adapter.
+    """
+    if "port-zen-cpufreq-7.2.py" in text:
+        return text
+
+    production_anchor = (
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    production_branch = (
+        '    elif [[ $src == latest-zen-02.patch ]]; then\n'
+        '      python3 "$startdir/automation/port-zen-cpufreq-7.2.py" \\\n'
+        '        "../$src" drivers/cpufreq/Kconfig.x86\n'
+        '      git diff --check -- drivers/cpufreq/Kconfig.x86\n'
+    )
+    if text.count(production_anchor) == 1:
+        return text.replace(
+            production_anchor, production_branch + production_anchor, 1
+        )
+
+    compact_pattern = re.compile(
+        r"(?m)^(?P<indent>\s*)elif \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
+    )
+    match = compact_pattern.search(text)
+    if not match:
+        raise TransformError(
+            "prepare() dispatcher changed; cannot wire explicit Zen 7.2 cpufreq port"
+        )
+
+    indent = match.group("indent")
+    compact_branch = (
+        f"\n{indent}if [[ $src == latest-zen-02.patch ]]; then\n"
+        f'{indent}  python3 "$startdir/automation/port-zen-cpufreq-7.2.py" \\\n'
+        f'{indent}    "../$src" drivers/cpufreq/Kconfig.x86\n'
+        f'{indent}  git diff --check -- drivers/cpufreq/Kconfig.x86\n'
+        f"{indent}fi"
+    )
+    return text[: match.end()] + compact_branch + text[match.end() :]
+
+
 def transform(text: str) -> str:
     text = replace_assignment(text, "pkgbase", "linux-charcoal-72")
     text = replace_assignment(text, "_nepbase", "linux-neptune-72")
@@ -173,6 +219,7 @@ def transform(text: str) -> str:
     text = reorder_patches(text)
     text = skip_upstreamed_72_patches(text)
     text = wire_adios_72_port(text)
+    text = wire_zen_02_72_port(text)
     return text
 
 
@@ -196,6 +243,11 @@ def validate(text: str) -> None:
         raise TransformError("unexpected ADIOS reference count")
     if text.count("port-adios-7.2.py") != 1:
         raise TransformError("explicit ADIOS 7.2 port is not wired exactly once")
+    if text.count("latest-zen-02.patch") != 2:
+        # one source entry and one 7.2-only prepare() special case
+        raise TransformError("unexpected Zen cpufreq reference count")
+    if text.count("port-zen-cpufreq-7.2.py") != 1:
+        raise TransformError("explicit Zen 7.2 cpufreq port is not wired exactly once")
     for patch in UPSTREAMED_72_PATCHES:
         if patch not in text:
             raise TransformError(f"upstreamed 7.2 patch source disappeared: {patch}")
