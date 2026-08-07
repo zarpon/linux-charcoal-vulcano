@@ -66,6 +66,12 @@
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
       "adaptive_port": "cpu-optimizations-6.16plus-to-valve-7.2"
+    },
+    "clang_polly": {
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "local_port": "7.2-clang-polly-from-cachyos-7.1.patch",
+      "local_port_upstream_sha256": "71e5926efc30833a6fd756b9358529ac695fa688ae71cd74e31dd274ae1ecf05"
     }
   }
 }
