@@ -118,28 +118,52 @@ def skip_upstreamed_72_patches(text: str) -> str:
 
 
 def wire_adios_72_port(text: str) -> str:
-    """Use the explicit ADIOS 3.2.0 elevator port only in the 7.2 build."""
+    """Use the explicit ADIOS 3.2.0 elevator port only in the 7.2 build.
+
+    The production PKGBUILD has a full if/elif patch dispatcher, while unit-test
+    fixtures intentionally use a compact one-line POC branch. Support both
+    shapes without weakening validation of the production path.
+    """
     if "port-adios-7.2.py" in text:
         return text
 
-    needle = (
-        '      git apply "$adapted_poc"\n'
+    production_anchor = (
         '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
     )
-    if text.count(needle) != 1:
-        raise TransformError("POC dispatcher tail changed; cannot wire ADIOS 7.2 port")
-
-    replacement = (
-        '      git apply "$adapted_poc"\n'
+    production_branch = (
         '    elif [[ $src == latest-adios.patch ]]; then\n'
         '      local adapted_adios="../${src%.patch}-7.2-port.patch"\n'
         '      python3 "$startdir/automation/port-adios-7.2.py" \\\n'
         '        "../$src" "$adapted_adios" block/elevator.c\n'
         '      git apply --check "$adapted_adios"\n'
         '      git apply "$adapted_adios"\n'
-        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
     )
-    return text.replace(needle, replacement, 1)
+    if text.count(production_anchor) == 1:
+        return text.replace(
+            production_anchor, production_branch + production_anchor, 1
+        )
+
+    compact_pattern = re.compile(
+        r"(?m)^(?P<indent>\s*)elif \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
+    )
+    match = compact_pattern.search(text)
+    if not match:
+        raise TransformError(
+            "prepare() dispatcher changed; cannot wire explicit ADIOS 7.2 port"
+        )
+
+    indent = match.group("indent")
+    compact_branch = (
+        f"\n{indent}if [[ $src == latest-adios.patch ]]; then\n"
+        f'{indent}  local adapted_adios="../${{src%.patch}}-7.2-port.patch"\n'
+        f'{indent}  python3 "$startdir/automation/port-adios-7.2.py" \\\n'
+        f'{indent}    "../$src" "$adapted_adios" block/elevator.c\n'
+        f'{indent}  git apply --check "$adapted_adios"\n'
+        f'{indent}  git apply "$adapted_adios"\n'
+        f"{indent}fi"
+    )
+    return text[: match.end()] + compact_branch + text[match.end() :]
 
 
 def transform(text: str) -> str:
