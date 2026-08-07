@@ -19,6 +19,7 @@ _nepbase=linux-neptune-616
 _tag=6.16.12-valve27
 source=(
   config
+  latest-c23-libbpf.patch
   latest-adios.patch
   latest-adios-default.patch
   latest-bore.patch
@@ -39,6 +40,15 @@ class TransformTests(unittest.TestCase):
         self.assertIn("pkgbase=linux-charcoal-72", result)
         positions = [result.index(name) for name in MODULE.PATCH_ORDER]
         self.assertEqual(positions, sorted(positions))
+
+    def test_skips_patch_already_upstream_in_valve_72(self) -> None:
+        result = MODULE.transform(SAMPLE)
+        self.assertIn("latest-c23-libbpf.patch", result)
+        self.assertIn(
+            "Skipping $src: Valve 7.2 already contains the upstream change.",
+            result,
+        )
+        self.assertIn("continue", result)
 
     def test_is_idempotent(self) -> None:
         once = MODULE.transform(SAMPLE)
