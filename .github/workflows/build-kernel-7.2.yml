@@ -69,7 +69,10 @@ jobs:
             --manifest logs/patch-sources-7.2.json \
             --overrides automation/patch-source-overrides-7.2.json \
             --write | tee logs/resolver.log
-          python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
+          python3 automation/validate-patch-lock.py \
+            --manifest logs/patch-sources-7.2.json \
+            --overrides automation/patch-source-overrides-7.2.json \
+            --lock logs/patch-lock.json | tee logs/patch-lock-validation.log
           bash -n PKGBUILD
 
       - name: Validate 7.2 contracts before source download
