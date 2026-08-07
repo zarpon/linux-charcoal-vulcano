@@ -89,7 +89,7 @@ class ConfigExtractionTests(unittest.TestCase):
             archive.addfile(info, io.BytesIO(data))
         buffer.seek(0)
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(MODULE.PrepareError, "usable x86_64 config"):
+            with self.assertRaisesRegex(MODULE.PrepareError, "usable Arch/Valve x86_64 config"):
                 MODULE.extract_config_from_tar(buffer, Path(tmp) / "config")
 
 
