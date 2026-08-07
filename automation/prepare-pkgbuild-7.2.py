@@ -117,12 +117,38 @@ def skip_upstreamed_72_patches(text: str) -> str:
     return re.sub(pattern, replacement, text, count=1)
 
 
+def wire_adios_72_port(text: str) -> str:
+    """Use the explicit ADIOS 3.2.0 elevator port only in the 7.2 build."""
+    if "port-adios-7.2.py" in text:
+        return text
+
+    needle = (
+        '      git apply "$adapted_poc"\n'
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    if text.count(needle) != 1:
+        raise TransformError("POC dispatcher tail changed; cannot wire ADIOS 7.2 port")
+
+    replacement = (
+        '      git apply "$adapted_poc"\n'
+        '    elif [[ $src == latest-adios.patch ]]; then\n'
+        '      local adapted_adios="../${src%.patch}-7.2-port.patch"\n'
+        '      python3 "$startdir/automation/port-adios-7.2.py" \\\n'
+        '        "../$src" "$adapted_adios" block/elevator.c\n'
+        '      git apply --check "$adapted_adios"\n'
+        '      git apply "$adapted_adios"\n'
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    return text.replace(needle, replacement, 1)
+
+
 def transform(text: str) -> str:
     text = replace_assignment(text, "pkgbase", "linux-charcoal-72")
     text = replace_assignment(text, "_nepbase", "linux-neptune-72")
     text = replace_assignment(text, "_tag", BOOTSTRAP_TAG)
     text = reorder_patches(text)
     text = skip_upstreamed_72_patches(text)
+    text = wire_adios_72_port(text)
     return text
 
 
@@ -141,6 +167,11 @@ def validate(text: str) -> None:
     if text.count("latest-poc-selector.patch") != 2:
         # one source entry and one prepare() special case
         raise TransformError("unexpected POC selector reference count")
+    if text.count("latest-adios.patch") != 2:
+        # one source entry and one 7.2-only prepare() special case
+        raise TransformError("unexpected ADIOS reference count")
+    if text.count("port-adios-7.2.py") != 1:
+        raise TransformError("explicit ADIOS 7.2 port is not wired exactly once")
     for patch in UPSTREAMED_72_PATCHES:
         if patch not in text:
             raise TransformError(f"upstreamed 7.2 patch source disappeared: {patch}")
