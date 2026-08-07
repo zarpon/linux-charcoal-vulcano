@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Adapt a structurally verified POC patch to the Valve/BORE 6.16 layout.
+"""Adapt a structurally verified POC patch to the Valve/BORE scheduler layout.
 
-The nearest official POC source inserts rq::poc_idle_committed using context
-changed by the BORE port and declares select_idle_sibling() without Valve's
-CONFIG_SMP guard. This adapter removes only the reviewed rq field hunk,
-inserts the same field at the unique Valve/BORE anchor, and adds the missing
-guard as exact patch context. It intentionally does not pin an upstream
-SHA-256: the resolver locks the exact source bytes, commit, path and SHA-256
-for each build, while this adapter rejects any source whose relevant structure
-has changed.
+Native POC sources may place rq::poc_idle_committed next to either the older
+rq::ttwu_pending area or, for the native 7.2 patch, the NO_HZ/UCLAMP area.
+Valve/BORE can move that field context, so this adapter removes only a reviewed
+rq field hunk, inserts the same field at the unique Valve/BORE ttwu_pending
+anchor, and adds Valve's CONFIG_SMP context to the select_idle_sibling hunk.
+The resolver locks the exact source bytes, commit, path and SHA-256 for every
+build; this adapter rejects unreviewed source shapes instead of silently using
+a port intended for another kernel line.
 """
 from __future__ import annotations
 
@@ -23,11 +23,7 @@ EXPECTED_ADDITIONS = (
     "+\tunsigned int\t\tpoc_idle_committed;\n"
     "+#endif\n"
 )
-FIELD_BLOCK = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "+\tunsigned int\t\tpoc_idle_committed;\n"
-    "+#endif\n"
-)
+FIELD_BLOCK = EXPECTED_ADDITIONS
 SCHED_ANCHOR_RE = re.compile(
     r"(?m)^(#ifdef CONFIG_SMP\n"
     r"\tunsigned int\t\tttwu_pending;\n"
@@ -35,6 +31,11 @@ SCHED_ANCHOR_RE = re.compile(
     r"\tu64\t\t\tnr_switches;\n)"
 )
 TTWU_CONTEXT_RE = re.compile(r"(?m)^[ \t]*unsigned int[ \t]+ttwu_pending;[ \t]*\n")
+NATIVE_72_NOHZ_CONTEXT_RE = re.compile(
+    r"(?m)^ [ \t]*call_single_data_t[ \t]+nohz_csd;[ \t]*\n"
+    r"^ #endif /\* CONFIG_NO_HZ_COMMON \*/[ \t]*\n"
+)
+NATIVE_72_UCLAMP_CONTEXT_RE = re.compile(r"(?m)^ #ifdef CONFIG_UCLAMP_TASK[ \t]*\n")
 HUNK_RE = re.compile(
     r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
     r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@(?P<context>.*\n)$"
@@ -153,12 +154,7 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
     header = increment_hunk_context(text[hunk:header_end])
     if fair_source is not None:
         header = rebase_hunk_header(header, adapted_body, fair_source)
-    return (
-        text[:hunk]
-        + header
-        + adapted_body
-        + text[hunk_end:]
-    )
+    return text[:hunk] + header + adapted_body + text[hunk_end:]
 
 
 def sched_hunk(sched_header: str) -> str:
@@ -198,7 +194,14 @@ def reviewed_sched_field_hunk(
         hunk_end = next_hunk_end(text, hunk, section_end)
         body = text[header_end + 1 : hunk_end]
         if EXPECTED_ADDITIONS in body:
-            if body.count("poc_idle_committed") != 1 or not TTWU_CONTEXT_RE.search(body):
+            legacy_context = bool(TTWU_CONTEXT_RE.search(body))
+            native_72_context = bool(
+                NATIVE_72_NOHZ_CONTEXT_RE.search(body)
+                and NATIVE_72_UCLAMP_CONTEXT_RE.search(body)
+            )
+            if body.count("poc_idle_committed") != 1 or not (
+                legacy_context or native_72_context
+            ):
                 raise PortError("rq::poc_idle_committed hunk changed upstream")
             if candidate is not None:
                 raise PortError("multiple rq::poc_idle_committed hunks found upstream")
