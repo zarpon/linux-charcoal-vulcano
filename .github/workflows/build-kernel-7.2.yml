@@ -120,6 +120,41 @@ jobs:
               assert lock['components'][validated_nearest]['origin'] == 'upstream-compatible'
           PY
 
+      - name: Prepare compiler cache
+        run: mkdir -p .cache/ccache
+
+      - name: Compute compiler cache keys
+        id: ccache-key
+        env:
+          CCACHE_INPUT_HASH: ${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/prepare-pkgbuild-7.2.py', 'automation/prepare-steamos-7.2.py', 'automation/patch-sources.json', 'automation/patch-source-overrides-7.2.json', 'automation/resolve-latest-patches-7.2.py', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
+        run: |
+          set -Eeuo pipefail
+          restore_prefix="ccache-${RUNNER_OS}-${RUNNER_ARCH}-llvm-${CCACHE_INPUT_HASH}"
+          save_key="${restore_prefix}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "restore_prefix=${restore_prefix}-" >> "$GITHUB_OUTPUT"
+          echo "save_key=${save_key}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore compiler cache
+        id: restore-ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/ccache
+          key: ${{ steps.ccache-key.outputs.save_key }}
+          fail-on-cache-miss: false
+          restore-keys: |
+            ${{ steps.ccache-key.outputs.restore_prefix }}
+            ccache-${{ runner.os }}-${{ runner.arch }}-llvm-
+
+      - name: Report compiler cache lookup
+        env:
+          CACHE_MATCHED_KEY: ${{ steps.restore-ccache.outputs.cache-matched-key }}
+        run: |
+          if [[ -n "$CACHE_MATCHED_KEY" ]]; then
+            echo "Using previous compiler cache: $CACHE_MATCHED_KEY"
+          else
+            echo "No previous compiler cache matched; starting a cold cache safely"
+          fi
+
       - name: Build Docker image
         run: docker build . -t charcoal-72 2>&1 | tee logs/docker-build.log
 
@@ -184,6 +219,7 @@ jobs:
             export CCACHE_NOHASHDIR=true
             export CCACHE_MAXSIZE=5G
             export CCACHE_COMPRESS=true
+            ccache --show-config | tee logs/ccache-config.txt
             ccache --show-stats | tee logs/ccache-before.txt
             makepkg -ef --noconfirm 2>&1 | tee logs/makepkg-7.2.log
             ccache --show-stats | tee logs/ccache-after.txt
@@ -192,6 +228,13 @@ jobs:
           trap - EXIT
           compgen -G 'linux-charcoal-72-*.pkg.tar.zst' >/dev/null
           sha256sum linux-charcoal-72-*.pkg.tar.zst | tee logs/SHA256SUMS
+
+      - name: Save compiler cache
+        if: ${{ always() && !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.ccache-key.outputs.save_key != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/ccache
+          key: ${{ steps.ccache-key.outputs.save_key }}
 
       - name: Create SteamOS 7.2 prerelease bundle
         run: |
