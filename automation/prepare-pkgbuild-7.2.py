@@ -212,6 +212,57 @@ def wire_zen_02_72_port(text: str) -> str:
     return text[: match.end()] + compact_branch + text[match.end() :]
 
 
+
+def wire_zen_07_72_port(text: str) -> str:
+    """Adapt the locked Zen swap readahead patch to Valve 7.2.
+
+    Valve 7.2 replaced the legacy totalram_pages() shift expression in
+    swap_setup() with PAGES_TO_MB(), which makes Zen e3afdec's mm/swap.c
+    hunk reject. Apply its init/Kconfig hunk unchanged, validate the locked
+    upstream patch, then reproduce the same CONFIG_ZEN_INTERACTIVE behavior
+    around Valve's current swap_setup body.
+    """
+    if "port-zen-swap-7.2.py" in text:
+        return text
+
+    production_anchor = (
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    production_branch = (
+        '    elif [[ $src == latest-zen-07.patch ]]; then\n'
+        '      git apply --check --include=init/Kconfig "../$src"\n'
+        '      git apply --include=init/Kconfig "../$src"\n'
+        '      python3 "$startdir/automation/port-zen-swap-7.2.py" \\\n'
+        '        "../$src" mm/swap.c\n'
+        '      git diff --check -- init/Kconfig mm/swap.c\n'
+    )
+    if text.count(production_anchor) == 1:
+        return text.replace(
+            production_anchor, production_branch + production_anchor, 1
+        )
+
+    compact_pattern = re.compile(
+        r"(?m)^(?P<indent>\s*)elif \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
+    )
+    match = compact_pattern.search(text)
+    if not match:
+        raise TransformError(
+            "prepare() dispatcher changed; cannot wire explicit Zen 7.2 swap port"
+        )
+
+    indent = match.group("indent")
+    compact_branch = (
+        f"\n{indent}if [[ $src == latest-zen-07.patch ]]; then\n"
+        f'{indent}  git apply --check --include=init/Kconfig "../$src"\n'
+        f'{indent}  git apply --include=init/Kconfig "../$src"\n'
+        f'{indent}  python3 "$startdir/automation/port-zen-swap-7.2.py" \\\n'
+        f'{indent}    "../$src" mm/swap.c\n'
+        f'{indent}  git diff --check -- init/Kconfig mm/swap.c\n'
+        f"{indent}fi"
+    )
+    return text[: match.end()] + compact_branch + text[match.end() :]
+
 def transform(text: str) -> str:
     text = replace_assignment(text, "pkgbase", "linux-charcoal-72")
     text = replace_assignment(text, "_nepbase", "linux-neptune-72")
@@ -220,6 +271,7 @@ def transform(text: str) -> str:
     text = skip_upstreamed_72_patches(text)
     text = wire_adios_72_port(text)
     text = wire_zen_02_72_port(text)
+    text = wire_zen_07_72_port(text)
     return text
 
 
@@ -248,6 +300,10 @@ def validate(text: str) -> None:
         raise TransformError("unexpected Zen cpufreq reference count")
     if text.count("port-zen-cpufreq-7.2.py") != 1:
         raise TransformError("explicit Zen 7.2 cpufreq port is not wired exactly once")
+    if text.count("latest-zen-07.patch") != 2:
+        raise TransformError("unexpected Zen swap reference count")
+    if text.count("port-zen-swap-7.2.py") != 1:
+        raise TransformError("explicit Zen 7.2 swap port is not wired exactly once")
     for patch in UPSTREAMED_72_PATCHES:
         if patch not in text:
             raise TransformError(f"upstreamed 7.2 patch source disappeared: {patch}")
