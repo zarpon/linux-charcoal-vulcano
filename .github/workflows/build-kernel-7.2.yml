@@ -1,16 +1,13 @@
-name: Validate SteamOS 7.2 Charcoal kernel
+name: Build and prerelease SteamOS 7.2 Charcoal kernel
 
 on:
   push:
     branches:
       - kernel-7.2
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: charcoal-7.2-${{ github.run_id }}
@@ -18,6 +15,7 @@ concurrency:
 
 jobs:
   build-kernel-7-2:
+    if: github.ref == 'refs/heads/kernel-7.2'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
@@ -179,6 +177,80 @@ jobs:
           compgen -G 'linux-charcoal-72-*.pkg.tar.zst' >/dev/null
           sha256sum linux-charcoal-72-*.pkg.tar.zst | tee logs/SHA256SUMS
 
+      - name: Create SteamOS 7.2 prerelease bundle
+        run: |
+          set -Eeuo pipefail
+          PKGVER="$(bash -c 'source PKGBUILD; printf "%s" "$pkgver"')"
+          KERNEL_TAG="$(bash -c 'source PKGBUILD; printf "%s" "$_tag"')"
+          RELEASE_TAG="charcoal-7.2-${PKGVER}-r${GITHUB_RUN_NUMBER}"
+          RELEASE_ZIP="linux-charcoal-72-${PKGVER}-r${GITHUB_RUN_NUMBER}.zip"
+          echo "PKGVER=$PKGVER" >> "$GITHUB_ENV"
+          echo "KERNEL_TAG=$KERNEL_TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_ZIP=$RELEASE_ZIP" >> "$GITHUB_ENV"
+          python3 - "$RELEASE_ZIP" <<'PY'
+          import hashlib
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          archive = Path(sys.argv[1])
+          packages = sorted(Path('.').glob('linux-charcoal-72-*.pkg.tar.zst'))
+          assert len(packages) == 2, [str(path) for path in packages]
+          manifest = ''.join(
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+              for path in packages
+          )
+          Path('SHA256SUMS').write_text(manifest, encoding='utf-8')
+          with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as handle:
+              handle.writestr('SHA256SUMS', manifest)
+              for package in packages:
+                  handle.write(package, package.name)
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          Path('RELEASE-ZIP-SHA256SUM').write_text(
+              f"{digest}  {archive.name}\n", encoding='utf-8'
+          )
+          PY
+          {
+            echo "# Charcoal SteamOS 7.2 prerelease"
+            echo
+            echo "Experimental build from the dedicated \`kernel-7.2\` branch."
+            echo
+            echo "- Valve kernel tag: \`${KERNEL_TAG}\`"
+            echo "- Package version: \`${PKGVER}\`"
+            echo "- Workflow run: \`${GITHUB_RUN_NUMBER}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo
+            echo "This release is intentionally marked as a GitHub prerelease and is not consumed by the stable Charcoal installer."
+          } > logs/release-notes.md
+
+      - name: Publish SteamOS 7.2 GitHub prerelease
+        run: |
+          set -Eeuo pipefail
+          assets=(
+            "$RELEASE_ZIP"
+            RELEASE-ZIP-SHA256SUM
+            logs/SHA256SUMS
+            logs/patch-lock.json
+            logs/steamos-7.2-source.json
+          )
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file logs/release-notes.md \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG" \
+              --notes-file logs/release-notes.md \
+              --prerelease
+          fi
+
       - name: Upload 7.2 packages and validation logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -186,6 +258,8 @@ jobs:
           name: linux-charcoal-7.2-${{ github.run_number }}
           path: |
             linux-charcoal-72-*.pkg.tar.zst
+            linux-charcoal-72-*.zip
+            RELEASE-ZIP-SHA256SUM
             logs
           if-no-files-found: warn
           retention-days: 14
