@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -47,6 +49,22 @@ class PreferredTagTests(unittest.TestCase):
 
     def test_series_is_independent_from_rc_tag(self) -> None:
         self.assertEqual(MODULE.kernel_series({"kernel_source": self.config()}), "7.2")
+
+    def test_cpu_optimizations_requires_explicit_72_compatibility_port(self) -> None:
+        manifest = json.loads((ROOT / "automation/patch-sources.json").read_text(encoding="utf-8"))
+        override = ROOT / "automation/patch-source-overrides-7.2.json"
+        MODULE.apply_overrides(manifest, override)
+        cpu = next(
+            item for item in manifest["auxiliary_components"]
+            if item["name"] == "cpu_optimizations"
+        )
+        self.assertEqual(cpu["port_for_kernel"], "7.2")
+        self.assertTrue(cpu["port_when_incompatible"])
+        self.assertEqual(
+            cpu["adaptive_port"],
+            "cpu-optimizations-6.16plus-to-valve-7.2",
+        )
+        self.assertNotIn("local_port", cpu)
 
 
 if __name__ == "__main__":
