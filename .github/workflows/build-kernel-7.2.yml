@@ -21,10 +21,12 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Check out 7.2 branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Configure zswap
+        run: |
+          echo zstd | sudo tee /sys/module/zswap/parameters/compressor
+          echo 90 | sudo tee /sys/module/zswap/parameters/max_pool_percent
+          echo 1 | sudo tee /sys/module/zswap/parameters/shrinker_enabled
+          echo 1 | sudo tee /sys/module/zswap/parameters/enabled
 
       - name: Free runner space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
@@ -35,6 +37,11 @@ jobs:
         uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761
         with:
           swap-size-gb: 16
+
+      - name: Check out 7.2 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate 7.2 automation locally
         run: |
@@ -118,6 +125,8 @@ jobs:
               assert item.get('kernel_version', '').startswith('7.2'), (native, item)
           for validated_nearest in ('adios', 'nap'):
               assert lock['components'][validated_nearest]['origin'] == 'upstream-compatible'
+          adios = lock['components']['adios']
+          assert adios.get('kernel_version', '').startswith(('6.19', '7.0', '7.1', '7.2')), adios
           PY
 
       - name: Prepare compiler cache

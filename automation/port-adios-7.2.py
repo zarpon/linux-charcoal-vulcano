@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Explicitly port the locked ADIOS elevator-default hunk to Linux/Valve 7.2.
+"""Explicitly port the locked ADIOS elevator hunk to Linux/Valve 7.2.
 
-The ADIOS source lock currently resolves ADIOS 3.2.0 from the upstream
-linux6.12.44 patch. Linux 7.2 removed elevator_get_default() and moved default
-scheduler selection into elevator_set_default(). This adapter preserves every
-upstream ADIOS hunk except block/elevator.c and regenerates only that hunk from
-the actual 7.2 source passed by the caller.
+ADIOS 3.2.0 is available for multiple kernel generations.  The 7.2 resolver
+prefers the newest compatible predecessor, while this adapter handles only the
+elevator_set_default() layout difference between upstream Linux and Valve 7.2.
+All non-elevator ADIOS hunks are preserved byte-for-byte.
 """
 from __future__ import annotations
 
@@ -15,9 +14,9 @@ from pathlib import Path
 
 ELEVATOR_DIFF = "diff --git a/block/elevator.c b/block/elevator.c\n"
 TRAILER = "\n-- \n"
-OLD_FUNC = "static struct elevator_type *elevator_get_default(struct request_queue *q)"
-OLD_ADIOS_GUARD = "+#ifdef CONFIG_MQ_IOSCHED_DEFAULT_ADIOS\n"
-NEW_FUNC = "void elevator_set_default(struct request_queue *q)\n"
+LEGACY_FUNC = "static struct elevator_type *elevator_get_default(struct request_queue *q)"
+MODERN_FUNC = "void elevator_set_default(struct request_queue *q)"
+LEGACY_ADIOS_GUARD = "+#ifdef CONFIG_MQ_IOSCHED_DEFAULT_ADIOS\n"
 NAME_LINE = '\t\t.name = "mq-deadline",\n'
 QUEUE_IF = (
     "\tif ((q->nr_hw_queues == 1 ||\n"
@@ -41,17 +40,26 @@ def section_bounds(text: str) -> tuple[int, int]:
 
 
 def validate_upstream_section(section: str) -> None:
-    if OLD_FUNC not in section:
-        raise PortError("ADIOS elevator hunk is no longer the reviewed 6.12 layout")
-    if section.count(OLD_ADIOS_GUARD) != 1:
-        raise PortError("ADIOS default guard shape changed upstream")
-    if 'return elevator_find_get("adios");' not in section:
-        raise PortError("ADIOS elevator hunk no longer selects adios")
+    if LEGACY_FUNC in section:
+        if section.count(LEGACY_ADIOS_GUARD) != 1:
+            raise PortError("legacy ADIOS default guard shape changed upstream")
+        if 'return elevator_find_get("adios");' not in section:
+            raise PortError("legacy ADIOS elevator hunk no longer selects adios")
+        return
+
+    if MODERN_FUNC in section:
+        if "CONFIG_MQ_IOSCHED_DEFAULT_ADIOS" not in section:
+            raise PortError("modern ADIOS elevator hunk lost its default guard")
+        if 'ctx.name = "adios";' not in section:
+            raise PortError("modern ADIOS elevator hunk no longer selects adios")
+        return
+
+    raise PortError("ADIOS elevator hunk is not a reviewed legacy or modern layout")
 
 
 def port_elevator_source(source: str) -> str:
-    if NEW_FUNC not in source:
-        raise PortError("Linux 7.2 elevator_set_default() was not found")
+    if MODERN_FUNC not in source:
+        raise PortError("Linux/Valve 7.2 elevator_set_default() was not found")
     if source.count(NAME_LINE) != 1:
         raise PortError("expected one mq-deadline default name in 7.2 elevator.c")
     if source.count(QUEUE_IF) != 1:

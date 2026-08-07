@@ -11,6 +11,7 @@
       "local_port_project_version": "1.2"
     },
     "adios": {
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux(?:7\\.[0-2](?:\\.[0-9]+)?|6\\.19(?:\\.[0-9]+)?)-ADIOS-[0-9.]+\\.patch$",
       "port_for_kernel": null,
       "port_when_incompatible": false,
       "local_port": null,
