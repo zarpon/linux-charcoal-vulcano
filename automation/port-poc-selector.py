@@ -3,10 +3,10 @@
 
 Native POC sources may place rq::poc_idle_committed next to either the older
 rq::ttwu_pending area or, for the native 7.2 patch, the NO_HZ/UCLAMP area.
-For native 7.2, this adapter preserves that upstream placement and strictly
-rebases the hunk against the post-BORE source. Only reviewed older layouts use
-the explicit ttwu_pending relocation. The adapter also adds Valve's CONFIG_SMP
-context to the select_idle_sibling hunk.
+For native 7.2, the upstream patch is kept byte-for-byte unchanged after its
+reviewed scheduler hunks are verified against the post-BORE source. Only
+reviewed older layouts use the explicit ttwu_pending relocation and Valve
+CONFIG_SMP compatibility context.
 The resolver locks the exact source bytes, commit, path and SHA-256 for every
 build; this adapter rejects unreviewed source shapes instead of silently using
 a port intended for another kernel line.
@@ -100,6 +100,15 @@ def old_hunk_text(body: str) -> str:
     return "".join(lines)
 
 
+def validate_hunk_context(body: str, source: str, description: str) -> None:
+    old_text = old_hunk_text(body)
+    source_offset = source.find(old_text)
+    if source_offset < 0:
+        raise PortError(f"{description} context does not match Valve/BORE source")
+    if source.find(old_text, source_offset + 1) >= 0:
+        raise PortError(f"{description} context is ambiguous in Valve/BORE source")
+
+
 def rebase_hunk_header(header: str, body: str, fair_source: str) -> str:
     match = HUNK_RE.match(header)
     if not match:
@@ -120,7 +129,7 @@ def rebase_hunk_header(header: str, body: str, fair_source: str) -> str:
     )
 
 
-def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
+def reviewed_idle_sibling_hunk(text: str) -> tuple[int, int, int, str]:
     fair_start, fair_end = section_bounds(text, FAIR_SECTION_HEADER, "kernel/sched/fair.c")
     candidate: tuple[int, int, int, str] | None = None
     hunk = text.find("@@ ", fair_start, fair_end)
@@ -139,11 +148,13 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
                 raise PortError("multiple select_idle_sibling hunks found upstream")
             candidate = (hunk, header_end, hunk_end, body)
         hunk = text.find("@@ ", hunk_end, fair_end)
-
     if candidate is None:
         raise PortError("reviewed select_idle_sibling hunk was not found")
+    return candidate
 
-    hunk, header_end, hunk_end, body = candidate
+
+def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
+    hunk, header_end, hunk_end, body = reviewed_idle_sibling_hunk(text)
     if body.count(PELT_INCLUDE) != 1:
         raise PortError("select_idle_sibling hunk no longer has one pelt.h anchor")
     if VALVE_SMP_GUARD in body:
@@ -224,30 +235,28 @@ def adapt_patch(
     hunk, next_hunk, body = reviewed_sched_field_hunk(text, section, section_end)
 
     if is_native_72_sched_context(body):
-        # The native 7.2 POC patch is based on the same rq layout as Linux
-        # 7.2-rc1. BORE 6.8.0 does not modify this rq region, so do not
-        # transplant the field to the obsolete pre-7.2 ttwu_pending anchor.
-        # When the post-BORE source is available, require the complete old
-        # hunk context to match exactly once and rebase only its line number.
-        adapted = text
+        # Native 7.2 POC already targets the Linux 7.2 scheduler layout.
+        # BORE 6.8.0 does not alter either reviewed hunk. Validate both
+        # original contexts against the post-BORE source and keep the patch
+        # unchanged; git apply --check remains the authoritative full check.
         if sched_header is not None:
-            header_end = text.find("\n", hunk, section_end)
-            if header_end < 0:
-                raise PortError("native 7.2 rq hunk header is malformed")
-            header_end += 1
-            header = rebase_hunk_header(text[hunk:header_end], body, sched_header)
-            adapted = text[:hunk] + header + text[header_end:]
-    else:
-        # Compatibility path for the reviewed older layout only. Those POC
-        # variants placed the field next to ttwu_pending, which BORE/Valve
-        # could move, so preserve the existing explicit relocation adapter.
-        adapted = text[:hunk] + text[next_hunk:]
-        adapted_sched = sched_section(adapted)
-        if "poc_idle_committed" in adapted_sched:
-            raise PortError("rq::poc_idle_committed hunk remains in sched.h")
-        if sched_header is not None:
-            adapted = insert_sched_hunk(adapted, sched_hunk(sched_header))
+            validate_hunk_context(body, sched_header, "native 7.2 rq field")
+        _, _, _, fair_body = reviewed_idle_sibling_hunk(text)
+        if fair_source is not None:
+            validate_hunk_context(
+                fair_body, fair_source, "native 7.2 select_idle_sibling"
+            )
+        return text
 
+    # Compatibility path for the reviewed older layout only. Those POC
+    # variants placed the field next to ttwu_pending, which BORE/Valve could
+    # move, so preserve the existing explicit relocation and CONFIG_SMP port.
+    adapted = text[:hunk] + text[next_hunk:]
+    adapted_sched = sched_section(adapted)
+    if "poc_idle_committed" in adapted_sched:
+        raise PortError("rq::poc_idle_committed hunk remains in sched.h")
+    if sched_header is not None:
+        adapted = insert_sched_hunk(adapted, sched_hunk(sched_header))
     return adapt_idle_sibling_hunk(adapted, fair_source)
 
 
@@ -291,8 +300,8 @@ def main() -> None:
 
     args.output.write_text(adapted_patch, encoding="utf-8")
     print(
-        "Prepared the locked upstream POC port with native 7.2 rq placement "
-        "or reviewed legacy relocation and exact CONFIG_SMP context"
+        "Prepared the locked upstream POC patch: native 7.2 kept unchanged "
+        "after structural verification; legacy layouts explicitly ported"
     )
 
 
