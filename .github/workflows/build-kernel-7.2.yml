@@ -142,12 +142,25 @@ jobs:
             export CCACHE_NOHASHDIR=true
             export CCACHE_MAXSIZE=5G
             export CCACHE_COMPRESS=true
-            makepkg --verifysource --skipchecksums 2>&1 | tee logs/verifysource-bootstrap.log
+
+            # All source-mutating automation has already run. Generate the final
+            # integrity array directly from those exact bytes; never bootstrap by
+            # bypassing checksum validation.
             makepkg -g > logs/generated-sha256sums.txt
             python3 automation/finalize-pkgbuild-checksums.py \
               --generated logs/generated-sha256sums.txt \
               --report logs/checksum-validation.txt
             bash -n PKGBUILD
+
+            # Re-generate after finalization and require byte-for-byte stability.
+            # This catches source/checksum drift before prepare/compile can start.
+            makepkg -g > logs/generated-sha256sums.verify.txt
+            if ! cmp -s logs/generated-sha256sums.txt logs/generated-sha256sums.verify.txt; then
+              echo "::error::checksum generation is not idempotent; source content changed during finalization"
+              diff -u logs/generated-sha256sums.txt logs/generated-sha256sums.verify.txt || true
+              exit 1
+            fi
+
             makepkg --verifysource 2>&1 | tee logs/verifysource.log
             makepkg -Cof --noconfirm 2>&1 | tee logs/prepare-7.2.log
           '
