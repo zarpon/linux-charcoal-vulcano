@@ -20,6 +20,7 @@ _tag=6.16.12-valve27
 source=(
   config
   latest-c23-libbpf.patch
+  latest-ath11k-upstream.patch
   latest-adios.patch
   latest-adios-default.patch
   latest-bore.patch
@@ -41,9 +42,11 @@ class TransformTests(unittest.TestCase):
         positions = [result.index(name) for name in MODULE.PATCH_ORDER]
         self.assertEqual(positions, sorted(positions))
 
-    def test_skips_patch_already_upstream_in_valve_72(self) -> None:
+    def test_skips_patches_already_upstream_in_valve_72(self) -> None:
         result = MODULE.transform(SAMPLE)
-        self.assertIn("latest-c23-libbpf.patch", result)
+        for patch in ("latest-c23-libbpf.patch", "latest-ath11k-upstream.patch"):
+            self.assertIn(patch, result)
+            self.assertIn(patch, MODULE.UPSTREAMED_72_PATCHES)
         self.assertIn(
             "Skipping $src: Valve 7.2 already contains the upstream change.",
             result,

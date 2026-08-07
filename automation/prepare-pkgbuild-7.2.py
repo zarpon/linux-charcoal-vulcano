@@ -20,6 +20,9 @@ UPSTREAMED_72_PATCHES = {
         "upstream commit d70f79fef65810faf64dbae1f3a1b5623cdb2345 "
         "is already present in Valve 7.2"
     ),
+    "latest-ath11k-upstream.patch": (
+        "all four ath11k dp_rx hunks are already present in Valve 7.2"
+    ),
 }
 
 
