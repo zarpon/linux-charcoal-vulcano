@@ -147,7 +147,7 @@ def adapt_cpu_optimizations_for_valve_72(data: bytes) -> bytes:
             + ", ".join(missing)
         )
 
-    ported_tail = b'''@@ -238,7 +649,7 @@ config X86_L1_CACHE_SHIFT
+    ported_tail = b'''@@ -238,6 +649,6 @@ config X86_L1_CACHE_SHIFT
  \tint
 -\tdefault "7" if MPENTIUM4
 -\tdefault "6" if MK7 || MPENTIUMM || MATOM || MVIAC7 || X86_GENERIC || X86_64
@@ -178,7 +178,7 @@ def adapt_cpu_optimizations_for_valve_72(data: bytes) -> bytes:
  
  config X86_CX8
  \tdef_bool y
-@@ -272,10 +683,10 @@ config X86_CX8
+@@ -272,11 +683,11 @@ config X86_CX8
  # generates cmov.
  config X86_CMOV
  \tdef_bool y
