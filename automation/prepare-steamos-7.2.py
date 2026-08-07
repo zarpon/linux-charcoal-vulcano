@@ -19,7 +19,8 @@ import tarfile
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import BinaryIO, Iterable
+from pathlib import Path, PurePosixPath
+from typing import BinaryIO, Iterable
 
 DEFAULT_INDEX = (
     "https://steamdeck-packages.steamos.cloud/archlinux-mirror/"
@@ -195,7 +196,6 @@ def extract_config_from_tar(fileobj: BinaryIO, destination: Path) -> str:
                 data = extracted.read()
                 if b"CONFIG_64BIT=" not in data and b"CONFIG_X86_64=" not in data:
                     continue
-                # Prefer the shallow package-level config over nested source files.
                 candidates.append((len(path.parts), member, data))
                 if len(path.parts) <= 2:
                     break
