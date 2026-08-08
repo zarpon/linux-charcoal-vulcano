@@ -204,6 +204,16 @@ prepare() {
         "../$src" "$adapted_poc" kernel/sched/sched.h kernel/sched/fair.c
       git apply --check "$adapted_poc"
       git apply "$adapted_poc"
+    elif [[ $src == latest-c23-libbpf.patch ]]; then
+      if patch --dry-run --batch -Np1 < "../$src" >/dev/null 2>&1; then
+        patch --batch -Np1 < "../$src"
+      elif patch --dry-run --batch -R -Np1 < "../$src" >/dev/null 2>&1; then
+        echo "Skipping patch $src: already present in Valve base $_tag."
+      else
+        echo "ERROR: patch $src neither applies nor is already present in Valve base $_tag." >&2
+        patch --dry-run --batch -Np1 < "../$src" || true
+        return 1
+      fi
     elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
       patch -Np1 < "../$src"
       python3 "$startdir/automation/fix-libbpf-clang-warning.py" \
@@ -432,8 +442,8 @@ _package-docs() {
   done < <(find Documentation -name '.*' -prune -o ! -type d -print0)
 
   echo "Adding symlink..."
-  mkdir -p "$pkgdir/usr/share/doc"
-  ln -sr "$builddir/Documentation" "$pkgdir/usr/share/doc/$pkgbase"
+  mkdir -p "$pkgdir/usr/src"
+  ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
 }
 
 # Jupiter: Don't package the docs
