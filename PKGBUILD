@@ -442,8 +442,8 @@ _package-docs() {
   done < <(find Documentation -name '.*' -prune -o ! -type d -print0)
 
   echo "Adding symlink..."
-  mkdir -p "$pkgdir/usr/src"
-  ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
+  mkdir -p "$pkgdir/usr/share/doc"
+  ln -sr "$builddir/Documentation" "$pkgdir/usr/share/doc/$pkgbase"
 }
 
 # Jupiter: Don't package the docs
