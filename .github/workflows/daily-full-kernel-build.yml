@@ -1,0 +1,25 @@
+name: Daily full kernel build
+
+on:
+  schedule:
+    # GitHub Actions cron uses UTC. 03:00 UTC = 00:00 America/Sao_Paulo (Brasilia).
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-full-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Trigger full kernel package build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          gh workflow run push.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref master \
+            -f publish_release=false
