@@ -14,7 +14,7 @@ jobs:
   dispatch-full-build:
     runs-on: ubuntu-24.04
     steps:
-      - name: Trigger full kernel package build
+      - name: Trigger full kernel package build and publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -22,4 +22,4 @@ jobs:
           gh workflow run push.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref master \
-            -f publish_release=false
+            -f publish_release=true
