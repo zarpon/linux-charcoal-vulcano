@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Validate completeness and local-port freshness of a resolved patch lock."""
+"""Validate completeness, port freshness, and latest upstream patch versions."""
 from __future__ import annotations
 
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -142,11 +143,28 @@ def validate(manifest: dict[str, Any], lock: dict[str, Any]) -> None:
             validate_record(name, spec, record)
 
 
+def validate_latest_upstream_versions() -> None:
+    """Refuse a lock that silently selected an older versioned patch family."""
+    audit = Path(__file__).with_name("audit-latest-patch-versions.py")
+    if not audit.is_file():
+        raise ValidationError(f"latest upstream audit is missing: {audit}")
+    result = subprocess.run([sys.executable, str(audit)], check=False)
+    if result.returncode != 0:
+        raise ValidationError(
+            "latest upstream patch audit failed; update/port the newest upstream version"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", default="automation/patch-sources.json")
     parser.add_argument("--overrides", default="automation/patch-source-overrides.json")
     parser.add_argument("--lock", default="logs/patch-lock.json")
+    parser.add_argument(
+        "--skip-latest-audit",
+        action="store_true",
+        help="skip network-backed latest-version validation (unit tests/offline diagnostics only)",
+    )
     args = parser.parse_args()
     manifest = load(Path(args.manifest))
     override_path = Path(args.overrides)
@@ -164,7 +182,9 @@ def main() -> int:
                     raise ValidationError(f"invalid override for {group_name}.{name}")
                 by_name[name].update(values)
     validate(manifest, load(Path(args.lock)))
-    print("Patch lock is complete and every port policy is current")
+    if not args.skip_latest_audit:
+        validate_latest_upstream_versions()
+    print("Patch lock is complete, every port policy is current, and latest versions are enforced")
     return 0
 
 
