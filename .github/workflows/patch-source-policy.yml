@@ -6,10 +6,13 @@ on:
     paths:
       - PKGBUILD
       - automation/patch-sources.json
+      - automation/patch-source-overrides.json
       - automation/resolve-latest-patches.py
+      - automation/audit-latest-patch-versions.py
       - automation/validate-patch-lock.py
       - automation/port-poc-selector.py
       - automation/fix-libbpf-clang-warning.py
+      - tests/test-resolve-latest-patches.py
       - tests/test_patch_source_policy.py
       - tests/test_patch_lock_validation.py
       - tests/test_patch_poc_port.py
@@ -22,10 +25,13 @@ on:
     paths:
       - PKGBUILD
       - automation/patch-sources.json
+      - automation/patch-source-overrides.json
       - automation/resolve-latest-patches.py
+      - automation/audit-latest-patch-versions.py
       - automation/validate-patch-lock.py
       - automation/port-poc-selector.py
       - automation/fix-libbpf-clang-warning.py
+      - tests/test-resolve-latest-patches.py
       - tests/test_patch_source_policy.py
       - tests/test_patch_lock_validation.py
       - tests/test_patch_poc_port.py
@@ -52,6 +58,7 @@ jobs:
           mkdir -p logs
           python3 -m py_compile \
             automation/resolve-latest-patches.py \
+            automation/audit-latest-patch-versions.py \
             automation/validate-patch-lock.py \
             automation/port-poc-selector.py \
             automation/fix-libbpf-clang-warning.py \
