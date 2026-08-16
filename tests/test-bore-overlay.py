@@ -11,7 +11,7 @@ overlay = overlay_path.read_text(encoding="utf-8")
 policy = json.loads((root / "automation/patch-source-overrides.json").read_text(encoding="utf-8"))
 bore = policy["components"]["bore"]
 assert bore["local_port_project_version"] == "6.8.0"
-assert bore["local_port_upstream_sha256"] is None
+assert bore["local_port_upstream_sha256"] == "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd"
 assert bore["local_port_overlays"] == ["6.16.12-bore-6.8.0-final.patch"]
 for marker in (
     '#define SCHED_BORE_VERSION  "6.8.0"',
@@ -50,4 +50,14 @@ with tempfile.NamedTemporaryFile(suffix=".patch") as combined:
         capture_output=True,
     )
 
-print("BORE 6.8.0 Valve overlay policy and syntax passed")
+# The main workflow creates the lock immediately before this test. When present,
+# enforce that every versioned patch family resolved the newest upstream release
+# and that static local ports still correspond to the exact upstream bytes.
+if (root / "logs/patch-lock.json").is_file():
+    subprocess.run(
+        ["python3", "automation/audit-latest-patch-versions.py"],
+        cwd=root,
+        check=True,
+    )
+
+print("BORE 6.8.0 Valve overlay policy, syntax and latest-patch audit passed")
