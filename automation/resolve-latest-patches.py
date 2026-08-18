@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 API = "https://api.github.com"
-UA = "linux-charcoal-vulcano-dynamic-resolver/5"
+UA = "linux-charcoal-vulcano-dynamic-resolver/6"
 
 
 class ResolveError(RuntimeError):
@@ -72,6 +72,31 @@ def version_key(text: str | None) -> tuple[int, ...]:
     return tuple(values[-8:]) if values else (0,)
 
 
+def project_version_key(text: str | None) -> tuple[int, ...]:
+    """Sort project releases semantically, including rc/pre and rN revisions."""
+    raw = (text or "").strip().lower().lstrip("v")
+    match = re.fullmatch(r"(?P<core>\d+(?:\.\d+)*)(?P<suffix>.*)", raw)
+    if not match:
+        return (0,) * 10
+
+    core = [int(value) for value in match.group("core").split(".")]
+    core = (core + [0] * 8)[:8]
+    suffix = match.group("suffix")
+    prerelease = re.search(r"(?:^|[-_.]?)(alpha|beta|pre|rc)(\d*)", suffix)
+    postrelease = re.search(r"(?:^|[-_.]?)r(\d+)$", suffix)
+    if prerelease:
+        stage_rank = {"alpha": 0, "beta": 1, "pre": 2, "rc": 3}
+        stage = stage_rank[prerelease.group(1)]
+        serial = int(prerelease.group(2) or 0)
+    elif postrelease:
+        stage = 5
+        serial = int(postrelease.group(1))
+    else:
+        stage = 4
+        serial = 0
+    return tuple(core + [stage, serial])
+
+
 def parse_kernel_version(text: str) -> tuple[int, ...] | None:
     match = re.fullmatch(r"(\d+)\.(\d+)(?:\.(\d+))?", text)
     return (
@@ -103,7 +128,9 @@ def candidate_project_version(spec: dict[str, Any], path: str) -> str | None:
 def compatible_key(candidate: Candidate) -> tuple[Any, ...]:
     return (
         candidate.compatibility,
-        version_key(candidate.project_version),
+        project_version_key(candidate.project_version)
+        if candidate.project_version
+        else version_key(candidate.path),
         candidate.kernel_version or (0,),
         candidate.path,
     )
@@ -111,10 +138,30 @@ def compatible_key(candidate: Candidate) -> tuple[Any, ...]:
 
 def latest_key(candidate: Candidate) -> tuple[Any, ...]:
     return (
-        version_key(candidate.project_version or candidate.path),
+        project_version_key(candidate.project_version)
+        if candidate.project_version
+        else version_key(candidate.path),
         candidate.kernel_version or (0,),
         candidate.path,
     )
+
+
+def latest_project_candidates(candidates: list[Candidate]) -> list[Candidate]:
+    """Keep every kernel variant of the newest project release.
+
+    Kernel compatibility must never make an older project release win. Once the
+    newest project release is known, the closest kernel variant is selected and
+    ported when the target kernel has no native patch.
+    """
+    versioned = [item for item in candidates if item.project_version]
+    if not versioned:
+        return candidates
+    latest = max(project_version_key(item.project_version) for item in versioned)
+    return [
+        item
+        for item in versioned
+        if project_version_key(item.project_version) == latest
+    ]
 
 
 def nearest_candidate(candidates: list[Candidate], kernel_version: str) -> Candidate | None:
@@ -287,16 +334,29 @@ def decode_mailbox_patch(data: bytes) -> bytes:
 def resolve_github_component(
     spec: dict[str, Any], kernel_version: str, token: str | None, root: Path
 ) -> dict[str, Any]:
-    candidates = upstream_candidates(spec, kernel_version, token)
-    if not candidates:
+    all_candidates = upstream_candidates(spec, kernel_version, token)
+    if not all_candidates:
         raise ResolveError(f"no official upstream patch found for {spec['name']}")
+
+    # A native patch for the target kernel is useful only within the newest
+    # project release. Never let an obsolete 6.16 patch hide a newer release.
+    candidates = latest_project_candidates(all_candidates)
     compatible = [item for item in candidates if item.compatibility >= 2]
+    compatibility_reference = [
+        item for item in all_candidates if item.compatibility >= 2
+    ]
     local_port = spec.get("local_port")
     adaptive_port = spec.get("adaptive_port")
     use_local_port = False
     use_adaptive_port = False
+
     if spec.get("always_latest"):
-        candidate = max(candidates, key=latest_key)
+        # For versioned projects, latest_project_candidates() has already
+        # selected the newest release. Choose its kernel base closest to the
+        # target instead of blindly choosing the numerically newest kernel.
+        candidate = nearest_candidate(candidates, kernel_version) or max(
+            candidates, key=latest_key
+        )
         use_local_port = bool(local_port)
         use_adaptive_port = bool(adaptive_port)
         selection = (
@@ -356,6 +416,18 @@ def resolve_github_component(
         upstream["kernel_version"] = ".".join(map(str, candidate.kernel_version))
     if candidate.project_version:
         upstream["project_version"] = candidate.project_version
+
+    # Keep the best direct-compatible baseline visible in the lock for audit
+    # purposes when a newer release is being sourced from another kernel base.
+    if compatibility_reference:
+        reference = max(compatibility_reference, key=compatible_key)
+        if reference.path != candidate.path:
+            upstream["compatibility_reference"] = {
+                "path": reference.path,
+                "kernel_version": ".".join(map(str, reference.kernel_version or ())),
+                "project_version": reference.project_version,
+            }
+
     if not use_local_port and not use_adaptive_port:
         return {**upstream, "origin": "upstream-compatible"}
 
