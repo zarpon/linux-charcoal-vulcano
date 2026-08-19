@@ -1,4 +1,4 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-08-06T15:31:00-03:00
-Source: manual request with continuous monitoring
+Last requested build: 2026-08-19T09:03:59-03:00
+Source: daily monitor recovery after no recorded 2026-08-19 scheduled full build
