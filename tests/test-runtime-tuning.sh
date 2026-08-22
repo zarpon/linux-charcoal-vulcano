@@ -68,7 +68,7 @@ require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_scale_factor=125"
 require_line "$root/99-charcoal-sysctl.conf" "kernel.split_lock_mitigate=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_background_bytes=209715200"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_bytes=409430400"
-require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=125"
+require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=85"
 require_line "$root/99-charcoal-sysctl.conf" "-vm.zram_recomp_immediate=1"
 
 require_line "$root/99-charcoal-gaming.conf" "MESA_SHADER_CACHE_MAX_SIZE=10G"
@@ -127,13 +127,22 @@ done
 # never SKIP for local files. Exact local hashes are regenerated from the final
 # workspace bytes and strictly checked with makepkg --verifysource before build.
 source "$root/PKGBUILD"
+sysctl_checksum_verified=0
 for index in "${!source[@]}"; do
   candidate="${source[$index]%%::*}"
   [[ -f "$root/$candidate" ]] || continue
   checksum="${sha256sums[$index]}"
   [[ "$checksum" != "SKIP" ]] || fail "local source has SKIP checksum: $candidate"
   [[ "$checksum" =~ ^[0-9a-f]{64}$ ]] || fail "invalid SHA-256 entry: $candidate"
+  if [[ "$candidate" == "99-charcoal-sysctl.conf" ]]; then
+    expected_checksum="$(sha256sum "$root/$candidate" | awk '{print $1}')"
+    [[ "$checksum" == "$expected_checksum" ]] \
+      || fail "PKGBUILD checksum does not match $candidate"
+    sysctl_checksum_verified=1
+  fi
 done
+[[ "$sysctl_checksum_verified" == 1 ]] \
+  || fail "99-charcoal-sysctl.conf is missing from PKGBUILD sources"
 
 # Exercise the exact helper against regular files standing in for sysfs/procfs.
 mkdir -p "$sandbox/sys/block/zram0" "$sandbox/proc/sys/vm" "$sandbox/bin"
