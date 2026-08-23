@@ -76,6 +76,7 @@ jobs:
             tests/test-resolve-latest-patches.py \
             tests/test-apply-resolved-patch.py \
             tests/test-bore-overlay.py \
+            tests/test_patch_fsync_port.py \
             tests/test_patch_source_policy.py \
             tests/test_patch_lock_validation.py \
             tests/test_patch_poc_port.py \

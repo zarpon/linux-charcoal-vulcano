@@ -75,12 +75,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py
+          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py tests/test_patch_fsync_port.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
           python3 automation/audit-latest-patch-versions.py | tee logs/latest-patch-audit.log
           python3 automation/port-poc-selector.py --validate latest-poc-selector.patch | tee logs/poc-adapter-validation.log
           python3 tests/test-bore-overlay.py
+          python3 tests/test_patch_fsync_port.py
           bash -n PKGBUILD
           grep -Fq '"version": "6.18.' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD

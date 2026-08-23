@@ -201,7 +201,10 @@
       "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync1_via_futex_waitv\\.patch",
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync1_via_futex_waitv\\.patch$",
       "kernel_version_regex": "linux-tkg-patches/(?P<kernel>\\d+\\.\\d+)/",
-      "allow_nearest_upstream": true
+      "port_for_kernel": "6.18.45",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-fsync-futex-waitv.port.patch",
+      "local_port_upstream_sha256": "9df628fd530950e37d31da854cb314d536f33c83935adf5c47e71266a55f7004"
     },
     {
       "name": "o3",
