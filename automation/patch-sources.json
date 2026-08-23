@@ -243,7 +243,12 @@
       "source_regex": "https://dev\\.gentoo\\.org/~alicef/genpatches/trunk/[^/]+/5010_enable-cpu-optimizations-universal\\.patch",
       "filename_regex": "^more-ISA-levels-and-uarches-for-kernel-\\d+\\.\\d+\\+?\\.patch$",
       "kernel_version_regex": "kernel-(?P<kernel>\\d+\\.\\d+)",
-      "project_version_regex": "kernel-(?P<version>\\d+\\.\\d+)"
+      "project_version_regex": "kernel-(?P<version>\\d+\\.\\d+)",
+      "port_for_kernel": "6.18.45",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-cpu-optimizations.port.patch",
+      "local_port_project_version": "6.16",
+      "local_port_upstream_sha256": "ed36bcab65f959200c91991e3337fd716883ef0915fbec65d6252f09fd72c666"
     },
     {
       "name": "dkms_clang",
