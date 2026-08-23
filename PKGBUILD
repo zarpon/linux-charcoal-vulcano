@@ -2,9 +2,11 @@
 # Maintainer: John Schoenick <johns@valvesoftware.com>
 # Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
 
-pkgbase=linux-charcoal-616
-_nepbase=linux-neptune-616
-_tag=6.16.12-valve27
+pkgbase=linux-charcoal-618
+_nepbase=linux-neptune-618
+# The resolver refreshes this seed from Valve's official 6.18 source index
+# before every build; keep a current, buildable tag for local inspection.
+_tag=6.18.45-valve1
 _ver=1
 pkgver=${_tag//-/.}.cc$_ver
 pkgrel=1
@@ -198,13 +200,7 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     echo "Applying patch $src..."
-    if [[ $src == latest-poc-selector.patch ]]; then
-      local adapted_poc="../${src%.patch}-valve-port.patch"
-      python3 "$startdir/automation/port-poc-selector.py" \
-        "../$src" "$adapted_poc" kernel/sched/sched.h kernel/sched/fair.c
-      git apply --check "$adapted_poc"
-      git apply "$adapted_poc"
-    elif [[ $src == latest-c23-libbpf.patch ]]; then
+    if [[ $src == latest-c23-libbpf.patch ]]; then
       if patch --dry-run --batch -Np1 < "../$src" >/dev/null 2>&1; then
         patch --batch -Np1 < "../$src"
       elif patch --dry-run --batch -R -Np1 < "../$src" >/dev/null 2>&1; then
@@ -215,9 +211,13 @@ prepare() {
         return 1
       fi
     elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
-      patch -Np1 < "../$src"
+      python3 "$startdir/automation/apply-resolved-patch.py" \
+        --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
       python3 "$startdir/automation/fix-libbpf-clang-warning.py" \
         tools/lib/bpf/elf.c
+    elif [[ $src == latest-*.patch ]]; then
+      python3 "$startdir/automation/apply-resolved-patch.py" \
+        --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
     else
       patch -Np1 < "../$src"
     fi

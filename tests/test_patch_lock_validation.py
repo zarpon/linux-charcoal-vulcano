@@ -16,16 +16,35 @@ sys.modules[spec.name] = validator
 spec.loader.exec_module(validator)
 
 
+def kernel_source() -> dict:
+    return {
+        "repository": "example/linux-integration",
+        "series": "6.18",
+        "tag_regex": r"^(?P<version>6\.18\.\d+)-valve(?P<valve>[0-9.]+)$",
+    }
+
+
+def kernel_lock() -> dict:
+    return {
+        "tag": "6.18.45-valve1",
+        "version": "6.18.45",
+        "commit": "d" * 40,
+    }
+
+
 def manifest(version: str = "1.0.0") -> dict:
     return {
-        "schema": 2,
+        "schema": 4,
+        "kernel_source": kernel_source(),
         "components": [
             {
                 "name": "static_port",
                 "kind": "github_tree",
                 "target": "latest-static-port.patch",
                 "local_port": "static-port.patch",
+                "port_for_kernel": "6.18.45",
                 "local_port_project_version": version,
+                "local_port_upstream_sha256": "c" * 64,
                 "project_version_regex": "static-v(?P<version>.+)\\.patch$",
             }
         ],
@@ -35,10 +54,12 @@ def manifest(version: str = "1.0.0") -> dict:
 
 def lock(version: str = "1.0.0") -> dict:
     return {
-        "schema": 3,
+        "schema": 5,
+        "kernel": kernel_lock(),
         "components": {
             "static_port": {
                 "origin": "local-port",
+                "selection": "latest-release-port",
                 "target": "latest-static-port.patch",
                 "sha256": "a" * 64,
                 "size": 1,
@@ -59,13 +80,15 @@ def lock(version: str = "1.0.0") -> dict:
 
 def adaptive_manifest() -> dict:
     return {
-        "schema": 2,
+        "schema": 4,
+        "kernel_source": kernel_source(),
         "components": [
             {
                 "name": "poc_selector",
                 "kind": "github_tree",
                 "target": "latest-poc-selector.patch",
                 "adaptive_port": "poc-selector-valve",
+                "port_for_kernel": "6.18.45",
             }
         ],
         "auxiliary_components": [],
@@ -74,10 +97,12 @@ def adaptive_manifest() -> dict:
 
 def adaptive_lock(adapter: str = "poc-selector-valve") -> dict:
     return {
-        "schema": 3,
+        "schema": 5,
+        "kernel": kernel_lock(),
         "components": {
             "poc_selector": {
                 "origin": "adaptive-port",
+                "selection": "latest-release-adaptive-port",
                 "adapter": adapter,
                 "repository": "firelzrd/poc-selector",
                 "path": "patches/stable/0001-6.18.3-poc-selector-v2.6.3.patch",
@@ -95,7 +120,8 @@ def adaptive_lock(adapter: str = "poc-selector-valve") -> dict:
 
 def http_port_manifest() -> dict:
     return {
-        "schema": 2,
+        "schema": 4,
+        "kernel_source": kernel_source(),
         "components": [],
         "auxiliary_components": [
             {
@@ -103,6 +129,7 @@ def http_port_manifest() -> dict:
                 "kind": "http_patch",
                 "target": "latest-mailing-list-port.patch",
                 "local_port": "mailing-list-port.patch",
+                "port_for_kernel": "6.18.45",
                 "local_port_upstream_sha256": "c" * 64,
             }
         ],
@@ -111,11 +138,13 @@ def http_port_manifest() -> dict:
 
 def http_port_lock() -> dict:
     return {
-        "schema": 3,
+        "schema": 5,
+        "kernel": kernel_lock(),
         "components": {},
         "auxiliary_components": {
             "mailing_list_port": {
                 "origin": "local-port",
+                "selection": "first-valid-port",
                 "target": "latest-mailing-list-port.patch",
                 "sha256": "a" * 64,
                 "size": 1,
@@ -139,6 +168,37 @@ class PatchLockValidationTests(unittest.TestCase):
     def test_stale_local_port_is_rejected(self) -> None:
         with self.assertRaisesRegex(validator.ValidationError, "stale"):
             validator.validate(manifest("0.9.0"), lock("1.0.0"))
+
+    def test_native_selection_can_keep_a_reviewed_port_only_as_fallback(self) -> None:
+        current_manifest = manifest("1.0.0")
+        current_lock = lock("1.0.0")
+        current_lock["components"]["static_port"] = {
+            "origin": "upstream-native",
+            "selection": "latest-native-series",
+            "repository": "example/static-port",
+            "path": "patches/stable/0001-6.18.3-static-v1.0.0.patch",
+            "commit": "b" * 40,
+            "url": "https://example.invalid/static.patch",
+            "kernel_version": "6.18.3",
+            "project_version": "1.0.0",
+            "target": "latest-static-port.patch",
+            "sha256": "c" * 64,
+            "size": 1,
+            "fallback": {
+                "kind": "local-port",
+                "path": "static-port.patch",
+                "kernel_version": "6.18.45",
+                "project_version": "1.0.0",
+                "upstream_sha256": "c" * 64,
+            },
+        }
+        validator.validate(current_manifest, current_lock)
+
+    def test_native_selection_rejects_a_port_as_the_primary_source(self) -> None:
+        current_lock = lock()
+        current_lock["components"]["static_port"]["selection"] = "latest-native-series"
+        with self.assertRaisesRegex(validator.ValidationError, "native 6.18"):
+            validator.validate(manifest(), current_lock)
 
     def test_missing_auxiliary_component_is_rejected(self) -> None:
         current_manifest = manifest()

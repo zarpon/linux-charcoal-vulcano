@@ -101,7 +101,7 @@ class PatchSourcePolicyTests(unittest.TestCase):
         )
         self.assertIs(max([older, newer], key=resolver.latest_key), newer)
 
-    def test_adaptive_port_locks_the_exact_current_upstream_bytes(self) -> None:
+    def test_native_poc_patch_wins_before_its_adaptive_port(self) -> None:
         component = {
             "name": "poc_selector",
             "kind": "github_tree",
@@ -109,34 +109,38 @@ class PatchSourcePolicyTests(unittest.TestCase):
             "target": "latest-poc-selector.patch",
             "port_when_incompatible": True,
             "adaptive_port": "poc-selector-valve",
+            "port_for_kernel": "6.18.45",
         }
         candidate = resolver.Candidate(
             "patches/stable/0001-6.18.3-poc-selector-v2.6.3.patch",
             "a" * 40,
             "https://example.invalid/poc-selector.patch",
-            0,
+            2,
             (6, 18, 3),
             "2.6.3",
         )
-        upstream = b"From 0000000000000000000000000000000000000000\n"
-        with (
-            mock.patch.object(resolver, "upstream_candidates", return_value=[candidate]),
-            mock.patch.object(resolver, "request_bytes", return_value=upstream),
-        ):
+        with mock.patch.object(resolver, "upstream_candidates", return_value=[candidate]):
             record = resolver.resolve_github_component(
-                component, "6.16.12", None, ROOT
+                component, "6.18.45", None, ROOT
             )
 
-        self.assertEqual(record["origin"], "adaptive-port")
-        self.assertEqual(record["adapter"], "poc-selector-valve")
-        self.assertEqual(record["selection"], "nearest-upstream-adaptive-port")
+        self.assertEqual(record["origin"], "upstream-native")
+        self.assertEqual(record["selection"], "latest-native-series")
         self.assertEqual(record["commit"], candidate.sha)
         self.assertEqual(record["path"], candidate.path)
-        self.assertEqual(record["content_bytes"], upstream)
+        self.assertEqual(
+            record["fallback"],
+            {
+                "kind": "adaptive-port",
+                "adapter": "poc-selector-valve",
+                "kernel_version": "6.18.45",
+            },
+        )
 
     def test_manifest_rejects_static_and_adaptive_port_together(self) -> None:
         invalid = {
-            "schema": 2,
+            "schema": 4,
+            "kernel_source": MANIFEST["kernel_source"],
             "components": [
                 {
                     "name": "poc_selector",
@@ -145,6 +149,7 @@ class PatchSourcePolicyTests(unittest.TestCase):
                     "kind": "github_tree",
                     "local_port": "poc.patch",
                     "adaptive_port": "poc-selector-valve",
+                    "port_for_kernel": "6.18.45",
                 }
             ],
             "auxiliary_components": [],
@@ -209,7 +214,7 @@ class PatchSourcePolicyTests(unittest.TestCase):
                 os.chdir(previous)
 
             lock = json.loads((root / "logs/patch-lock.json").read_text())
-            self.assertEqual(lock["schema"], 3)
+            self.assertEqual(lock["schema"], 5)
             self.assertEqual(
                 set(lock["components"]),
                 {item["name"] for item in MANIFEST["components"]},

@@ -96,7 +96,6 @@ CONFIG_HID_OXP=m
 # enable MSI Claw RGB controller driver
 CONFIG_HID_MSI=m
 
-
 # PARAVIRT options have overhead, even on bare metal boots. They can cause
 # spinlocks to not be inlined as well. Either way, we don't intend to run this
 # kernel as a guest, so this also clears out a whole bunch of
@@ -141,3 +140,11 @@ CONFIG_DRM_PANIC=n
 
 # Enable Valve LEDs driver
 CONFIG_LEDS_VALVE=m
+
+# Enable realtek dongle for Steam Frame
+CONFIG_RTW89_8852CU=m
+CONFIG_RTW89_8922AU=m
+CONFIG_RTW89_8852AU=m
+CONFIG_RTW89_8852BU=m
+CONFIG_RTW89_8851BU=m
+CONFIG_RTW89_USB=m

@@ -1,21 +1,4 @@
 {
-  "components": {
-    "zram_ir": {
-      "local_port_upstream_sha256": "8e144b9df99de5e2556494d9d357c28cf1f5d6afeb0d2517bb696997c512e747"
-    },
-    "adios": {
-      "local_port_upstream_sha256": "2ba19f3c2a8032c6af9fa6ebaf6b77bc7019306b301ff799ca2821ab8fa9f476"
-    },
-    "bore": {
-      "local_port_overlays": [
-        "6.16.12-bore-6.8.0-final.patch"
-      ],
-      "local_port_project_version": "6.8.0",
-      "local_port_upstream_sha256": "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd"
-    },
-    "nap": {
-      "local_port_upstream_sha256": "509ffed2466ab434e22a7eb4662c6a2a4dd0c117c04e2fc5a0f9a2c5c0b0bbfe"
-    }
-  },
-  "schema": 1
+  "schema": 1,
+  "components": {}
 }
