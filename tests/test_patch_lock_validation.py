@@ -143,18 +143,20 @@ def http_port_lock() -> dict:
         "components": {},
         "auxiliary_components": {
             "mailing_list_port": {
-                "origin": "local-port",
-                "selection": "first-valid-port",
+                "origin": "upstream-fixed",
+                "selection": "first-valid",
                 "target": "latest-mailing-list-port.patch",
-                "sha256": "a" * 64,
+                "sha256": "c" * 64,
                 "size": 1,
-                "upstream": {
-                    "repository": "lore.kernel.org/linux-pm",
-                    "path": "message@example.invalid",
-                    "commit": "message@example.invalid",
-                    "url": "https://example.invalid/message.mbox",
-                    "sha256": "c" * 64,
-                    "size": 1,
+                "repository": "lore.kernel.org/linux-pm",
+                "path": "message@example.invalid",
+                "commit": "message@example.invalid",
+                "url": "https://example.invalid/message.mbox",
+                "fallback": {
+                    "kind": "local-port",
+                    "path": "mailing-list-port.patch",
+                    "kernel_version": "6.18.45",
+                    "upstream_sha256": "c" * 64,
                 },
             }
         },
@@ -215,11 +217,11 @@ class PatchLockValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(validator.ValidationError, "adapter"):
             validator.validate(adaptive_manifest(), adaptive_lock("different-adapter"))
 
-    def test_local_http_port_requires_complete_upstream_lock(self) -> None:
+    def test_local_http_port_keeps_the_direct_upstream_lock_complete(self) -> None:
         validator.validate(http_port_manifest(), http_port_lock())
         incomplete = http_port_lock()
-        del incomplete["auxiliary_components"]["mailing_list_port"]["upstream"]["size"]
-        with self.assertRaisesRegex(validator.ValidationError, "upstream size"):
+        del incomplete["auxiliary_components"]["mailing_list_port"]["url"]
+        with self.assertRaisesRegex(validator.ValidationError, "metadata"):
             validator.validate(http_port_manifest(), incomplete)
 
 

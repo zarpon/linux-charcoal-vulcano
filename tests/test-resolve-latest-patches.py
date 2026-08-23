@@ -205,10 +205,11 @@ class MailboxLocalPortTests(unittest.TestCase):
             "urls": ["https://example.invalid/demo.mbox"],
             "mailbox": True,
             "local_port": "demo.port.patch",
+            "port_for_kernel": "6.18.45",
             "local_port_upstream_sha256": upstream_sha,
         }
 
-    def test_mailbox_is_decoded_before_hashing_and_local_port_selection(self) -> None:
+    def test_mailbox_is_decoded_before_hashing_and_upstream_is_selected_first(self) -> None:
         self.assertEqual(MODULE.decode_mailbox_patch(MBOX), DECODED_MBOX_PATCH)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -221,11 +222,17 @@ class MailboxLocalPortTests(unittest.TestCase):
                     root,
                 )
 
-        self.assertEqual(selected["origin"], "local-port")
-        self.assertEqual(selected["content_bytes"], PATCH)
+        self.assertEqual(selected["origin"], "upstream-fixed")
+        self.assertEqual(selected["selection"], "first-valid")
+        self.assertEqual(selected["content_bytes"], DECODED_MBOX_PATCH)
         self.assertEqual(
-            selected["upstream"]["sha256"],
-            hashlib.sha256(DECODED_MBOX_PATCH).hexdigest(),
+            selected["fallback"],
+            {
+                "kind": "local-port",
+                "path": "demo.port.patch",
+                "kernel_version": "6.18.45",
+                "upstream_sha256": hashlib.sha256(DECODED_MBOX_PATCH).hexdigest(),
+            },
         )
 
     def test_changed_mailbox_payload_rejects_stale_local_port(self) -> None:

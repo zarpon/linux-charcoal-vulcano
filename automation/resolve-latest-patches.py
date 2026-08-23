@@ -651,43 +651,37 @@ def resolve_http_component(
                 "selection": "first-valid",
             }
             local_port = spec.get("local_port")
-            if not local_port:
-                return {
-                    **upstream,
-                    "origin": "upstream-fixed",
-                    "content_bytes": data,
-                }
+            if local_port:
+                path = root / str(local_port)
+                local_data = path.read_bytes() if path.is_file() else b""
+                if not local_data or not looks_like_patch(local_data):
+                    raise ResolveError(f"local port is missing or invalid: {local_port}")
 
-            path = root / str(local_port)
-            local_data = path.read_bytes() if path.is_file() else b""
-            if not local_data or not looks_like_patch(local_data):
-                raise ResolveError(f"local port is missing or invalid: {local_port}")
+                official_sha = hashlib.sha256(data).hexdigest()
+                expected_sha = spec.get("local_port_upstream_sha256")
+                if not expected_sha:
+                    raise ResolveError(
+                        f"unversioned local port for {spec['name']} must declare "
+                        "local_port_upstream_sha256"
+                    )
+                if official_sha != expected_sha:
+                    raise ResolveError(
+                        f"local port for {spec['name']} follows upstream SHA-256 "
+                        f"{expected_sha}, but current upstream is {official_sha}; "
+                        "refresh and validate the port"
+                    )
 
-            official_sha = hashlib.sha256(data).hexdigest()
-            expected_sha = spec.get("local_port_upstream_sha256")
-            if not expected_sha:
-                raise ResolveError(
-                    f"unversioned local port for {spec['name']} must declare "
-                    "local_port_upstream_sha256"
-                )
-            if official_sha != expected_sha:
-                raise ResolveError(
-                    f"local port for {spec['name']} follows upstream SHA-256 "
-                    f"{expected_sha}, but current upstream is {official_sha}; "
-                    "refresh and validate the port"
-                )
+                fallback = fallback_metadata(spec)
+                if fallback is None:
+                    raise ResolveError(
+                        f"local port for {spec['name']} has no fallback metadata"
+                    )
+                upstream["fallback"] = fallback
 
-            upstream |= {"sha256": official_sha, "size": len(data)}
             return {
-                "repository": "zarpon/linux-charcoal-vulcano",
-                "path": str(local_port),
-                "commit": "repository-local",
-                "url": None,
-                "origin": "local-port",
-                "selection": "first-valid-port",
-                "upstream": upstream,
-                "local_port_overlays": [],
-                "content_bytes": local_data,
+                **upstream,
+                "origin": "upstream-fixed",
+                "content_bytes": data,
             }
         except ResolveError as exc:
             errors.append(f"{url}: {exc}")

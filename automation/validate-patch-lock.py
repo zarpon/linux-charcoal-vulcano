@@ -221,10 +221,13 @@ def validate_record(
         else:
             raise ValidationError(f"{name}: unknown GitHub selection policy {selection!r}")
     elif kind == "http_patch":
-        expected_origin = "local-port" if local_port else "upstream-fixed"
-        expected_selection = "first-valid-port" if local_port else "first-valid"
-        if origin != expected_origin or selection != expected_selection:
+        if origin != "upstream-fixed" or selection != "first-valid":
             raise ValidationError(f"{name}: HTTP patch source policy differs from the manifest")
+        if local_port and not all(
+            isinstance(record.get(key), str) and record.get(key)
+            for key in ("repository", "path", "commit", "url")
+        ):
+            raise ValidationError(f"{name}: direct HTTP upstream metadata is incomplete")
 
     if kind == "github_tree":
         upstream = record.get("upstream") if origin == "local-port" else record
