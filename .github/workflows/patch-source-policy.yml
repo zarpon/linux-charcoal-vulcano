@@ -2,7 +2,7 @@ name: Validate patch source policy
 
 on:
   pull_request:
-    branches: [master]
+    branches: [618pre]
     paths:
       - PKGBUILD
       - automation/patch-sources.json
@@ -10,18 +10,23 @@ on:
       - automation/resolve-latest-patches.py
       - automation/audit-latest-patch-versions.py
       - automation/validate-patch-lock.py
+      - automation/apply-resolved-patch.py
       - automation/port-poc-selector.py
       - automation/fix-libbpf-clang-warning.py
       - tests/test-resolve-latest-patches.py
+      - tests/test-apply-resolved-patch.py
+      - tests/test-bore-overlay.py
       - tests/test_patch_source_policy.py
       - tests/test_patch_lock_validation.py
       - tests/test_patch_poc_port.py
       - tests/test_patch_libbpf_clang.py
       - PATCH-SOURCES.md
+      - '*.patch'
+      - '**/*.patch'
       - .github/workflows/patch-source-policy.yml
       - .github/workflows/push.yml
   push:
-    branches: [master]
+    branches: [618pre]
     paths:
       - PKGBUILD
       - automation/patch-sources.json
@@ -29,14 +34,19 @@ on:
       - automation/resolve-latest-patches.py
       - automation/audit-latest-patch-versions.py
       - automation/validate-patch-lock.py
+      - automation/apply-resolved-patch.py
       - automation/port-poc-selector.py
       - automation/fix-libbpf-clang-warning.py
       - tests/test-resolve-latest-patches.py
+      - tests/test-apply-resolved-patch.py
+      - tests/test-bore-overlay.py
       - tests/test_patch_source_policy.py
       - tests/test_patch_lock_validation.py
       - tests/test_patch_poc_port.py
       - tests/test_patch_libbpf_clang.py
       - PATCH-SOURCES.md
+      - '*.patch'
+      - '**/*.patch'
       - .github/workflows/patch-source-policy.yml
       - .github/workflows/push.yml
   workflow_dispatch:
@@ -60,9 +70,12 @@ jobs:
             automation/resolve-latest-patches.py \
             automation/audit-latest-patch-versions.py \
             automation/validate-patch-lock.py \
+            automation/apply-resolved-patch.py \
             automation/port-poc-selector.py \
             automation/fix-libbpf-clang-warning.py \
             tests/test-resolve-latest-patches.py \
+            tests/test-apply-resolved-patch.py \
+            tests/test-bore-overlay.py \
             tests/test_patch_source_policy.py \
             tests/test_patch_lock_validation.py \
             tests/test_patch_poc_port.py \
@@ -71,6 +84,10 @@ jobs:
             2>&1 | tee logs/resolver-tests.log
           python3 -m unittest discover -s tests -p 'test_patch*.py' -v \
             2>&1 | tee logs/patch-policy-tests.log
+          python3 tests/test-apply-resolved-patch.py \
+            2>&1 | tee logs/apply-resolved-patch-tests.log
+          python3 tests/test-bore-overlay.py \
+            2>&1 | tee logs/bore-port-tests.log
 
       - name: Resolve and validate every current upstream source
         run: |
@@ -79,6 +96,8 @@ jobs:
             2>&1 | tee logs/resolver.log
           python3 automation/validate-patch-lock.py \
             2>&1 | tee logs/patch-lock-validation.log
+          python3 automation/audit-latest-patch-versions.py \
+            2>&1 | tee logs/latest-patch-audit.log
           python3 automation/port-poc-selector.py --validate latest-poc-selector.patch \
             2>&1 | tee logs/poc-adapter-validation.log
           bash -n PKGBUILD

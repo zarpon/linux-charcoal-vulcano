@@ -3,15 +3,15 @@ name: Build latest SteamOS Charcoal kernel
 on:
   push:
     branches:
-      - master
+      - 618pre
       - 'validation/**'
   pull_request:
     branches:
-      - master
+      - 618pre
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the compiled packages as a GitHub release (master only)
+        description: Publish the compiled packages as a GitHub 6.18 pre-release (618pre only)
         required: true
         default: true
         type: boolean
@@ -75,13 +75,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py
+          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
+          python3 automation/audit-latest-patch-versions.py | tee logs/latest-patch-audit.log
           python3 automation/port-poc-selector.py --validate latest-poc-selector.patch | tee logs/poc-adapter-validation.log
           python3 tests/test-bore-overlay.py
           bash -n PKGBUILD
-          grep -Fq 'patches/testing/0001-linux6.16.12-lru_marie-' logs/patch-lock.json
+          grep -Fq '"version": "6.18.' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
           grep -Fq 'latest-lru_marie.patch' PKGBUILD
           grep -Fq 'latest-zram-ir.patch' PKGBUILD
@@ -102,6 +103,8 @@ jobs:
           with open("logs/patch-lock.json", encoding="utf-8") as handle:
               lock = json.load(handle)
 
+          assert lock["kernel"]["version"].startswith("6.18.")
+
           expected_repositories = {
               "lru_marie": "firelzrd/lru_marie",
               "zram_ir": "firelzrd/zram-ir",
@@ -117,9 +120,14 @@ jobs:
               assert re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
               assert item["size"] > 0
               assert item["origin"] in {
-                  "upstream-compatible", "adaptive-port", "local-port"
+                  "upstream-native", "upstream-kernel-agnostic",
+                  "adaptive-port", "local-port"
               }
-              if item["origin"] == "upstream-compatible":
+              assert item["selection"] in {
+                  "latest-native-series", "latest-kernel-agnostic",
+                  "latest-release-port", "latest-release-adaptive-port",
+              }
+              if item["origin"] in {"upstream-native", "upstream-kernel-agnostic"}:
                   assert item["repository"] == expected_repositories[name]
                   assert item["commit"] and item["commit"] != "repository-local"
                   assert item["path"] and item["url"]
@@ -137,36 +145,25 @@ jobs:
                   assert re.fullmatch(r"[0-9a-f]{64}", upstream["sha256"])
                   assert upstream["size"] > 0
 
-          bore = lock["components"]["bore"]
-          assert bore["origin"] == "local-port"
-          assert bore["selection"] == "latest-upstream-port"
-          with open("automation/patch-source-overrides.json", encoding="utf-8") as handle:
-              bore_policy = json.load(handle)["components"]["bore"]
-          upstream = bore["upstream"]
-          expected_version = bore_policy["local_port_project_version"]
-          assert upstream["project_version"] == expected_version
-          assert upstream["path"].endswith(f"-bore-{expected_version}.patch")
-          assert re.fullmatch(r"[0-9a-f]{40}", upstream["commit"])
-          assert re.fullmatch(r"[0-9a-f]{64}", upstream["sha256"])
-          assert [item["path"] for item in bore["local_port_overlays"]] == bore_policy["local_port_overlays"]
+          for item in lock["components"].values():
+              fallback = item.get("fallback")
+              if not fallback:
+                  continue
+              assert fallback["kernel_version"] == lock["kernel"]["version"]
+              assert fallback["kind"] in {"local-port", "adaptive-port"}
 
-          bore_sched_ext = lock["components"]["bore_sched_ext_coexistence"]
-          assert bore_sched_ext["origin"] == "local-port"
-          assert bore_sched_ext["selection"] == "latest-upstream-port"
+          lru = lock["components"]["lru_marie"]
+          assert lru["origin"] == "upstream-native"
+          assert lru["selection"] == "latest-native-series"
+          assert lru["kernel_version"].startswith("6.18.")
 
-          assert lock["components"]["adios"]["selection"] in {
-              "upstream-compatible", "nearest-upstream-port"
-          }
           poc = lock["components"]["poc_selector"]
-          assert poc["origin"] in {"upstream-compatible", "adaptive-port"}
+          assert poc["origin"] in {"upstream-native", "adaptive-port"}
           if poc["origin"] == "adaptive-port":
               assert poc["adapter"] == "poc-selector-valve"
-              assert poc["selection"] == "nearest-upstream-adaptive-port"
+              assert poc["selection"] == "latest-release-adaptive-port"
           else:
-              assert poc["selection"] == "upstream-compatible"
-          assert lock["components"]["nap"]["selection"] in {
-              "upstream-compatible", "nearest-upstream-port"
-          }
+              assert poc["selection"] == "latest-native-series"
           PY
 
       - name: Prepare compiler cache
@@ -291,9 +288,9 @@ jobs:
           KERNEL_TAG="$(bash -c 'source PKGBUILD; printf "%s" "$_tag"')"
           echo "PKGVER=$PKGVER" >> "$GITHUB_ENV"
           echo "KERNEL_TAG=$KERNEL_TAG" >> "$GITHUB_ENV"
-          RELEASE_TAG="charcoal-${PKGVER}-r${GITHUB_RUN_NUMBER}"
+          RELEASE_TAG="charcoal-${PKGVER}-pre-r${GITHUB_RUN_NUMBER}"
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
-          RELEASE_ZIP="linux-charcoal-${PKGVER}-r${GITHUB_RUN_NUMBER}.zip"
+          RELEASE_ZIP="linux-charcoal-${PKGVER}-pre-r${GITHUB_RUN_NUMBER}.zip"
           echo "RELEASE_ZIP=$RELEASE_ZIP" >> "$GITHUB_ENV"
 
       - name: Save compiler cache
@@ -313,7 +310,7 @@ jobs:
           {
             echo "# Charcoal SteamOS kernel ${PKGVER}"
             echo
-            echo "Built from the latest stable SteamOS 6.16 tag: \`${KERNEL_TAG}\`."
+            echo "Built from the latest SteamOS 6.18 tag: \`${KERNEL_TAG}\`."
             echo
             echo "## Updates"
             python3 - <<'PY'
@@ -327,7 +324,7 @@ jobs:
               path = item.get("path", "unknown")
               commit = item.get("commit", "unknown")
               if origin == "local-port":
-                  detail = f"6.16.12 local port ({path})"
+                  detail = f"reviewed SteamOS 6.18 local port ({path})"
                   upstream = item.get("upstream")
                   if upstream:
                     detail += (
@@ -440,9 +437,9 @@ jobs:
 
       - name: Publish GitHub release
         if: >-
-          (github.event_name == 'push' && github.ref_name == 'master') ||
+          (github.event_name == 'push' && github.ref_name == '618pre') ||
           (github.event_name == 'workflow_dispatch' &&
-           github.ref_name == 'master' &&
+           github.ref_name == '618pre' &&
            inputs.publish_release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -484,11 +481,13 @@ jobs:
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
+              --prerelease \
               --notes-file logs/release-notes.md
           else
             gh release create "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
+              --prerelease \
               --notes-file logs/release-notes.md \
               --verify-tag
           fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adapt a structurally verified POC patch to the Valve/BORE 6.16 layout.
+"""Adapt a structurally verified POC patch to the Valve/BORE 6.18 layout.
 
 The nearest official POC source inserts rq::poc_idle_committed using context
 changed by the BORE port and declares select_idle_sibling() without Valve's
