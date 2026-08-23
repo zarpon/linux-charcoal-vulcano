@@ -3,7 +3,7 @@ name: Recover stuck Actions runs
 on:
   push:
     branches:
-      - master
+      - 618pre
       - automation/recover-actions-queue-20260806
     paths:
       - '.github/workflows/recover-actions-runs.yml'
@@ -12,7 +12,7 @@ on:
       - 'automation/actions-recovery-trigger.txt'
   pull_request:
     branches:
-      - master
+      - 618pre
   issue_comment:
     types:
       - created
@@ -47,7 +47,7 @@ jobs:
       - name: Check out recovery code
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: 618pre
           fetch-depth: 0
 
       - name: Validate recovery code

@@ -1,6 +1,6 @@
 # Charcoal SteamOS Kernel - Vulcano Edition 
 BEFORE INSTALLING, PLEASE CHECK IF YOU'RE ON THE STEAMOS STABLE CHANNEL 
-[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
+[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg?branch=618pre)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
 
 [Português (Brasil)](README.pt-BR.md)
 
@@ -10,9 +10,10 @@ other AMD handheld PCs. It is built from Valve's
 source with a source-locked set of scheduler, memory, I/O, wireless, and
 handheld-specific changes.
 
-> **Current build target:** the newest Valve tag matching
-> `6.16.12-valve*`. A release includes the exact source revision and dynamic
-> patch selection used for that build.
+> **Current build target:** the newest official Valve SteamOS tag matching
+> `6.18.*-valve*` (currently seeded from `6.18.45-valve1`). The resolver checks
+> for a newer 6.18 tag at build time; every pre-release records the exact source
+> revision and dynamic patch selection used for that build.
 
 ## Supported Devices
 
@@ -34,17 +35,18 @@ SHA-256 values.
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Enables the LRU Marie memory-reclaim path (`CONFIG_LRU_MARIE=y`). |
 | [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. The Charcoal kernel port defaults that control to `1`, so the write path tries LZ4 primary followed by ZSTD priority `1`. The bundled kernel port fixes ZSTD's ZRAM compression level to the equivalent of `zstd --fast=1` (`-1`); userspace `algorithm_params` cannot override it. A packaged `zram-generator` drop-in and `systemd-zram-setup@` `ExecStartPre` configure both algorithms before `disksize`. The udev helper reasserts the sysctl and provides a safe fallback; it never resets an initialized device or active swap and does not create an additional zram swap device. |
-| [AMD P-State per-core EPP boost RFC](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Ports all four patches to Valve 6.16.12: kernel-doc cleanup, CPPC request-cache ordering, recently-busy per-core EPP boost, and documentation. Charcoal enables `amd_pstate.epp_boost=1` in its built-in command line by default; it applies only to MSR-based active mode and can be disabled explicitly with `amd_pstate.epp_boost=0` in the boot-loader arguments. |
+| [AMD P-State per-core EPP boost RFC](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Applies the newest canonical payload of all four RFC patches first, with reviewed Valve 6.18.45 ports as strict fallbacks: kernel-doc cleanup, CPPC request-cache ordering, recently-busy per-core EPP boost, and documentation. Charcoal enables `amd_pstate.epp_boost=1` in its built-in command line by default; it applies only to MSR-based active mode and can be disabled explicitly with `amd_pstate.epp_boost=0` in the boot-loader arguments. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adds the Adaptive Deadline I/O Scheduler and makes it the default MQ I/O scheduler. The packaged udev rule also selects `adios` for supported block devices, excluding loop and zram devices. |
-| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed 6.16.12 Valve port of the latest official BORE 6.18 patch. |
+| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed Valve 6.18.45 port of the newest official BORE 6.8.0 patch. |
 | [BORE sched_ext coexistence fix](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Applies the upstream `0002-sched-ext-coexistence-fix.patch` after BORE. The local Valve port keeps the same helper and adds its required internal prototype, so strict builds compile without fuzz. |
-| [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. Its constrained Valve/BORE adapter consumes the current compatible or nearest official patch and rejects unexpected hunk changes before packaging. |
+| [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. It uses the newest native 6.18 patch when available; otherwise its constrained Valve/BORE adapter ports the newest official release and rejects unexpected hunk changes before packaging. |
 | [Nap](https://github.com/firelzrd/nap) | Enables the Neural Adaptive Predictor CPU-idle governor. The Charcoal fragment disables the ladder, menu, and teo governors and enables NAP. |
 
-For components with an official 6.16-compatible patch, the resolver fetches
-the newest matching upstream patch. When an approved 6.16.12 port is required,
-the build uses the repository's local port while recording the newer upstream
-source it follows in `patch-lock.json`. BORE is tracked from
+For every versioned component, the resolver starts from the newest upstream
+release, then prioritizes its native Linux 6.18 patch. When no native 6.18
+patch exists, it tries the newest canonical upstream bytes first and uses a
+reviewed 6.18 local port only as a strict fallback after an application failure.
+`patch-lock.json` records both the selected source and any fallback. BORE is tracked from
 `firelzrd/bore-scheduler`'s testing and stable Linux 6.18 directories, and
 its `sched_ext` coexistence addition is tracked from the same repository.
 The resolver records the current official source and accepts a local BORE port
@@ -95,11 +97,11 @@ installation is required:
 Run this in SteamOS Desktop Mode:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
+curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/618pre/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
-The installer always retrieves the [latest published
-release](https://github.com/zarpon/linux-charcoal-vulcano/releases/latest). Before
+The installer always retrieves the newest published [Charcoal 6.18
+pre-release](https://github.com/zarpon/linux-charcoal-vulcano/releases). Before
 calling `pacman`, it verifies the release ZIP SHA-256 and the SHA-256 of each
 package inside it. It then enables SteamOS Developer Mode non-interactively to
 initialize `pacman`, installs the Charcoal kernel and headers packages, and
@@ -185,10 +187,10 @@ same resolution and checksum validation before packaging a release.
 ## Manual GitHub Build
 
 To create a fresh build from the current patch set without changing the
-repository, open [Build latest SteamOS Charcoal kernel](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml), click **Run workflow**, and select `master`.
+repository, open [Build latest SteamOS Charcoal kernel](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml), click **Run workflow**, and select `618pre`.
 
-- Keep **Publish the compiled packages as a GitHub release** enabled to create
-  a normal downloadable release after all checks pass.
+- Keep **Publish the compiled packages as a GitHub 6.18 pre-release** enabled
+  to create a downloadable pre-release after all checks pass.
 - Disable it to validate a build only. The packages and patch lock are then
   available as workflow artifacts for 14 days; no GitHub release is created.
 
@@ -203,5 +205,5 @@ include `llvm`, `clang`, `lld`, `polly`, `bc`, `cpio`, `pahole`,
 
 Report bugs and device-compatibility results in the
 [issue tracker](https://github.com/zarpon/linux-charcoal-vulcano/issues). Pull
-requests should target `master`. For a patch or configuration change, include
+requests should target `618pre`. For a patch or configuration change, include
 the source, target-kernel compatibility, and validation result.

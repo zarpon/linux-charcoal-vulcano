@@ -20,13 +20,14 @@ jobs:
   record:
     if: >-
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
+       github.event.workflow_run.head_branch == '618pre'
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out default branch
+      - name: Check out 6.18 pre-release branch
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: 618pre
           fetch-depth: 1
 
       - name: Write machine-readable build result
@@ -81,4 +82,4 @@ jobs:
             exit 0
           fi
           git commit -m 'ci: record kernel build status [skip ci]'
-          git push origin HEAD:master
+          git push origin HEAD:618pre
