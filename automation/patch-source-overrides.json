@@ -1,4 +1,12 @@
 {
   "schema": 1,
-  "components": {}
+  "components": {},
+  "auxiliary_components": {
+    "fsync": {
+      "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync(?:1|_legacy)_via_futex_waitv\\.patch",
+      "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
+      "project_version_regex": "0007-v(?P<version>\\d+\\.\\d+)-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
+      "local_port_project_version": "6.14"
+    }
+  }
 }
