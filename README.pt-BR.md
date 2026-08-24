@@ -1,5 +1,5 @@
 # Kernel Charcoal para SteamOS - Edição Vulcano 
-Antes de instalar, por favor verifique se você está no canal estável de instalação do SteamOs 
+Antes de instalar, por favor verifique se você está no canal Beta de instalação do SteamOs 
 
 [![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
 
