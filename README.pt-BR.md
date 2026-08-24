@@ -1,7 +1,7 @@
 # Kernel Charcoal para SteamOS - Edição Vulcano 
 Antes de instalar, por favor verifique se você está no canal estável de instalação do SteamOs 
 
-[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg?branch=618pre)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
+[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg?branch=6.18pre)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
 
 [English](README.md)
 
@@ -16,7 +16,7 @@ suporte específico para portáteis, todas registradas na origem da compilação
 > resolvedor procura uma tag 6.18 mais nova a cada compilação; cada pré-release
 > registra a revisão exata do código-fonte e a seleção dinâmica de patches usada.
 >
-> **Canal de instalação 618pre:** a cada execução, o instalador consulta
+> **Canal de instalação 6.18pre:** a cada execução, o instalador consulta
 > novamente as Releases do GitHub e instala somente a pré-release publicada
 > mais recente cuja tag corresponda a `charcoal-6.18.*-pre-r<run>`, o formato
 > emitido por esta branch. Releases estáveis, drafts, outras séries/canais e
@@ -107,17 +107,17 @@ uma instalação DKMS separada:
 Execute no modo Desktop do SteamOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/618pre/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
+curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/6.18pre/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
-O instalador da `618pre` consulta a API de releases em **toda execução** e
+O instalador da `6.18pre` consulta a API de releases em **toda execução** e
 instala somente a **pré-release publicada mais recente** cuja tag corresponda a
 `charcoal-6.18.*-pre-r<run>`, o formato exato produzido por esta branch. Ele
 não usa o canal estável `/releases/latest` do GitHub. Releases estáveis, drafts,
 pré-releases de outras séries/canais e releases cujo ZIP não seja exatamente
 `linux-${tag}.zip` são ignoradas. Entre os candidatos válidos, `published_at`
 define qual é o mais novo; portanto, executar novamente o mesmo comando no
-futuro instala automaticamente a compilação `618pre` mais recente disponível.
+futuro instala automaticamente a compilação `6.18pre` mais recente disponível.
 Antes de chamar o `pacman`, o instalador verifica o SHA-256 do ZIP da release e
 o SHA-256 de cada pacote interno. Em seguida, ativa o modo de desenvolvedor do
 SteamOS sem interação para inicializar o `pacman`, instala os pacotes do kernel
@@ -204,7 +204,7 @@ resolução e validação de checksums antes de empacotar uma release.
 ## Compilação manual pelo GitHub
 
 Para gerar uma compilação nova a partir do conjunto atual de patches, sem
-alterar o repositório, abra [Build latest SteamOS Charcoal kernel](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml), clique em **Run workflow** e selecione `618pre`.
+alterar o repositório, abra [Build latest SteamOS Charcoal kernel](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml), clique em **Run workflow** e selecione `6.18pre`.
 
 - Mantenha **Publish the compiled packages as a GitHub 6.18 pre-release**
   ativado para publicar uma pré-release para download depois que todas as
@@ -225,6 +225,6 @@ lista completa.
 
 Relate bugs e resultados de compatibilidade de dispositivos no
 [rastreador de issues](https://github.com/zarpon/linux-charcoal-vulcano/issues).
-Pull requests devem ter como alvo `618pre`. Para uma mudança de patch ou de
+Pull requests devem ter como alvo `6.18pre`. Para uma mudança de patch ou de
 configuração, inclua a origem, a compatibilidade com o kernel-alvo e o
 resultado da validação.
