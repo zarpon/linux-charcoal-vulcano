@@ -14,6 +14,12 @@
       "local_port": "6.18.45-dkms-clang.port.patch",
       "local_port_upstream_sha256": "65b5745c2e07d93495a5aa1ff7269c89e7aef42acff0d018ab05663560bdf8f7"
     },
+    "firmware_name": {
+      "port_for_kernel": "6.18.45",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-firmware-name.port.patch",
+      "local_port_upstream_sha256": "6d5371c96444e87ef912f476ff0a34f961579f7adcacafa2aec151a951ad4e7e"
+    },
     "fsync": {
       "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync(?:1|_legacy)_via_futex_waitv\\.patch",
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
