@@ -80,8 +80,8 @@ require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_huge
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/defrag - - - - defer+madvise"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/shmem_enabled - - - - advise"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/defrag - - - - 0"
-require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none - - - - 384"
-require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap - - - - 16"
+require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none - - - - 409"
+require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap - - - - 0"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/ksm/run - - - - 0"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/enabled - - - - 7"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/min_ttl_ms - - - - 0"
@@ -210,8 +210,8 @@ EOF
   require_value "$rootfs/sys/kernel/mm/transparent_hugepage/defrag" "defer+madvise"
   require_value "$rootfs/sys/kernel/mm/transparent_hugepage/shmem_enabled" "advise"
   require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/defrag" "0"
-  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none" "384"
-  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap" "16"
+  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none" "409"
+  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap" "0"
   require_value "$rootfs/sys/kernel/mm/ksm/run" "0"
   require_value "$rootfs/sys/kernel/mm/lru_gen/enabled" "7"
   require_value "$rootfs/sys/kernel/mm/lru_gen/min_ttl_ms" "0"
@@ -219,7 +219,7 @@ fi
 
 # Deterministic admission-control simulation for one 2 MiB x86 THP. This is
 # not a hardware FPS benchmark: it proves that the shipped limits accept the
-# configured 384-hole/16-swapped candidate while retaining explicit bounds
+# configured 409-hole/0-swapped candidate while retaining explicit bounds
 # against candidates that exceed the configured khugepaged limits.
 python3 - "$root/99-charcoal-memory.conf" <<'PY'
 from dataclasses import dataclass
@@ -257,24 +257,24 @@ proposed = Policy(
     max_none=int(values["/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none"]),
     max_swap=int(values["/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap"]),
 )
-assert proposed == Policy(max_none=384, max_swap=16)
+assert proposed == Policy(max_none=409, max_swap=0)
 
 legacy = Policy(max_none=64, max_swap=0)
 assert eligible(legacy, none=64, swap=0)
-assert eligible(proposed, none=384, swap=16)
-assert not eligible(legacy, none=384, swap=0)
-assert eligible(proposed, none=384, swap=0)
+assert eligible(proposed, none=409, swap=0)
+assert not eligible(legacy, none=409, swap=0)
+assert eligible(proposed, none=408, swap=0)
 assert not eligible(legacy, none=0, swap=16)
-assert eligible(proposed, none=0, swap=16)
-assert not eligible(proposed, none=385, swap=0)
-assert not eligible(proposed, none=0, swap=17)
+assert eligible(proposed, none=0, swap=0)
+assert not eligible(proposed, none=410, swap=0)
+assert not eligible(proposed, none=0, swap=1)
 
 legacy_zero_fill = legacy.max_none * PAGE_SIZE
 proposed_zero_fill = proposed.max_none * PAGE_SIZE
 legacy_swap_bytes = legacy.max_swap * PAGE_SIZE
 proposed_swap_bytes = proposed.max_swap * PAGE_SIZE
-assert proposed_zero_fill - legacy_zero_fill == 1_310_720
-assert proposed_swap_bytes - legacy_swap_bytes == 65_536
+assert proposed_zero_fill - legacy_zero_fill == 1_413_120
+assert proposed_swap_bytes - legacy_swap_bytes == 0
 
 print(
     "THP admission simulation passed: zero-fill cap "
