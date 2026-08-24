@@ -45,6 +45,12 @@
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-03.port.patch",
       "local_port_upstream_sha256": "f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262"
+    },
+    "zen_04": {
+      "port_for_kernel": "6.18.45",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-04.port.patch",
+      "local_port_upstream_sha256": "ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc"
     }
   }
 }
