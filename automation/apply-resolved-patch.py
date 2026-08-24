@@ -115,6 +115,39 @@ def bt_ssp_semantics_present(tree: Path) -> bool:
     return ssp_gate in hci and key_size_gate in l2cap
 
 
+def ath11k_group_rekey_fix_present(tree: Path) -> bool:
+    """Recognize the newer ath11k fix that supersedes the old clear-key revert.
+
+    The legacy downstream workaround avoids firmware races by preventing
+    DISABLE_KEY from changing the cipher to NONE.  Current ath11k instead
+    prevents group-key clearing during GTK rekey while retaining the ability
+    to clear keys for an AP with no associated stations, and tracks a group
+    key reinstall for that transition.  This is a more complete fix for the
+    same firmware race and must not be replaced by the older workaround.
+    """
+    try:
+        core = (tree / "drivers/net/wireless/ath/ath11k/core.h").read_text(
+            encoding="utf-8"
+        )
+        mac = (tree / "drivers/net/wireless/ath/ath11k/mac.c").read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return False
+
+    state_present = (
+        "u32 num_stations;" in core
+        and "bool reinstall_group_keys;" in core
+    )
+    policy_present = (
+        "Allow group key clearing only in AP mode when no stations are" in mac
+        and "is_ap_with_no_sta = (vif->type == NL80211_IFTYPE_AP &&" in mac
+        and "if (flags == WMI_KEY_PAIRWISE || cmd == SET_KEY || is_ap_with_no_sta) {" in mac
+        and "arvif->reinstall_group_keys = true;" in mac
+    )
+    return state_present and policy_present
+
+
 def require_port_kernel(name: str, spec: dict[str, Any], kernel_version: str) -> None:
     port_kernel = spec.get("port_for_kernel")
     if not isinstance(port_kernel, str) or not port_kernel:
@@ -268,6 +301,9 @@ def apply_component(root: Path, tree: Path, patch: Path, target: str) -> str:
         return "upstream-native" if origin == "upstream-native" else "upstream"
 
     if name == "bt_ssp" and bt_ssp_semantics_present(tree):
+        return "already-integrated"
+
+    if name == "ath11k_disable_key" and ath11k_group_rekey_fix_present(tree):
         return "already-integrated"
 
     fallback = require_fallback(name, spec, record, kernel_version)
