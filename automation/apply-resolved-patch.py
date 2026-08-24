@@ -86,6 +86,35 @@ def apply_checked(tree: Path, patch: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def bt_ssp_semantics_present(tree: Path) -> bool:
+    """Recognize the modern equivalent of the legacy Gentoo Bluetooth fix.
+
+    The 2019 patch changed hci_conn_check_link_mode() so legacy non-SSP links
+    are not rejected by encryption/key-size enforcement.  Modern Bluetooth
+    moved the minimum-key-size check to L2CAP: unencrypted links explicitly
+    bypass that check, while hci_conn_check_link_mode() only requires BR/EDR
+    encryption when SSP is enabled.  When both properties are present the
+    old hunk is already represented by the newer implementation and must not
+    be forced onto obsolete source context.
+    """
+    try:
+        hci = (tree / "net/bluetooth/hci_conn.c").read_text(encoding="utf-8")
+        l2cap = (tree / "net/bluetooth/l2cap_core.c").read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    ssp_gate = (
+        "if (hci_conn_ssp_enabled(conn) &&\n"
+        "\t    !test_bit(HCI_CONN_ENCRYPT, &conn->flags))\n"
+        "\t\treturn 0;"
+    )
+    key_size_gate = (
+        "return (!test_bit(HCI_CONN_ENCRYPT, &hcon->flags) ||\n"
+        "\t\thcon->enc_key_size >= min_key_size);"
+    )
+    return ssp_gate in hci and key_size_gate in l2cap
+
+
 def require_port_kernel(name: str, spec: dict[str, Any], kernel_version: str) -> None:
     port_kernel = spec.get("port_for_kernel")
     if not isinstance(port_kernel, str) or not port_kernel:
@@ -237,6 +266,9 @@ def apply_component(root: Path, tree: Path, patch: Path, target: str) -> str:
     applied, details = apply_checked(tree, patch)
     if applied:
         return "upstream-native" if origin == "upstream-native" else "upstream"
+
+    if name == "bt_ssp" and bt_ssp_semantics_present(tree):
+        return "already-integrated"
 
     fallback = require_fallback(name, spec, record, kernel_version)
     if fallback["kind"] == "local-port":
