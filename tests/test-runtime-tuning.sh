@@ -68,7 +68,7 @@ require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_scale_factor=125"
 require_line "$root/99-charcoal-sysctl.conf" "kernel.split_lock_mitigate=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_background_bytes=209715200"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_bytes=409430400"
-require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=85"
+require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=150"
 require_line "$root/99-charcoal-sysctl.conf" "-vm.zram_recomp_immediate=1"
 
 require_line "$root/99-charcoal-gaming.conf" "MESA_SHADER_CACHE_MAX_SIZE=10G"
