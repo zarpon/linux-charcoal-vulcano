@@ -39,6 +39,12 @@
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
       "project_version_regex": "0007-v(?P<version>\\d+\\.\\d+)-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
       "local_port_project_version": "6.14"
+    },
+    "zen_03": {
+      "port_for_kernel": "6.18.45",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-03.port.patch",
+      "local_port_upstream_sha256": "f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262"
     }
   }
 }
