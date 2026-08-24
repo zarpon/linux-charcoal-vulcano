@@ -148,6 +148,26 @@ def ath11k_group_rekey_fix_present(tree: Path) -> bool:
     return state_present and policy_present
 
 
+def ath11k_ampdu_tid_fix_present(tree: Path) -> bool:
+    """Recognize the 2026 ath11k stop-AMPDU TID fix already in the source.
+
+    The upstream fix prevents stopping TID 0 accidentally by selecting the
+    receive TID indexed by params->tid and passing that exact object to the
+    REO update helper.  Require both statements so obsolete nearby context
+    cannot be mistaken for an integrated fix.
+    """
+    try:
+        dp_rx = (tree / "drivers/net/wireless/ath/ath11k/dp_rx.c").read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return False
+
+    selected_tid = "rx_tid = &peer->rx_tid[params->tid];"
+    updated_tid = "ath11k_peer_rx_tid_reo_update(ar, peer, rx_tid, 1, 0, false);"
+    return selected_tid in dp_rx and updated_tid in dp_rx
+
+
 def require_port_kernel(name: str, spec: dict[str, Any], kernel_version: str) -> None:
     port_kernel = spec.get("port_for_kernel")
     if not isinstance(port_kernel, str) or not port_kernel:
@@ -304,6 +324,9 @@ def apply_component(root: Path, tree: Path, patch: Path, target: str) -> str:
         return "already-integrated"
 
     if name == "ath11k_disable_key" and ath11k_group_rekey_fix_present(tree):
+        return "already-integrated"
+
+    if name == "ath11k_upstream" and ath11k_ampdu_tid_fix_present(tree):
         return "already-integrated"
 
     fallback = require_fallback(name, spec, record, kernel_version)
