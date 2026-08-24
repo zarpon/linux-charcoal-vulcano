@@ -9,7 +9,6 @@ Upstream SHA-256: e261cfdf1d03f741ba111c812f3c1d0be2bf2d58e68efe2477a5bd542cd85f
 
 Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
 ---
-
 diff --git a/drivers/net/wireless/ath/ath11k/ahb.c b/drivers/net/wireless/ath/ath11k/ahb.c
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
@@ -66,7 +65,6 @@ diff --git a/drivers/net/wireless/ath/ath11k/ahb.c b/drivers/net/wireless/ath/at
  
  	ce_attr = &ab->hw_params.host_ce_config[ce_id];
  	if (ce_attr->src_nentries)
-
 diff --git a/drivers/net/wireless/ath/ath11k/hal.c b/drivers/net/wireless/ath/ath11k/hal.c
 --- a/drivers/net/wireless/ath/ath11k/hal.c
 +++ b/drivers/net/wireless/ath/ath11k/hal.c
@@ -112,7 +110,6 @@ diff --git a/drivers/net/wireless/ath/ath11k/hal.c b/drivers/net/wireless/ath/at
  		HAL_SEQ_WCSS_UMAC_CE0_DST_REG(ab);
  	s->reg_size[1] = HAL_SEQ_WCSS_UMAC_CE1_DST_REG(ab) -
  		HAL_SEQ_WCSS_UMAC_CE0_DST_REG(ab);
-
 diff --git a/drivers/net/wireless/ath/ath11k/hw.c b/drivers/net/wireless/ath/ath11k/hw.c
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
@@ -157,7 +154,6 @@ diff --git a/drivers/net/wireless/ath/ath11k/hw.c b/drivers/net/wireless/ath/ath
  	/* WBM Idle address */
  	.hal_wbm_idle_link_ring_base_lsb = 0x00000874,
  	.hal_wbm_idle_link_ring_misc = 0x00000884,
-
 diff --git a/drivers/net/wireless/ath/ath11k/hw.h b/drivers/net/wireless/ath/ath11k/hw.h
 --- a/drivers/net/wireless/ath/ath11k/hw.h
 +++ b/drivers/net/wireless/ath/ath11k/hw.h
