@@ -28,6 +28,12 @@
       "local_port": "6.18.45-minstrel-downgrade.port.patch",
       "local_port_upstream_sha256": "4929f7a8033f34715c2a19b606c45d0d711e7328452ed1b31a5bf52a0c1a7232"
     },
+    "ath11k_remapped_ce": {
+      "port_for_kernel": "6.18.45",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-ath11k-remapped-ce.port.patch",
+      "local_port_upstream_sha256": "e261cfdf1d03f741ba111c812f3c1d0be2bf2d58e68efe2477a5bd542cd85f2e"
+    },
     "fsync": {
       "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync(?:1|_legacy)_via_futex_waitv\\.patch",
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
