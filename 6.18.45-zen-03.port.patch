@@ -1,0 +1,26 @@
+From: Jan Alexander Steffens (heftig) <jan.steffens@gmail.com>
+Date: Mon, 27 Jan 2020 18:10:06 +0100
+Subject: [PATCH] ZEN: INTERACTIVE: Base config item
+
+Reviewed port for Valve SteamOS 6.18.45.
+Upstream: zen-kernel/zen-kernel fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54
+Upstream SHA-256: f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262
+
+Preserve the upstream Zen INTERACTIVE configuration semantics while rebasing
+the Kconfig insertion point onto Valve's 6.18.45 source layout.
+---
+
+diff --git a/init/Kconfig b/init/Kconfig
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -191,6 +191,12 @@ menu "General setup"
+ 
++config ZEN_INTERACTIVE
++	bool "Tune kernel for interactivity"
++	default y
++	help
++	  Tunes the kernel for responsiveness at the cost of throughput and power usage.
++
+ config BROKEN
+ 	bool
+ 	help
