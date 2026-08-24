@@ -1,0 +1,35 @@
+From: Steven Barrett <steven@liquorix.net>
+Date: Sat, 5 Mar 2022 17:37:14 +0000
+Subject: [PATCH] ZEN: INTERACTIVE: mm: Disable unevictable compaction
+
+Reviewed port for Valve SteamOS 6.18.45.
+Upstream: zen-kernel/zen-kernel b418708702f7927a7922b90871ab1cdf1df9bb94
+Upstream SHA-256: 8791520229802e19a4f50fcf70422e20bcff63656e1acf0920d3ec2c0f35107f
+
+Preserve the upstream Zen INTERACTIVE default while rebasing the Kconfig
+help context onto the reduced Zen patch series used by this branch.
+---
+
+diff --git a/init/Kconfig b/init/Kconfig
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -9,6 +9,7 @@ config ZEN_INTERACTIVE
+ 	  --- Virtual Memory Subsystem ---------------------------
+ 
+ 	    Background-reclaim hugepages...:   no   ->   yes
++	    Compact unevictable............:   yes  ->   no
+ 
+ config BROKEN
+ 	bool
+diff --git a/mm/Kconfig b/mm/Kconfig
+--- a/mm/Kconfig
++++ b/mm/Kconfig
+@@ -7,7 +7,7 @@ config COMPACTION
+ config COMPACT_UNEVICTABLE_DEFAULT
+ 	int
+ 	depends on COMPACTION
+-	default 0 if PREEMPT_RT
++	default 0 if PREEMPT_RT || ZEN_INTERACTIVE
+ 	default 1
+ 
+ #
