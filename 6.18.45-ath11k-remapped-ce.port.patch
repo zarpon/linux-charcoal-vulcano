@@ -2,8 +2,8 @@ From: Ziyang Huang <hzyitc@outlook.com>
 Date: Thu, 2 May 2024 00:14:31 +0800
 Subject: [PATCH] wifi: ath11k: fix remapped ce accessing issue on 64bit OS
 
-Reviewed port for Valve SteamOS 6.18.45. This preserves the complete OpenWrt
-fix while expressing it as a git-native patch against the Valve 6.18 tree.
+Reviewed port for Valve SteamOS 6.18.45, regenerated against the exact
+6.18.45-valve1 source contexts. It preserves the complete OpenWrt fix.
 Upstream: openwrt/openwrt f0204d78e1b42d9e7fdf57a59b0aaa09aea0abcc
 Upstream SHA-256: e261cfdf1d03f741ba111c812f3c1d0be2bf2d58e68efe2477a5bd542cd85f2e
 
@@ -68,11 +68,10 @@ diff --git a/drivers/net/wireless/ath/ath11k/ahb.c b/drivers/net/wireless/ath/at
  
  	ce_attr = &ab->hw_params.host_ce_config[ce_id];
  	if (ce_attr->src_nentries)
-
 diff --git a/drivers/net/wireless/ath/ath11k/hal.c b/drivers/net/wireless/ath/ath11k/hal.c
 --- a/drivers/net/wireless/ath/ath11k/hal.c
 +++ b/drivers/net/wireless/ath/ath11k/hal.c
-@@ -1274,20 +1274,16 @@ static int ath11k_hal_srng_create_config(struct ath11k_base *ab)
+@@ -1277,20 +1277,16 @@
  	s->reg_start[1] = HAL_SEQ_WCSS_UMAC_TCL_REG + HAL_TCL_STATUS_RING_HP;
  
  	s = &hal->srng_config[HAL_CE_SRC];
@@ -97,7 +96,7 @@ diff --git a/drivers/net/wireless/ath/ath11k/hal.c b/drivers/net/wireless/ath/at
  	s->reg_size[0] = HAL_SEQ_WCSS_UMAC_CE1_DST_REG(ab) -
  		HAL_SEQ_WCSS_UMAC_CE0_DST_REG(ab);
  	s->reg_size[1] = HAL_SEQ_WCSS_UMAC_CE1_DST_REG(ab) -
-@@ -1295,9 +1291,8 @@ static int ath11k_hal_srng_create_config(struct ath11k_base *ab)
+@@ -1298,9 +1294,8 @@
  
  	s = &hal->srng_config[HAL_CE_DST_STATUS];
  	s->reg_start[0] = HAL_SEQ_WCSS_UMAC_CE0_DST_REG(ab) +
@@ -109,11 +108,10 @@ diff --git a/drivers/net/wireless/ath/ath11k/hal.c b/drivers/net/wireless/ath/at
  	s->reg_size[0] = HAL_SEQ_WCSS_UMAC_CE1_DST_REG(ab) -
  		HAL_SEQ_WCSS_UMAC_CE0_DST_REG(ab);
  	s->reg_size[1] = HAL_SEQ_WCSS_UMAC_CE1_DST_REG(ab) -
-
 diff --git a/drivers/net/wireless/ath/ath11k/hw.c b/drivers/net/wireless/ath/ath11k/hw.c
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -2268,9 +2268,9 @@ const struct ce_ie_addr ath11k_ce_ie_addr_ipq8074 = {
+@@ -2266,9 +2266,9 @@ const struct ce_ie_addr ath11k_ce_ie_addr_ipq8074 = {
  };
  
  const struct ce_ie_addr ath11k_ce_ie_addr_ipq5018 = {
@@ -144,7 +142,6 @@ diff --git a/drivers/net/wireless/ath/ath11k/hw.c b/drivers/net/wireless/ath/ath
  		- HAL_IPQ5018_CE_WFSS_REG_BASE,
  
  	/* WBM Idle address */
-
 diff --git a/drivers/net/wireless/ath/ath11k/hw.h b/drivers/net/wireless/ath/ath11k/hw.h
 --- a/drivers/net/wireless/ath/ath11k/hw.h
 +++ b/drivers/net/wireless/ath/ath11k/hw.h
