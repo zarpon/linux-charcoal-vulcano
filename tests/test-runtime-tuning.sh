@@ -60,16 +60,20 @@ assert zram0["fs-type"] == "swap"
 PY
 
 require_line "$root/99-charcoal-sysctl.conf" "vm.min_free_kbytes=262144"
-require_line "$root/99-charcoal-sysctl.conf" "vm.compaction_proactiveness=15"
-require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_expire_centisecs=3500"
-require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_writeback_centisecs=500"
+require_line "$root/99-charcoal-sysctl.conf" "vm.compaction_proactiveness=10"
+require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_expire_centisecs=1500"
+require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_writeback_centisecs=1500"
 require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_boost_factor=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_scale_factor=125"
 require_line "$root/99-charcoal-sysctl.conf" "kernel.split_lock_mitigate=0"
-require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_background_bytes=209715200"
-require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_bytes=409430400"
+require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_background_ratio=2"
+require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_ratio=40"
 require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=150"
 require_line "$root/99-charcoal-sysctl.conf" "-vm.zram_recomp_immediate=1"
+if grep -Fxq -- "vm.dirty_background_bytes=209715200" "$root/99-charcoal-sysctl.conf" || \
+   grep -Fxq -- "vm.dirty_bytes=409430400" "$root/99-charcoal-sysctl.conf"; then
+  fail "obsolete dirty byte thresholds must not be defined"
+fi
 
 require_line "$root/99-charcoal-gaming.conf" "MESA_SHADER_CACHE_MAX_SIZE=10G"
 require_line "$root/99-charcoal-gaming.conf" "MESA_DISK_CACHE_DATABASE=1"
