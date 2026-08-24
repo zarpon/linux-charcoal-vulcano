@@ -2,6 +2,18 @@ diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
 index bc2fe47..452531e 100644
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
+@@ -9153,10 +9153,10 @@ static void check_preempt_wakeup_fair(struct rq *rq, struct task_struct *p, int
+ 	/*
+ 	 * Likewise, if @p is heavier than current (under BORE: more
+ 	 * interactive), per kernel.sched_burst_protect_slice_lv, override
+ 	 * current's slice protection to allow preemption.
+ 	 */
+ 	if (do_preempt_weight(cfs_rq, pse, se))
+-		do_preempt_short = true;
++		preempt_action = PREEMPT_WAKEUP_SHORT;
+ #endif
+ 
+ 	/*
 @@ -14329,2 +14329,15 @@ __init void init_sched_fair_class(void)
  #endif
 -}
