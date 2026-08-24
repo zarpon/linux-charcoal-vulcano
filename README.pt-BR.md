@@ -15,6 +15,12 @@ suporte específico para portáteis, todas registradas na origem da compilação
 > que corresponde a `6.18.*-valve*` (semente atual: `6.18.45-valve1`). O
 > resolvedor procura uma tag 6.18 mais nova a cada compilação; cada pré-release
 > registra a revisão exata do código-fonte e a seleção dinâmica de patches usada.
+>
+> **Canal de instalação 618pre:** a cada execução, o instalador consulta
+> novamente as Releases do GitHub e instala somente a pré-release publicada
+> mais recente cuja tag corresponda a `charcoal-6.18.*-pre-r<run>`, o formato
+> emitido por esta branch. Releases estáveis, drafts, outras séries/canais e
+> releases com nome de arquivo incompatível são ignoradas.
 
 ## Dispositivos suportados
 
@@ -104,12 +110,18 @@ Execute no modo Desktop do SteamOS:
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/618pre/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
-O instalador sempre obtém a [pré-release Charcoal 6.18 publicada mais
-recente](https://github.com/zarpon/linux-charcoal-vulcano/releases). Antes
-de chamar o `pacman`, ele verifica o SHA-256 do ZIP da release e o SHA-256 de
-cada pacote interno. Em seguida, ativa o modo de desenvolvedor do SteamOS sem
-interação para inicializar o `pacman`, instala os pacotes do kernel e dos
-headers Charcoal e atualiza a configuração do bootloader. A ordem de
+O instalador da `618pre` consulta a API de releases em **toda execução** e
+instala somente a **pré-release publicada mais recente** cuja tag corresponda a
+`charcoal-6.18.*-pre-r<run>`, o formato exato produzido por esta branch. Ele
+não usa o canal estável `/releases/latest` do GitHub. Releases estáveis, drafts,
+pré-releases de outras séries/canais e releases cujo ZIP não seja exatamente
+`linux-${tag}.zip` são ignoradas. Entre os candidatos válidos, `published_at`
+define qual é o mais novo; portanto, executar novamente o mesmo comando no
+futuro instala automaticamente a compilação `618pre` mais recente disponível.
+Antes de chamar o `pacman`, o instalador verifica o SHA-256 do ZIP da release e
+o SHA-256 de cada pacote interno. Em seguida, ativa o modo de desenvolvedor do
+SteamOS sem interação para inicializar o `pacman`, instala os pacotes do kernel
+e dos headers Charcoal e atualiza a configuração do bootloader. A ordem de
 preferência é `grub-mkconfig`, `steamos-update-grub` e `update-grub`; se nenhum
 estiver disponível, o instalador não informa sucesso. Ele reinstala os pacotes
 verificados quando necessário, pois revisões de release do Charcoal podem mudar

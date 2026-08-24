@@ -14,6 +14,12 @@ handheld-specific changes.
 > `6.18.*-valve*` (currently seeded from `6.18.45-valve1`). The resolver checks
 > for a newer 6.18 tag at build time; every pre-release records the exact source
 > revision and dynamic patch selection used for that build.
+>
+> **618pre installation channel:** every installer run queries GitHub Releases
+> again and installs only the newest published pre-release whose tag matches
+> `charcoal-6.18.*-pre-r<run>`, the tag format emitted by this branch. Stable
+> releases, drafts, other kernel series/channels, and releases with mismatched
+> archive names are ignored.
 
 ## Supported Devices
 
@@ -100,16 +106,22 @@ Run this in SteamOS Desktop Mode:
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/618pre/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
-The installer always retrieves the newest published [Charcoal 6.18
-pre-release](https://github.com/zarpon/linux-charcoal-vulcano/releases). Before
-calling `pacman`, it verifies the release ZIP SHA-256 and the SHA-256 of each
-package inside it. It then enables SteamOS Developer Mode non-interactively to
-initialize `pacman`, installs the Charcoal kernel and headers packages, and
-updates the bootloader configuration. It prefers `grub-mkconfig`, then
-`steamos-update-grub`, then `update-grub`; it stops instead of reporting
-success if none is available. It deliberately reinstalls the verified packages
-when necessary, because Charcoal release revisions can change while the Valve
-base kernel version remains the same.
+The `618pre` installer queries the releases API on every run and installs only
+the newest **published GitHub pre-release** whose tag matches
+`charcoal-6.18.*-pre-r<run>`, the exact release-tag format produced by this
+branch. It never uses GitHub's stable `/releases/latest` channel. Stable
+releases, drafts, pre-releases from other kernel series/channels, and releases
+whose ZIP does not exactly match `linux-${tag}.zip` are ignored. Among valid
+candidates, `published_at` determines the newest release, so rerunning the same
+command later automatically installs the newest available `618pre` build.
+Before calling `pacman`, the installer verifies the release ZIP SHA-256 and the
+SHA-256 of every package inside it. It then enables SteamOS Developer Mode
+non-interactively to initialize `pacman`, installs the Charcoal kernel and
+headers packages, and updates the bootloader configuration. It prefers
+`grub-mkconfig`, then `steamos-update-grub`, then `update-grub`; it stops instead
+of reporting success if none is available. It deliberately reinstalls the
+verified packages when necessary, because Charcoal release revisions can change
+while the Valve base kernel version remains the same.
 
 Developer Mode remains enabled after installation; only the SteamOS root
 filesystem is restored to read-only mode, including when the package

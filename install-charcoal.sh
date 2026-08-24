@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the newest verified Charcoal 6.18 SteamOS pre-release.
+# Install the newest verified Charcoal 6.18 SteamOS pre-release from the 618pre channel.
 
 set -Eeuo pipefail
 
@@ -7,8 +7,6 @@ readonly REPOSITORY="zarpon/linux-charcoal-vulcano"
 readonly RELEASES_API="https://api.github.com/repos/${REPOSITORY}/releases?per_page=100"
 readonly RELEASE_DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
 readonly KERNEL_SERIES="6.18"
-readonly RELEASE_TAG_PREFIX="charcoal-${KERNEL_SERIES}."
-readonly RELEASE_ARCHIVE_PREFIX="linux-charcoal-${KERNEL_SERIES}."
 readonly PACKAGE_PREFIX="linux-charcoal-618"
 readonly USER_AGENT="charcoal-kernel-installer"
 
@@ -93,13 +91,17 @@ download_file() {
 parse_release_metadata() {
   local release_json=$1
 
-  python3 - "$release_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" "$RELEASE_TAG_PREFIX" "$RELEASE_ARCHIVE_PREFIX" <<'PY'
+  python3 - "$release_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" "$KERNEL_SERIES" <<'PY'
 from datetime import datetime
 import json
+import re
 import sys
 from pathlib import PurePosixPath
 
-release_json, repository, download_prefix, tag_prefix, archive_prefix = sys.argv[1:]
+release_json, repository, download_prefix, kernel_series = sys.argv[1:]
+tag_pattern = re.compile(
+    rf"^charcoal-{re.escape(kernel_series)}\.[0-9A-Za-z][0-9A-Za-z._-]*-pre-r[1-9][0-9]*$"
+)
 
 try:
     with open(release_json, encoding="utf-8") as handle:
@@ -115,13 +117,14 @@ def text(value, label):
         raise SystemExit(f"Invalid {label} in the GitHub release response")
     return value
 
-def asset_url(asset, expected_name):
+def asset_url(asset, expected_name, tag_name):
     name = text(asset.get("name"), "asset name")
     url = text(asset.get("browser_download_url"), "asset URL")
     if name != expected_name:
         raise SystemExit(f"Unexpected asset name: {name}")
-    if not url.startswith(download_prefix):
-        raise SystemExit(f"Refusing asset outside {repository} releases: {url}")
+    expected_prefix = f"{download_prefix}{tag_name}/"
+    if not url.startswith(expected_prefix):
+        raise SystemExit(f"Refusing asset outside release {tag_name} in {repository}: {url}")
     return name, url
 
 def published_time(release):
@@ -136,33 +139,36 @@ for release in releases:
     if not isinstance(release, dict) or release.get("draft") or not release.get("prerelease"):
         continue
     tag_name = text(release.get("tag_name"), "release tag")
-    if not tag_name.startswith(tag_prefix):
+    if not tag_pattern.fullmatch(tag_name):
         continue
     assets = release.get("assets")
     if not isinstance(assets, list):
         continue
+    expected_archive_name = f"linux-{tag_name}.zip"
     archives = [
         asset for asset in assets
-        if isinstance(asset, dict)
-        and str(asset.get("name", "")).startswith(archive_prefix)
-        and str(asset.get("name", "")).endswith(".zip")
+        if isinstance(asset, dict) and asset.get("name") == expected_archive_name
     ]
     checksums = [
         asset for asset in assets
         if isinstance(asset, dict) and asset.get("name") == "RELEASE-ZIP-SHA256SUM"
     ]
     if len(archives) == 1 and len(checksums) == 1:
-        eligible.append((published_time(release), tag_name, release, archives[0], checksums[0]))
+        eligible.append(
+            (published_time(release), tag_name, expected_archive_name, archives[0], checksums[0])
+        )
 
 if not eligible:
     raise SystemExit(
-        f"GitHub did not return a published {tag_prefix} pre-release with verified assets"
+        f"GitHub did not return a published Charcoal {kernel_series} 618pre pre-release with verified assets"
     )
 
-_, tag_name, release, archive, checksum = max(eligible, key=lambda item: (item[0], item[1]))
+_, tag_name, expected_archive_name, archive, checksum = max(
+    eligible, key=lambda item: (item[0], item[1])
+)
 
-archive_name, archive_url = asset_url(archive, text(archive.get("name"), "archive name"))
-checksum_name, checksum_url = asset_url(checksum, "RELEASE-ZIP-SHA256SUM")
+archive_name, archive_url = asset_url(archive, expected_archive_name, tag_name)
+checksum_name, checksum_url = asset_url(checksum, "RELEASE-ZIP-SHA256SUM", tag_name)
 
 if PurePosixPath(archive_name).name != archive_name:
     raise SystemExit("Invalid release ZIP filename")
@@ -303,7 +309,7 @@ main() {
   WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/charcoal-installer.XXXXXX")"
   trap cleanup EXIT
 
-  info "Fetching the latest published Charcoal ${KERNEL_SERIES} pre-release..."
+  info "Fetching the latest published Charcoal ${KERNEL_SERIES} 618pre pre-release..."
   curl \
     --fail \
     --silent \
@@ -321,7 +327,7 @@ main() {
 
   local metadata
   if ! metadata="$(parse_release_metadata "$WORKDIR/release.json")"; then
-    die "Could not identify the required assets in the latest Charcoal ${KERNEL_SERIES} pre-release"
+    die "Could not identify the required assets in the latest Charcoal ${KERNEL_SERIES} 618pre pre-release"
   fi
 
   local -a fields
@@ -343,6 +349,7 @@ main() {
   local checksum_path="$WORKDIR/$checksum_name"
   local package_dir="$WORKDIR/packages"
 
+  info "Selected latest published 618pre kernel pre-release: ${release_tag}"
   info "Downloading release ${release_tag}..."
   download_file "$archive_url" "$archive_path"
   download_file "$checksum_url" "$checksum_path"
