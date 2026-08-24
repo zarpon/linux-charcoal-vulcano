@@ -113,8 +113,10 @@ run_bootloader_update_case() {
 
 make_fixture() {
   local build_dir="$fixture_dir/build"
-  local kernel_package="linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst"
-  local headers_package="linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst"
+  local kernel_package="linux-charcoal-618-9.9.9-1-x86_64.pkg.tar.zst"
+  local headers_package="linux-charcoal-618-headers-9.9.9-1-x86_64.pkg.tar.zst"
+  local release_tag="charcoal-6.18.45.valve1.cc1-pre-r11"
+  local archive_name="linux-charcoal-6.18.45.valve1.cc1-pre-r11.zip"
 
   mkdir -p "$build_dir" "$bin_dir"
   printf 'kernel fixture\n' > "$build_dir/$kernel_package"
@@ -122,11 +124,11 @@ make_fixture() {
   (
     cd "$build_dir"
     sha256sum "$kernel_package" "$headers_package" > SHA256SUMS
-    zip -q "$fixture_dir/linux-charcoal-test.zip" SHA256SUMS "$kernel_package" "$headers_package"
+    zip -q "$fixture_dir/$archive_name" SHA256SUMS "$kernel_package" "$headers_package"
   )
   (
     cd "$fixture_dir"
-    sha256sum linux-charcoal-test.zip > RELEASE-ZIP-SHA256SUM
+    sha256sum "$archive_name" > RELEASE-ZIP-SHA256SUM
   )
 
   mkdir -p "$fixture_dir/bad-package"
@@ -139,10 +141,11 @@ make_fixture() {
   )
   (
     cd "$fixture_dir"
-    sha256sum bad-package.zip | sed 's/bad-package\.zip/linux-charcoal-test.zip/' > BAD-PACKAGE-RELEASE-ZIP-SHA256SUM
+    sha256sum bad-package.zip | sed "s/bad-package\\.zip/$archive_name/" > BAD-PACKAGE-RELEASE-ZIP-SHA256SUM
   )
 
-  printf '%s\n' '{"tag_name":"charcoal-test","draft":false,"prerelease":false,"assets":[{"name":"linux-charcoal-test.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM"}]}' > "$fixture_dir/release.json"
+  printf '%s\n' '[{"tag_name":"charcoal-6.18.44.valve1.cc1-pre-r10","draft":false,"prerelease":true,"published_at":"2026-08-01T00:00:00Z","assets":[{"name":"linux-charcoal-6.18.44.valve1.cc1-pre-r10.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.44.valve1.cc1-pre-r10/linux-charcoal-6.18.44.valve1.cc1-pre-r10.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.44.valve1.cc1-pre-r10/RELEASE-ZIP-SHA256SUM"}]},{"tag_name":"charcoal-6.18.45.valve1.cc1-pre-r11","draft":false,"prerelease":true,"published_at":"2026-08-20T00:00:00Z","assets":[{"name":"linux-charcoal-6.18.45.valve1.cc1-pre-r11.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-pre-r11/linux-charcoal-6.18.45.valve1.cc1-pre-r11.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-pre-r11/RELEASE-ZIP-SHA256SUM"}]},{"tag_name":"charcoal-6.18.45.valve1.cc1-r12","draft":false,"prerelease":false,"published_at":"2026-08-21T00:00:00Z","assets":[{"name":"linux-charcoal-6.18.45.valve1.cc1-r12.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-r12/linux-charcoal-6.18.45.valve1.cc1-r12.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-r12/RELEASE-ZIP-SHA256SUM"}]},{"tag_name":"charcoal-6.17.99.valve1.cc1-pre-r99","draft":false,"prerelease":true,"published_at":"2026-08-22T00:00:00Z","assets":[{"name":"linux-charcoal-6.17.99.valve1.cc1-pre-r99.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.17.99.valve1.cc1-pre-r99/linux-charcoal-6.17.99.valve1.cc1-pre-r99.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.17.99.valve1.cc1-pre-r99/RELEASE-ZIP-SHA256SUM"}]}]' > "$fixture_dir/releases.json"
+  printf '%s\n' '[{"tag_name":"charcoal-6.18.45.valve1.cc1-r12","draft":false,"prerelease":false,"published_at":"2026-08-21T00:00:00Z","assets":[{"name":"linux-charcoal-6.18.45.valve1.cc1-r12.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-r12/linux-charcoal-6.18.45.valve1.cc1-r12.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-r12/RELEASE-ZIP-SHA256SUM"}]}]' > "$fixture_dir/stable-only.json"
 }
 
 write_fake_commands() {
@@ -159,17 +162,21 @@ write_fake_commands() {
     'done' \
     '[[ -n "$output" ]] || exit 2' \
     'case "$url" in' \
-    '  https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases/latest)' \
-    '    cp "$CHARCOAL_TEST_FIXTURE/release.json" "$output" ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip)' \
+    '  https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases?per_page=100)' \
+    '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "stable-only" ]]; then' \
+    '      cp "$CHARCOAL_TEST_FIXTURE/stable-only.json" "$output"' \
+    '    else' \
+    '      cp "$CHARCOAL_TEST_FIXTURE/releases.json" "$output"' \
+    '    fi ;;' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-pre-r11/linux-charcoal-6.18.45.valve1.cc1-pre-r11.zip)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
     '      cp "$CHARCOAL_TEST_FIXTURE/bad-package.zip" "$output"' \
     '    else' \
-    '      cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-test.zip" "$output"' \
+    '      cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-6.18.45.valve1.cc1-pre-r11.zip" "$output"' \
     '    fi ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM)' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.45.valve1.cc1-pre-r11/RELEASE-ZIP-SHA256SUM)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-checksum" ]]; then' \
-    '      printf "%064d  linux-charcoal-test.zip\\n" 0 > "$output"' \
+    '      printf "%064d  linux-charcoal-6.18.45.valve1.cc1-pre-r11.zip\\n" 0 > "$output"' \
     '    elif [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
     '      cp "$CHARCOAL_TEST_FIXTURE/BAD-PACKAGE-RELEASE-ZIP-SHA256SUM" "$output"' \
     '    else' \
@@ -231,14 +238,22 @@ assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
 assert_contains 'pacman -U '
 assert_not_contains 'pacman -U --needed'
-assert_contains 'linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst'
-assert_contains 'linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-618-9.9.9-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-618-headers-9.9.9-1-x86_64.pkg.tar.zst'
 assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
 assert_precedes 'steamos-readonly disable' 'steamos-devmode enable --no-prompt'
 assert_precedes 'steamos-devmode enable --no-prompt' 'pacman -U '
 assert_precedes 'pacman -U ' 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_precedes 'grub-mkconfig -o /boot/grub/grub.cfg' 'steamos-readonly enable'
+
+: > "$log_file"
+if run_installer stable-only >/dev/null 2>&1; then
+  fail 'installer accepted a stable release instead of a 6.18 pre-release'
+fi
+assert_not_contains 'steamos-readonly'
+assert_not_contains 'steamos-devmode'
+assert_not_contains 'pacman'
 
 : > "$log_file"
 if run_installer bad-checksum >/dev/null 2>&1; then
