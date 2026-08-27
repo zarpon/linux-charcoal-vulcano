@@ -1,4 +1,4 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-08-23T19:39:00-03:00
-Source: validate corrected 618pre recovery, latest patches, full build and prerelease
+Last requested build: 2026-08-27T02:14:00-03:00
+Source: daily monitor recovery after no recorded 2026-08-27 scheduled full build on 618pre
