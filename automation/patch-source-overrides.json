@@ -8,6 +8,10 @@
     "bore": {
       "port_for_kernel": "6.18.46",
       "local_port": "6.18.45-bore-6.8.0.port.patch"
+    },
+    "bore_sched_ext_coexistence": {
+      "port_for_kernel": "6.18.46",
+      "local_port": "6.18.45-bore-sched-ext-coexistence-fix.port.patch"
     }
   },
   "auxiliary_components": {
