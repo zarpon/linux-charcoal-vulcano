@@ -12,6 +12,9 @@
     "bore_sched_ext_coexistence": {
       "port_for_kernel": "6.18.46",
       "local_port": "6.18.45-bore-sched-ext-coexistence-fix.port.patch"
+    },
+    "poc_selector": {
+      "port_for_kernel": "6.18.46"
     }
   },
   "auxiliary_components": {
