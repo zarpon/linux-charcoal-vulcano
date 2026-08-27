@@ -2,30 +2,30 @@
   "schema": 1,
   "components": {
     "zram_ir": {
-      "port_for_kernel": "6.18.46",
+      "port_for_kernel": "6.18",
       "local_port": "6.18.46-zram-ir-1.2.port.patch"
     },
     "bore": {
-      "port_for_kernel": "6.18.46",
+      "port_for_kernel": "6.18",
       "local_port": "6.18.45-bore-6.8.0.port.patch"
     },
     "bore_sched_ext_coexistence": {
-      "port_for_kernel": "6.18.46",
+      "port_for_kernel": "6.18",
       "local_port": "6.18.45-bore-sched-ext-coexistence-fix.port.patch"
     },
     "poc_selector": {
-      "port_for_kernel": "6.18.46"
+      "port_for_kernel": "6.18"
     }
   },
   "auxiliary_components": {
     "clear": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-clear.port.patch",
       "local_port_upstream_sha256": "2c9843a51e8dd4b41f7620dcc4bf3677c7867d922073202c095324fb1443cfa5"
     },
     "dkms_clang": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-dkms-clang.port.patch",
       "local_port_upstream_sha256": "65b5745c2e07d93495a5aa1ff7269c89e7aef42acff0d018ab05663560bdf8f7"
@@ -33,19 +33,19 @@
     "firmware_name": {
       "path": "attachment.cgi?id=649432",
       "commit": "6d5371c96444e87ef912f476ff0a34f961579f7adcacafa2aec151a951ad4e7e",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-firmware-name.port.patch",
       "local_port_upstream_sha256": "6d5371c96444e87ef912f476ff0a34f961579f7adcacafa2aec151a951ad4e7e"
     },
     "minstrel_downgrade": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-minstrel-downgrade.port.patch",
       "local_port_upstream_sha256": "4929f7a8033f34715c2a19b606c45d0d711e7328452ed1b31a5bf52a0c1a7232"
     },
     "ath11k_remapped_ce": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-ath11k-remapped-ce.port.patch",
       "local_port_upstream_sha256": "e261cfdf1d03f741ba111c812f3c1d0be2bf2d58e68efe2477a5bd542cd85f2e"
@@ -57,31 +57,31 @@
       "local_port_project_version": "6.14"
     },
     "zen_03": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-03.port.patch",
       "local_port_upstream_sha256": "f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262"
     },
     "zen_04": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-04.port.patch",
       "local_port_upstream_sha256": "ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc"
     },
     "zen_05": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-05.port.patch",
       "local_port_upstream_sha256": "8791520229802e19a4f50fcf70422e20bcff63656e1acf0920d3ec2c0f35107f"
     },
     "zen_06": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-06.port.patch",
       "local_port_upstream_sha256": "281787a4aaed0cf098554964865892404ceb17bdd966db4dcaa5cddfce093c21"
     },
     "zen_07": {
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-07.port.patch",
       "local_port_upstream_sha256": "4efdfcea27b787f0c6d5fc46fb652b2bba7c994a3ab9a681184bca4fd10a234f"

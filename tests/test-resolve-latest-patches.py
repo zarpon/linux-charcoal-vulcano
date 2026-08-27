@@ -139,6 +139,23 @@ class LocalPortTrackingTests(unittest.TestCase):
             },
         )
 
+    def test_series_port_locks_the_exact_resolved_valve_patchlevel(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = self.base_spec()
+            spec["port_for_kernel"] = "6.18"
+            with mock.patch.object(
+                MODULE,
+                "upstream_candidates",
+                return_value=[
+                    self.candidate("2.0", kernel=(6, 18, 22), compatibility=2)
+                ],
+            ):
+                selected = MODULE.resolve_github_component(
+                    spec, "6.18.46", None, Path(tmp)
+                )
+
+        self.assertEqual(selected["fallback"]["kernel_version"], "6.18.46")
+
     def test_lru_marie_testing_0106_prefers_the_native_618_variant(self) -> None:
         candidates = [
             MODULE.Candidate(

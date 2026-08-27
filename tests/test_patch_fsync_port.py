@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the newest linux-tkg fsync fallback bound to Valve 6.18.45."""
+"""Keep the newest linux-tkg fsync fallback bound to SteamOS 6.18."""
 
 import hashlib
 import json
@@ -22,7 +22,7 @@ class FsyncPortTests(unittest.TestCase):
             if item["name"] == "fsync"
         )
 
-        self.assertEqual(fsync["port_for_kernel"], "6.18.45")
+        self.assertEqual(fsync["port_for_kernel"], "6.18")
         self.assertTrue(fsync["port_when_incompatible"])
         self.assertNotIn("allow_nearest_upstream", fsync)
         self.assertEqual(

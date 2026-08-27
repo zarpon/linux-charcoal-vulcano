@@ -29,7 +29,7 @@
       "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:\\.y)?-zram-ir-[0-9.]+\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)zram-ir-(?P<version>[0-9]+(?:\\.[0-9]+)*)\\.patch$",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zram-ir-1.2.port.patch",
       "local_port_project_version": "1.2",
@@ -58,7 +58,7 @@
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?)\\.patch$",
       "always_latest": true,
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "local_port": "6.18.45-bore-6.8.0.port.patch",
       "local_port_upstream_sha256": "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd",
       "local_port_project_version": "6.8.0"
@@ -72,7 +72,7 @@
       "source_regex": "(?:6\\.\\d+\\.\\d+-bore-sched-ext-coexistence-fix\\.patch|latest-bore-sched-ext-coexistence-fix\\.patch)",
       "filename_regex": "(?i)^patches/additions/0002-sched-ext-coexistence-fix\\.patch$",
       "always_latest": true,
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "local_port": "6.18.45-bore-sched-ext-coexistence-fix.port.patch",
       "local_port_upstream_sha256": "cdf138cdb94fcb4e2988bd7d2873a51522fdb7212ec314fde202facaf8210b5c"
     },
@@ -86,7 +86,7 @@
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-\\d+\\.\\d+(?:\\.\\d+)?(?:-[0-9A-Za-z.]+)?-poc-selector-[0-9A-Za-z._-]+\\.patch$",
       "kernel_version_regex": "(?i)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "adaptive_port": "poc-selector-valve"
     },
@@ -123,7 +123,7 @@
       "source_regex": "6\\.18\\.45-amd-pstate-epp-boost-01-kernel-doc\\.port\\.patch",
       "mailbox": true,
       "local_port": "6.18.45-amd-pstate-epp-boost-01-kernel-doc.port.patch",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "local_port_upstream_sha256": "74f02a5cd603afe2b714a7cccff92a715b25a643af51f3d66c959a0724e78bae",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-2-void%40manifault.com/raw",
@@ -140,7 +140,7 @@
       "source_regex": "6\\.18\\.45-amd-pstate-epp-boost-02-cache-order\\.port\\.patch",
       "mailbox": true,
       "local_port": "6.18.45-amd-pstate-epp-boost-02-cache-order.port.patch",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "local_port_upstream_sha256": "9b5caecdd70729103f04f6ec5b3e1aa8a05d91bbf79b97ad050c10c8dbb5fbe1",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-3-void%40manifault.com/raw",
@@ -157,7 +157,7 @@
       "source_regex": "6\\.18\\.45-amd-pstate-epp-boost-03-core\\.port\\.patch",
       "mailbox": true,
       "local_port": "6.18.45-amd-pstate-epp-boost-03-core.port.patch",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "local_port_upstream_sha256": "991cd0df7c2fabcef05e2009eb833b6087a6a3f5d1b11fc9d1f027192e131162",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-4-void%40manifault.com/raw",
@@ -174,7 +174,7 @@
       "source_regex": "6\\.18\\.45-amd-pstate-epp-boost-04-docs\\.port\\.patch",
       "mailbox": true,
       "local_port": "6.18.45-amd-pstate-epp-boost-04-docs.port.patch",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "local_port_upstream_sha256": "6ff36ba97524ce21a8b8a9e127f37c8fe1016f6a2b10ca439d2705539630d096",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-5-void%40manifault.com/raw",
@@ -201,7 +201,7 @@
       "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync1_via_futex_waitv\\.patch",
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync1_via_futex_waitv\\.patch$",
       "kernel_version_regex": "linux-tkg-patches/(?P<kernel>\\d+\\.\\d+)/",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-fsync-futex-waitv.port.patch",
       "local_port_upstream_sha256": "9df628fd530950e37d31da854cb314d536f33c83935adf5c47e71266a55f7004"
@@ -244,7 +244,7 @@
       "filename_regex": "^more-ISA-levels-and-uarches-for-kernel-\\d+\\.\\d+\\+?\\.patch$",
       "kernel_version_regex": "kernel-(?P<kernel>\\d+\\.\\d+)",
       "project_version_regex": "kernel-(?P<version>\\d+\\.\\d+)",
-      "port_for_kernel": "6.18.45",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-cpu-optimizations.port.patch",
       "local_port_project_version": "6.16",

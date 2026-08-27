@@ -171,6 +171,27 @@ class PatchLockValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(validator.ValidationError, "stale"):
             validator.validate(manifest("0.9.0"), lock("1.0.0"))
 
+    def test_series_scoped_port_accepts_newer_valve_patchlevel(self) -> None:
+        current_manifest = manifest()
+        current_manifest["components"][0]["port_for_kernel"] = "6.18"
+        current_lock = lock()
+        current_lock["kernel"]["tag"] = "6.18.46-valve1"
+        current_lock["kernel"]["version"] = "6.18.46"
+        validator.validate(current_manifest, current_lock)
+
+    def test_series_scoped_port_rejects_another_kernel_series(self) -> None:
+        current_manifest = manifest()
+        current_manifest["components"][0]["port_for_kernel"] = "6.18"
+        current_manifest["kernel_source"]["series"] = "6.19"
+        current_manifest["kernel_source"]["tag_regex"] = (
+            r"^(?P<version>6\.19\.\d+)-valve(?P<valve>[0-9.]+)$"
+        )
+        current_lock = lock()
+        current_lock["kernel"]["tag"] = "6.19.1-valve1"
+        current_lock["kernel"]["version"] = "6.19.1"
+        with self.assertRaisesRegex(validator.ValidationError, "scope"):
+            validator.validate(current_manifest, current_lock)
+
     def test_native_selection_can_keep_a_reviewed_port_only_as_fallback(self) -> None:
         current_manifest = manifest("1.0.0")
         current_lock = lock("1.0.0")

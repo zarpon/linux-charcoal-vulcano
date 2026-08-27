@@ -91,12 +91,26 @@ def kernel_series(version: str) -> str | None:
 
 
 def validate_port_kernel(name: str, spec: dict[str, Any], kernel_version: str) -> None:
+    """Validate a reviewed port's supported kernel scope.
+
+    A port can name one exact Valve revision (for a one-off port) or a major/minor
+    series such as ``6.18``.  Every build still proves application with
+    ``git apply --check`` against the exact resolved source tree.  The series
+    form avoids blocking a new 6.18.x source purely because its lock metadata
+    has not been mechanically renamed.
+    """
     expected = spec.get("port_for_kernel")
     if not isinstance(expected, str) or not expected:
         raise ValidationError(f"{name}: reviewed port is missing port_for_kernel")
-    if expected != kernel_version:
+    expected_series = kernel_series(expected)
+    actual_series = kernel_series(kernel_version)
+    supported = expected == kernel_version or (
+        re.fullmatch(r"\d+\.\d+", expected) is not None
+        and expected_series == actual_series
+    )
+    if not supported:
         raise ValidationError(
-            f"{name}: reviewed port targets {expected}, but the locked SteamOS source is "
+            f"{name}: reviewed port scope is {expected}, but the locked SteamOS source is "
             f"{kernel_version}; refresh and revalidate the port"
         )
 

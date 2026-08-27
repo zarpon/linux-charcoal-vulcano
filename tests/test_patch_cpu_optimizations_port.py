@@ -22,7 +22,7 @@ class CpuOptimizationsPortTests(unittest.TestCase):
             if item["name"] == "cpu_optimizations"
         )
 
-        self.assertEqual(component["port_for_kernel"], "6.18.45")
+        self.assertEqual(component["port_for_kernel"], "6.18")
         self.assertTrue(component["port_when_incompatible"])
         self.assertEqual(
             component["local_port"], "6.18.45-cpu-optimizations.port.patch"

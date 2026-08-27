@@ -199,7 +199,9 @@ def native_series_candidates(candidates: list[Candidate]) -> list[Candidate]:
     return [item for item in candidates if item.compatibility >= 2]
 
 
-def fallback_metadata(spec: dict[str, Any]) -> dict[str, Any] | None:
+def fallback_metadata(
+    spec: dict[str, Any], kernel_version: str
+) -> dict[str, Any] | None:
     """Describe the reviewed port that may be used after a real apply failure.
 
     The resolver must never replace a newest native 6.18 patch with a local
@@ -217,7 +219,10 @@ def fallback_metadata(spec: dict[str, Any]) -> dict[str, Any] | None:
         result: dict[str, Any] = {
             "kind": "local-port",
             "path": str(local_port),
-            "kernel_version": str(spec.get("port_for_kernel", "")),
+            # The port policy may cover the whole 6.18 series, but this lock
+            # describes one exact Valve source tree.  Keep the latter here so
+            # the applicator cannot reuse a fallback from another build.
+            "kernel_version": kernel_version,
         }
         for manifest_key, lock_key in (
             ("local_port_project_version", "project_version"),
@@ -231,7 +236,7 @@ def fallback_metadata(spec: dict[str, Any]) -> dict[str, Any] | None:
         return {
             "kind": "adaptive-port",
             "adapter": str(adaptive_port),
-            "kernel_version": str(spec.get("port_for_kernel", "")),
+            "kernel_version": kernel_version,
         }
     return None
 
@@ -548,7 +553,7 @@ def resolve_github_component(
             **upstream,
             "origin": "upstream-native" if native else "upstream-kernel-agnostic",
         }
-        fallback = fallback_metadata(spec)
+        fallback = fallback_metadata(spec, kernel_version)
         if fallback:
             result["fallback"] = fallback
         return result
@@ -671,7 +676,7 @@ def resolve_http_component(
                         "refresh and validate the port"
                     )
 
-                fallback = fallback_metadata(spec)
+                fallback = fallback_metadata(spec, kernel_version)
                 if fallback is None:
                     raise ResolveError(
                         f"local port for {spec['name']} has no fallback metadata"

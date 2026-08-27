@@ -41,9 +41,9 @@ SHA-256 values.
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Enables the LRU Marie memory-reclaim path (`CONFIG_LRU_MARIE=y`). |
 | [zram-ir](https://github.com/firelzrd/zram-ir) | Adds immediate zram recompression control through `vm.zram_recomp_immediate`. The Charcoal kernel port defaults that control to `1`, so the write path tries LZ4 primary followed by ZSTD priority `1`. The bundled kernel port fixes ZSTD's ZRAM compression level to the equivalent of `zstd --fast=1` (`-1`); userspace `algorithm_params` cannot override it. A packaged `zram-generator` drop-in and `systemd-zram-setup@` `ExecStartPre` configure both algorithms before `disksize`. The udev helper reasserts the sysctl and provides a safe fallback; it never resets an initialized device or active swap and does not create an additional zram swap device. |
-| [AMD P-State per-core EPP boost RFC](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Applies the newest canonical payload of all four RFC patches first, with reviewed Valve 6.18.45 ports as strict fallbacks: kernel-doc cleanup, CPPC request-cache ordering, recently-busy per-core EPP boost, and documentation. Charcoal enables `amd_pstate.epp_boost=1` in its built-in command line by default; it applies only to MSR-based active mode and can be disabled explicitly with `amd_pstate.epp_boost=0` in the boot-loader arguments. |
+| [AMD P-State per-core EPP boost RFC](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Applies the newest canonical payload of all four RFC patches first, with reviewed SteamOS 6.18 ports as strict fallbacks: kernel-doc cleanup, CPPC request-cache ordering, recently-busy per-core EPP boost, and documentation. Every use is checked against the exact Valve source tree before application. Charcoal enables `amd_pstate.epp_boost=1` in its built-in command line by default; it applies only to MSR-based active mode and can be disabled explicitly with `amd_pstate.epp_boost=0` in the boot-loader arguments. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adds the Adaptive Deadline I/O Scheduler and makes it the default MQ I/O scheduler. The packaged udev rule also selects `adios` for supported block devices, excluding loop and zram devices. |
-| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed Valve 6.18.45 port of the newest official BORE 6.8.0 patch. |
+| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Enables the Burst-Oriented Response Enhancer CPU scheduler (`CONFIG_SCHED_BORE=y`) through the reviewed SteamOS 6.18 port of the newest official BORE 6.8.0 patch, with application checked against the selected Valve source. |
 | [BORE sched_ext coexistence fix](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Applies the upstream `0002-sched-ext-coexistence-fix.patch` after BORE. The local Valve port keeps the same helper and adds its required internal prototype, so strict builds compile without fuzz. |
 | [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. It uses the newest native 6.18 patch when available; otherwise its constrained Valve/BORE adapter ports the newest official release and rejects unexpected hunk changes before packaging. |
 | [Nap](https://github.com/firelzrd/nap) | Enables the Neural Adaptive Predictor CPU-idle governor. The Charcoal fragment disables the ladder, menu, and teo governors and enables NAP. |
@@ -51,13 +51,13 @@ SHA-256 values.
 For every versioned component, the resolver starts from the newest upstream
 release, then prioritizes its native Linux 6.18 patch. When no native 6.18
 patch exists, it tries the newest canonical upstream bytes first and uses a
-reviewed 6.18 local port only as a strict fallback after an application failure.
+reviewed 6.18-series local port only as a strict fallback after an application failure.
 `patch-lock.json` records both the selected source and any fallback. BORE is tracked from
 `firelzrd/bore-scheduler`'s testing and stable Linux 6.18 directories, and
 its `sched_ext` coexistence addition is tracked from the same repository.
 The resolver records the current official source and accepts a local BORE port
-only when it matches the reviewed upstream SHA-256; a newer official patch
-therefore stops the build until its Valve port is refreshed and validated.
+only when it matches the reviewed upstream SHA-256. Every selected port is
+then checked against the exact Valve source tree before it can be applied.
 POC Selector uses a separate adaptive adapter: it locks the exact selected
 upstream bytes, commit, path, SHA-256, and adapter name, then accepts only the
 known Valve/BORE transformations for `rq::poc_idle_committed` and

@@ -49,7 +49,7 @@ class ResolvedPatchApplicationTests(unittest.TestCase):
                     **(
                         {
                             "local_port": "demo.port.patch",
-                            "port_for_kernel": "6.18.45",
+                            "port_for_kernel": "6.18",
                             "local_port_project_version": "1.0.0",
                             "local_port_upstream_sha256": hashlib.sha256(direct).hexdigest(),
                         }

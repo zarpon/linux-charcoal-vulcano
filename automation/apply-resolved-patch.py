@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -172,9 +173,15 @@ def require_port_kernel(name: str, spec: dict[str, Any], kernel_version: str) ->
     port_kernel = spec.get("port_for_kernel")
     if not isinstance(port_kernel, str) or not port_kernel:
         raise ApplyError(f"{name}: reviewed port has no port_for_kernel")
-    if port_kernel != kernel_version:
+    match = re.fullmatch(r"(\d+)\.(\d+)(?:\.\d+)?", kernel_version)
+    current_series = f"{match.group(1)}.{match.group(2)}" if match else None
+    supported = port_kernel == kernel_version or (
+        re.fullmatch(r"\d+\.\d+", port_kernel) is not None
+        and port_kernel == current_series
+    )
+    if not supported:
         raise ApplyError(
-            f"{name}: reviewed port targets SteamOS {port_kernel}, but this build uses "
+            f"{name}: reviewed port scope is SteamOS {port_kernel}, but this build uses "
             f"{kernel_version}; refresh and validate the port first"
         )
 

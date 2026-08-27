@@ -9,14 +9,14 @@ components = {item["name"]: item for item in policy["components"]}
 bore = components["bore"]
 coexistence = components["bore_sched_ext_coexistence"]
 
-assert bore["port_for_kernel"] == "6.18.45"
+assert bore["port_for_kernel"] == "6.18"
 assert bore["local_port"] == "6.18.45-bore-6.8.0.port.patch"
 assert bore["local_port_project_version"] == "6.8.0"
 assert bore["local_port_upstream_sha256"] == (
     "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd"
 )
 assert "local_port_overlays" not in bore
-assert coexistence["port_for_kernel"] == "6.18.45"
+assert coexistence["port_for_kernel"] == "6.18"
 assert coexistence["local_port"] == "6.18.45-bore-sched-ext-coexistence-fix.port.patch"
 
 ports = [
@@ -59,4 +59,4 @@ if (root / "logs/patch-lock.json").is_file():
         check=True,
     )
 
-print("BORE 6.18.45 ports, syntax and latest-patch audit passed")
+print("BORE 6.18-series ports, syntax and latest-patch audit passed")
