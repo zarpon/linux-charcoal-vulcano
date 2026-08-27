@@ -18,6 +18,18 @@
     }
   },
   "auxiliary_components": {
+    "amd_pstate_epp_boost_kernel_doc": {
+      "port_for_kernel": "6.18"
+    },
+    "amd_pstate_epp_boost_cache_order": {
+      "port_for_kernel": "6.18"
+    },
+    "amd_pstate_epp_boost_core": {
+      "port_for_kernel": "6.18"
+    },
+    "amd_pstate_epp_boost_documentation": {
+      "port_for_kernel": "6.18"
+    },
     "clear": {
       "port_for_kernel": "6.18",
       "port_when_incompatible": true,
