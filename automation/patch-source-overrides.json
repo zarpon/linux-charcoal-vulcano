@@ -1,6 +1,11 @@
 {
   "schema": 1,
-  "components": {},
+  "components": {
+    "zram_ir": {
+      "port_for_kernel": "6.18.46",
+      "local_port": "6.18.46-zram-ir-1.2.port.patch"
+    }
+  },
   "auxiliary_components": {
     "clear": {
       "port_for_kernel": "6.18.45",
