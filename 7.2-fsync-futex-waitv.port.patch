@@ -11,9 +11,9 @@ Port-Target: evlaV/linux-integration 7.2.0-valve1
 Preserve opcode 31 for older Proton/fsync users while translating the legacy
 wait block ABI to the current futex_wait_multiple implementation.
 ---
- include/uapi/linux/futex.h | 17 +++++++++
- kernel/futex/syscalls.c    | 75 +++++++++++++++++++++++++++++++++++++-
- 2 files changed, 91 insertions(+), 1 deletion(-)
+ include/uapi/linux/futex.h | 17 +++++++++++++++++
+ kernel/futex/syscalls.c    | 67 ++++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 83 insertions(+), 1 deletion(-)
 
 diff --git a/include/uapi/linux/futex.h b/include/uapi/linux/futex.h
 --- a/include/uapi/linux/futex.h
@@ -60,7 +60,7 @@ diff --git a/kernel/futex/syscalls.c b/kernel/futex/syscalls.c
  		return true;
  	}
  	return false;
-@@ -170,13 +171,75 @@ futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
+@@ -170,13 +171,71 @@ futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
  		return -EINVAL;
  
  	*t = timespec64_to_ktime(*ts);
@@ -133,7 +133,7 @@ diff --git a/kernel/futex/syscalls.c b/kernel/futex/syscalls.c
  SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
  		const struct __kernel_timespec __user *, utime,
  		u32 __user *, uaddr2, u32, val3)
-@@ -196,6 +259,9 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
+@@ -196,6 +254,9 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
  		tp = &t;
  	}
  
@@ -143,7 +143,7 @@ diff --git a/kernel/futex/syscalls.c b/kernel/futex/syscalls.c
  	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
  }
  
-@@ -520,6 +586,9 @@ SYSCALL_DEFINE6(futex_time32, u32 __user *, uaddr, int, op, u32, val,
+@@ -520,6 +581,9 @@ SYSCALL_DEFINE6(futex_time32, u32 __user *, uaddr, int, op, u32, val,
  		tp = &t;
  	}
  
