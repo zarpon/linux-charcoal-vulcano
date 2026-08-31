@@ -40,9 +40,16 @@
       "local_port_upstream_sha256": null
     },
     "poc_selector": {
+      "source_regex": "(?:latest-poc-selector\\.patch|6\\.\\d+(?:\\.\\d+)?-poc-selector-[^\\s]+\\.patch)",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
       "adaptive_port": "poc-selector-valve"
+    },
+    "nap": {
+      "source_regex": "(?:latest-nap\\.patch|6\\.\\d+(?:\\.\\d+)?-nap-v?[^\\s]+\\.patch)",
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "adaptive_port": "nap-direct-apply-7.2"
     }
   },
   "auxiliary_components": {
