@@ -8,12 +8,15 @@ Policy:
 - otherwise choose the chronologically closest kernel variant and require a
   tracked local/adaptive port;
 - for HTTP patches with a reviewed local port, materialize the port bytes while
-  retaining an exact SHA-256 lock to the upstream bytes that were ported.
+  retaining an exact SHA-256 lock to the upstream bytes that were ported;
+- normalize the legacy 7.2 resolver output to the shared schema-5 lock contract
+  so the same validator/auditor used by 618pre protects the 7.2 branch.
 """
 from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -113,13 +116,60 @@ def resolve_http_component_72(spec, kernel_version: str, token: str | None, root
     )
 
 
+def lock_path_from_argv(argv: list[str]) -> Path:
+    """Mirror argparse's --lock option without consuming resolver arguments."""
+    default = Path("logs/patch-lock.json")
+    for index, value in enumerate(argv):
+        if value == "--lock" and index + 1 < len(argv):
+            return Path(argv[index + 1])
+        if value.startswith("--lock="):
+            return Path(value.split("=", 1)[1])
+    return default
+
+
+def normalize_schema5_lock(path: Path) -> None:
+    """Convert the 7.2 entry point's legacy lock envelope to schema 5.
+
+    Component records are already produced by the shared resolver and carry the
+    schema-5 source/origin/lineage fields.  Only the legacy top-level envelope
+    still used schema 3 and stored the broad series (7.2) as kernel.version.
+    The shared validator expects the exact resolved Valve base version instead.
+    """
+    try:
+        lock = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RESOLVER.BASE.ResolveError(f"unable to normalize 7.2 patch lock {path}: {exc}") from exc
+
+    if not isinstance(lock, dict) or not isinstance(lock.get("kernel"), dict):
+        raise RESOLVER.BASE.ResolveError("7.2 patch lock has an invalid top-level structure")
+    tag = lock["kernel"].get("tag")
+    if not isinstance(tag, str) or "-valve" not in tag:
+        raise RESOLVER.BASE.ResolveError(f"7.2 patch lock contains an invalid Valve tag: {tag!r}")
+    version = tag.split("-valve", 1)[0]
+    if not version.startswith("7.2"):
+        raise RESOLVER.BASE.ResolveError(
+            f"refusing to normalize a non-7.2 patch lock: {version!r}"
+        )
+
+    lock["schema"] = 5
+    lock["kernel"]["version"] = version
+    path.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 RESOLVER.BASE.nearest_candidate = nearest_candidate_72
 RESOLVER.BASE.resolve_http_component = resolve_http_component_72
 
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(RESOLVER.main())
+        status = RESOLVER.main()
+        if status == 0:
+            lock_path = lock_path_from_argv(sys.argv[1:])
+            normalize_schema5_lock(lock_path)
+            normalized = json.loads(lock_path.read_text(encoding="utf-8"))
+            print("normalized 7.2 patch lock:")
+            print(json.dumps(normalized, indent=2, sort_keys=True))
+        raise SystemExit(status)
     except RESOLVER.BASE.ResolveError as exc:
         print(f"7.2 resolver error: {exc}", file=sys.stderr)
         raise SystemExit(2)
