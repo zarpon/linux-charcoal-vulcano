@@ -11,7 +11,7 @@
         "6.16.12-bore-6.8.0-final.patch"
       ],
       "local_port_project_version": "6.8.0",
-      "local_port_upstream_sha256": "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd"
+      "local_port_upstream_sha256": "f650285feb58e9f3654836c8f84fb82723c30b3ad77a26cea5f218ce41ed7b14"
     },
     "nap": {
       "local_port_upstream_sha256": "509ffed2466ab434e22a7eb4662c6a2a4dd0c117c04e2fc5a0f9a2c5c0b0bbfe"
