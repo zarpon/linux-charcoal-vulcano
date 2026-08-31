@@ -64,7 +64,7 @@ class PreferredTagTests(unittest.TestCase):
             cpu["adaptive_port"],
             "cpu-optimizations-6.16plus-to-valve-7.2",
         )
-        self.assertNotIn("local_port", cpu)
+        self.assertIsNone(cpu.get("local_port"))
 
     def test_clang_polly_requires_explicit_71_to_72_port(self) -> None:
         manifest = json.loads((ROOT / "automation/patch-sources.json").read_text(encoding="utf-8"))
