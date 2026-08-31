@@ -26,6 +26,7 @@ jobs:
             automation/prepare-steamos-7.2.py \
             automation/prepare-pkgbuild-7.2.py \
             automation/resolve-latest-patches-7.2.py \
+            automation/resolve-latest-patches-7.2-policy.py \
             automation/resolve-latest-patches.py \
             automation/validate-patch-lock.py \
             automation/audit-latest-patch-versions.py \
@@ -51,7 +52,7 @@ jobs:
             --manifest-in automation/patch-sources.json \
             --manifest-out logs/patch-sources-7.2.json \
             --metadata logs/steamos-7.2-source.json
-          python3 automation/resolve-latest-patches-7.2.py \
+          python3 automation/resolve-latest-patches-7.2-policy.py \
             --manifest logs/patch-sources-7.2.json \
             --overrides automation/patch-source-overrides-7.2.json \
             --write | tee logs/resolver.log
