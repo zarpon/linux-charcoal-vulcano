@@ -86,6 +86,12 @@
       "local_port_project_version": null,
       "source_regex": "(?:latest-amd-pstate-epp-boost-04-docs\\.patch|6\\.16\\.12-amd-pstate-epp-boost-04-docs\\.port\\.patch)"
     },
+    "fsync": {
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "local_port": "7.2-fsync-futex-waitv.port.patch",
+      "local_port_upstream_sha256": "9df628fd530950e37d31da854cb314d536f33c83935adf5c47e71266a55f7004"
+    },
     "cpu_optimizations": {
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
