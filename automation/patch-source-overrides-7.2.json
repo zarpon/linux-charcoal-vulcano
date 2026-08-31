@@ -14,7 +14,7 @@
       "port_when_incompatible": true,
       "local_port": "0001-linux7.2-zram-ir-1.2.patch",
       "local_port_project_version": "1.2",
-      "local_port_upstream_sha256": "probe"
+      "local_port_upstream_sha256": "48d1c4bd0248d4259d362bc6b469446446d4ad028516297ae997b702917a0202"
     },
     "adios": {
       "source_regex": "(?:latest-adios\\.patch|6\\.\\d+(?:\\.\\d+)?-ADIOS-[^\\s]+\\.patch)",
