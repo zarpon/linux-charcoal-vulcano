@@ -1,0 +1,98 @@
+name: Validate SteamOS 7.2 dynamic source policy
+
+on:
+  push:
+    branches:
+      - kernel-7.2-dynamic-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Python and shell automation
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile \
+            automation/prepare-steamos-7.2.py \
+            automation/prepare-pkgbuild-7.2.py \
+            automation/resolve-latest-patches-7.2.py \
+            automation/resolve-latest-patches.py \
+            automation/validate-patch-lock.py \
+            automation/audit-latest-patch-versions.py \
+            automation/apply-resolved-patch.py \
+            automation/port-poc-selector.py \
+            automation/port-adios-7.2.py \
+            automation/port-zen-cpufreq-7.2.py \
+            automation/port-zen-swap-7.2.py
+          python3 tests/test-prepare-steamos-7.2.py -v
+          python3 tests/test-prepare-pkgbuild-7.2.py -v
+          python3 tests/test-resolve-latest-patches-7.2.py -v
+          python3 tests/test-resolve-latest-patches.py -v
+          python3 tests/test-apply-resolved-patch.py -v
+          python3 -m unittest discover -s tests -p 'test_patch*.py' -v
+          bash -n PKGBUILD
+
+      - name: Resolve newest official SteamOS 7.2 and newest patch releases
+        run: |
+          set -Eeuo pipefail
+          mkdir -p logs
+          python3 automation/prepare-pkgbuild-7.2.py --write PKGBUILD
+          python3 automation/prepare-steamos-7.2.py \
+            --manifest-in automation/patch-sources.json \
+            --manifest-out logs/patch-sources-7.2.json \
+            --metadata logs/steamos-7.2-source.json
+          python3 automation/resolve-latest-patches-7.2.py \
+            --manifest logs/patch-sources-7.2.json \
+            --overrides automation/patch-source-overrides-7.2.json \
+            --write | tee logs/resolver.log
+          python3 automation/validate-patch-lock.py \
+            --manifest logs/patch-sources-7.2.json \
+            --overrides automation/patch-source-overrides-7.2.json \
+            --lock logs/patch-lock.json \
+            --skip-latest-audit | tee logs/patch-lock-validation.log
+
+      - name: Audit selected project versions against upstream
+        run: |
+          set -Eeuo pipefail
+          cp automation/patch-sources.json logs/patch-sources.base.json
+          cp automation/patch-source-overrides.json logs/patch-source-overrides.base.json
+          cp logs/patch-sources-7.2.json automation/patch-sources.json
+          cp automation/patch-source-overrides-7.2.json automation/patch-source-overrides.json
+          trap 'cp logs/patch-sources.base.json automation/patch-sources.json; cp logs/patch-source-overrides.base.json automation/patch-source-overrides.json' EXIT
+          python3 automation/audit-latest-patch-versions.py | tee logs/latest-patch-audit.log
+
+      - name: Verify SteamOS source contract
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('logs/steamos-7.2-source.json').read_text())
+          lock = json.loads(Path('logs/patch-lock.json').read_text())
+          assert metadata['tag'] == lock['kernel']['tag'], (metadata, lock['kernel'])
+          assert metadata['tag'].startswith('7.2'), metadata['tag']
+          assert lock['kernel']['version'] == '7.2', lock['kernel']
+          print('SteamOS 7.2 tag:', metadata['tag'])
+          for group in ('components', 'auxiliary_components'):
+              for name, item in sorted(lock[group].items()):
+                  print(group, name, item.get('project_version'), item.get('selection'), item.get('origin'))
+          PY
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-7.2-dynamic-validation-${{ github.run_number }}
+          path: logs
+          if-no-files-found: warn
+          retention-days: 7
