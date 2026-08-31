@@ -13,7 +13,7 @@ assert bore["port_for_kernel"] == "6.18"
 assert bore["local_port"] == "6.18.45-bore-6.8.0.port.patch"
 assert bore["local_port_project_version"] == "6.8.0"
 assert bore["local_port_upstream_sha256"] == (
-    "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd"
+    "f650285feb58e9f3654836c8f84fb82723c30b3ad77a26cea5f218ce41ed7b14"
 )
 assert "local_port_overlays" not in bore
 assert coexistence["port_for_kernel"] == "6.18"
