@@ -11,7 +11,7 @@ overlay = overlay_path.read_text(encoding="utf-8")
 policy = json.loads((root / "automation/patch-source-overrides.json").read_text(encoding="utf-8"))
 bore = policy["components"]["bore"]
 assert bore["local_port_project_version"] == "6.8.0"
-assert bore["local_port_upstream_sha256"] == "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd"
+assert bore["local_port_upstream_sha256"] == "f650285feb58e9f3654836c8f84fb82723c30b3ad77a26cea5f218ce41ed7b14"
 assert bore["local_port_overlays"] == ["6.16.12-bore-6.8.0-final.patch"]
 for marker in (
     '#define SCHED_BORE_VERSION  "6.8.0"',
