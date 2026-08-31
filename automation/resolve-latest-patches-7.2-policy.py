@@ -131,9 +131,11 @@ def normalize_schema5_lock(path: Path) -> None:
     """Convert the 7.2 entry point's legacy lock envelope to schema 5.
 
     Component records are already produced by the shared resolver and carry the
-    schema-5 source/origin/lineage fields.  Only the legacy top-level envelope
+    schema-5 source/origin/lineage fields. Only the legacy top-level envelope
     still used schema 3 and stored the broad series (7.2) as kernel.version.
-    The shared validator expects the exact resolved Valve base version instead.
+    Fallback records also used the broad series; schema 5 binds those fallbacks
+    to the exact Valve source revision being validated while their manifest
+    port scope remains series-wide.
     """
     try:
         lock = json.loads(path.read_text(encoding="utf-8"))
@@ -153,6 +155,17 @@ def normalize_schema5_lock(path: Path) -> None:
 
     lock["schema"] = 5
     lock["kernel"]["version"] = version
+    for group_name in ("components", "auxiliary_components"):
+        group = lock.get(group_name, {})
+        if not isinstance(group, dict):
+            raise RESOLVER.BASE.ResolveError(f"7.2 patch lock group {group_name!r} is invalid")
+        for name, record in group.items():
+            if not isinstance(record, dict):
+                raise RESOLVER.BASE.ResolveError(f"7.2 patch lock record {group_name}.{name} is invalid")
+            fallback = record.get("fallback")
+            if isinstance(fallback, dict) and fallback.get("kernel_version") == "7.2":
+                fallback["kernel_version"] = version
+
     path.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
