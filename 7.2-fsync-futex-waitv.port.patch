@@ -1,0 +1,157 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Charcoal Kernel Automation <noreply@github.com>
+Date: Mon, 31 Aug 2026 00:00:00 +0000
+Subject: [PATCH] futex: port legacy FUTEX_WAIT_MULTIPLE to Valve 7.2
+
+Upstream-Repo: Frogging-Family/linux-tkg
+Upstream-Commit: 04ac71826d38373184c556aa8df6ab2edbeb3750
+Upstream-Path: linux-tkg-patches/6.9/0007-v6.9-fsync1_via_futex_waitv.patch
+Port-Target: evlaV/linux-integration 7.2.0-valve1
+
+Preserve opcode 31 for older Proton/fsync users while translating the legacy
+wait block ABI to the current futex_wait_multiple implementation.
+---
+ include/uapi/linux/futex.h | 17 +++++++++
+ kernel/futex/syscalls.c    | 75 +++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 91 insertions(+), 1 deletion(-)
+
+diff --git a/include/uapi/linux/futex.h b/include/uapi/linux/futex.h
+--- a/include/uapi/linux/futex.h
++++ b/include/uapi/linux/futex.h
+@@ -22,6 +22,7 @@
+ #define FUTEX_WAIT_REQUEUE_PI	11
+ #define FUTEX_CMP_REQUEUE_PI	12
+ #define FUTEX_LOCK_PI2		13
++#define FUTEX_WAIT_MULTIPLE	31
+ 
+ #define FUTEX_PRIVATE_FLAG	128
+ #define FUTEX_CLOCK_REALTIME	256
+@@ -100,6 +101,22 @@ struct futex_waitv {
+ 	__u32 __reserved;
+ };
+ 
++/**
++ * struct futex_wait_block - Legacy FUTEX_WAIT_MULTIPLE waiter
++ * @uaddr:	User address of the futex
++ * @val:	Expected futex value
++ * @bitset:	Reserved legacy bitset field
++ *
++ * The opcode-31 ABI predates futex_waitv(). Keep this layout so older Proton
++ * releases can translate their multiple-futex waits to the current kernel
++ * implementation.
++ */
++struct futex_wait_block {
++	__u32 __user *uaddr;
++	__u32 val;
++	__u32 bitset;
++};
++
+ /*
+  * Support for robust futexes: the kernel cleans up held futexes at
+  * thread exit time.
+diff --git a/kernel/futex/syscalls.c b/kernel/futex/syscalls.c
+--- a/kernel/futex/syscalls.c
++++ b/kernel/futex/syscalls.c
+@@ -158,6 +158,7 @@ static __always_inline bool futex_cmd_has_timeout(u32 cmd)
+ 	case FUTEX_LOCK_PI2:
+ 	case FUTEX_WAIT_BITSET:
+ 	case FUTEX_WAIT_REQUEUE_PI:
++	case FUTEX_WAIT_MULTIPLE:
+ 		return true;
+ 	}
+ 	return false;
+@@ -170,13 +171,75 @@ futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
+ 		return -EINVAL;
+ 
+ 	*t = timespec64_to_ktime(*ts);
+-	if (cmd == FUTEX_WAIT)
++	if (cmd == FUTEX_WAIT || cmd == FUTEX_WAIT_MULTIPLE)
+ 		*t = ktime_add_safe(ktime_get(), *t);
+ 	else if (cmd != FUTEX_LOCK_PI && !(op & FUTEX_CLOCK_REALTIME))
+ 		*t = timens_ktime_to_host(CLOCK_MONOTONIC, *t);
+ 	return 0;
+ }
+ 
++/**
++ * futex_read_wait_block - Translate legacy FUTEX_WAIT_MULTIPLE waiters
++ * @uaddr: Userspace pointer to an array of legacy wait blocks
++ * @count: Number of wait blocks
++ */
++static struct futex_vector *
++futex_read_wait_block(u32 __user *uaddr, u32 count)
++{
++	struct futex_wait_block __user *entry =
++		(struct futex_wait_block __user *)uaddr;
++	struct futex_wait_block block;
++	struct futex_vector *futexv;
++	unsigned int i;
++
++	if (!count || count > FUTEX_WAITV_MAX)
++		return ERR_PTR(-EINVAL);
++
++	futexv = kcalloc(count, sizeof(*futexv), GFP_KERNEL);
++	if (!futexv)
++		return ERR_PTR(-ENOMEM);
++
++	for (i = 0; i < count; i++) {
++		if (copy_from_user(&block, &entry[i], sizeof(block))) {
++			kfree(futexv);
++			return ERR_PTR(-EFAULT);
++		}
++
++		futexv[i].w.flags = FUTEX_32;
++		futexv[i].w.val = block.val;
++		futexv[i].w.uaddr = (uintptr_t)block.uaddr;
++		futexv[i].q = futex_q_init;
++	}
++
++	return futexv;
++}
++
++static int futex_opcode_31(ktime_t *abs_time, u32 __user *uaddr, u32 count)
++{
++	struct hrtimer_sleeper timeout, *to;
++	struct futex_vector *futexv;
++	int ret;
++
++	to = futex_setup_timer(abs_time, &timeout, 0, 0);
++	futexv = futex_read_wait_block(uaddr, count);
++	if (IS_ERR(futexv))
++		return PTR_ERR(futexv);
++
++	ret = futex_wait_multiple(futexv, count, to);
++	kfree(futexv);
++
++	if (to) {
++		hrtimer_cancel(&to->timer);
++		destroy_hrtimer_on_stack(&to->timer);
++	}
++
++	return ret;
++}
++
+ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
+ 		const struct __kernel_timespec __user *, utime,
+ 		u32 __user *, uaddr2, u32, val3)
+@@ -196,6 +259,9 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
+ 		tp = &t;
+ 	}
+ 
++	if (cmd == FUTEX_WAIT_MULTIPLE)
++		return futex_opcode_31(tp, uaddr, val);
++
+ 	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
+ }
+ 
+@@ -520,6 +586,9 @@ SYSCALL_DEFINE6(futex_time32, u32 __user *, uaddr, int, op, u32, val,
+ 		tp = &t;
+ 	}
+ 
++	if (cmd == FUTEX_WAIT_MULTIPLE)
++		return futex_opcode_31(tp, uaddr, val);
++
+ 	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
+ }
+ #endif /* CONFIG_COMPAT_32BIT_TIME */
+-- 
+2.50.0
