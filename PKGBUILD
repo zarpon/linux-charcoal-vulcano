@@ -2,11 +2,9 @@
 # Maintainer: John Schoenick <johns@valvesoftware.com>
 # Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
 
-pkgbase=linux-charcoal-618
-_nepbase=linux-neptune-618
-# The resolver refreshes this seed from Valve's official 6.18 source index
-# before every build; keep a current, buildable tag for local inspection.
-_tag=6.18.45-valve1
+pkgbase=linux-charcoal-616
+_nepbase=linux-neptune-616
+_tag=6.16.12-valve27
 _ver=1
 pkgver=${_tag//-/.}.cc$_ver
 pkgrel=1
@@ -128,8 +126,8 @@ sha256sums=(
   'd88eaf0f94bae470040e4882f334c05b1bb2ab0a99e4b7299aa0b2337810ab8d'
   'e1e94e879c9b3f26b8e4a157c79b5cddc3f4d9dd08672307d49bd88ea0fc8acb'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
-  '2bac52e84f315232cf47b9383e21409253968fcbddc80ff7c4271128d404d1d9'
-'1fe8c232816ca72f116cc0c6f5e51e0249433bc0fbd84ec050aa3a6984c0e135'
+  'dc8d23ada60ea089c4f21514f72a22962747fd5fbf625d135236e8c82e4a5a6c'
+  'f74713691121b2826220c519a6ceb088a11b757f6ddccfe61535490cee244a3c'
   '6e71f4ef06f4e40053ac530d0000669bcf65db6e3992ccee54f0c61f8ba04ec6'
   '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
   '35fc7647671b1ab412804143a0585dde8d9880097c06feb520f90680780ac5e5'
@@ -200,24 +198,16 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     echo "Applying patch $src..."
-    if [[ $src == latest-c23-libbpf.patch ]]; then
-      if patch --dry-run --batch -Np1 < "../$src" >/dev/null 2>&1; then
-        patch --batch -Np1 < "../$src"
-      elif patch --dry-run --batch -R -Np1 < "../$src" >/dev/null 2>&1; then
-        echo "Skipping patch $src: already present in Valve base $_tag."
-      else
-        echo "ERROR: patch $src neither applies nor is already present in Valve base $_tag." >&2
-        patch --dry-run --batch -Np1 < "../$src" || true
-        return 1
-      fi
+    if [[ $src == latest-poc-selector.patch ]]; then
+      local adapted_poc="../${src%.patch}-valve-port.patch"
+      python3 "$startdir/automation/port-poc-selector.py" \
+        "../$src" "$adapted_poc" kernel/sched/sched.h kernel/sched/fair.c
+      git apply --check "$adapted_poc"
+      git apply "$adapted_poc"
     elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
-      python3 "$startdir/automation/apply-resolved-patch.py" \
-        --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
+      patch -Np1 < "../$src"
       python3 "$startdir/automation/fix-libbpf-clang-warning.py" \
         tools/lib/bpf/elf.c
-    elif [[ $src == latest-*.patch ]]; then
-      python3 "$startdir/automation/apply-resolved-patch.py" \
-        --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
     else
       patch -Np1 < "../$src"
     fi
