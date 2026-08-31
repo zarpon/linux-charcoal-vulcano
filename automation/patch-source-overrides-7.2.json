@@ -1,7 +1,15 @@
 {
   "schema": 1,
   "components": {
+    "lru_marie": {
+      "source_regex": "(?:latest-lru_marie\\.patch|6\\.\\d+(?:\\.\\d+)?-lru_marie-[^\\s]+\\.patch)",
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*\\.patch$",
+      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?"
+    },
     "zram_ir": {
+      "source_regex": "(?:latest-zram-ir\\.patch|0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch)",
+      "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:-rc[0-9]+)?(?:\\.y)?-zram-ir-[0-9.]+\\.patch$",
+      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?(?:\\.y)?",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
       "local_port": "0001-linux7.2-zram-ir-1.2.patch",
@@ -9,6 +17,7 @@
       "local_port_upstream_sha256": "probe"
     },
     "adios": {
+      "source_regex": "(?:latest-adios\\.patch|6\\.\\d+(?:\\.\\d+)?-ADIOS-[^\\s]+\\.patch)",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
       "local_port": null,
