@@ -33,3 +33,12 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref 618pre \
             -f publish_release=true
+
+      - name: Trigger kernel-7.2 full build and Preview release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          gh workflow run build-kernel-7.2.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref kernel-7.2
