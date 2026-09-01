@@ -46,6 +46,13 @@ fi
 empty_stock=()
 confirm_stock_removal empty_stock
 
+# Regression checks for SteamOS pacman compatibility.
+if grep -Fq -- '--print-format' "$INSTALLER"; then
+  fail "installer uses unsupported pacman --print-format option"
+fi
+grep -Fq 'pacman -Qp "$pkg" | awk '\''{print $1}'\''' "$INSTALLER" \
+  || fail "installer does not use SteamOS-compatible package metadata query"
+
 # Regression checks for the real transaction order and prompt.
 grep -Fq 'Remove the SteamOS 7.2 stock kernel and continue? [s/N]' "$INSTALLER" \
   || fail "interactive stock-kernel removal prompt is missing"
