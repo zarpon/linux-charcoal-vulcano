@@ -332,7 +332,7 @@ main() {
   info "Checking package metadata without starting a transaction..."
   local pkg pkgname
   for pkg in "${packages[@]}"; do
-    pkgname="$(pacman -Qp --print-format '%n' "$pkg")" || die "pacman could not read package metadata: $pkg"
+    pkgname="$(pacman -Qp "$pkg" | awk '{print $1}')" || die "pacman could not read package metadata: $pkg"
     [[ "$pkgname" == linux-charcoal-72 || "$pkgname" == linux-charcoal-72-headers ]] \
       || die "Unexpected package in release: $pkgname"
   done
