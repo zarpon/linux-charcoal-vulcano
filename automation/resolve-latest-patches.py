@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import hashlib
 import json
 import os
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 API = "https://api.github.com"
-UA = "linux-charcoal-vulcano-dynamic-resolver/5"
+UA = "linux-charcoal-vulcano-dynamic-resolver/7"
 
 
 class ResolveError(RuntimeError):
@@ -72,6 +73,31 @@ def version_key(text: str | None) -> tuple[int, ...]:
     return tuple(values[-8:]) if values else (0,)
 
 
+def project_version_key(text: str | None) -> tuple[int, ...]:
+    """Sort project releases semantically, including rc/pre and rN revisions."""
+    raw = (text or "").strip().lower().lstrip("v")
+    match = re.fullmatch(r"(?P<core>\d+(?:\.\d+)*)(?P<suffix>.*)", raw)
+    if not match:
+        return (0,) * 10
+
+    core = [int(value) for value in match.group("core").split(".")]
+    core = (core + [0] * 8)[:8]
+    suffix = match.group("suffix")
+    prerelease = re.search(r"(?:^|[-_.]?)(alpha|beta|pre|rc)(\d*)", suffix)
+    postrelease = re.search(r"(?:^|[-_.]?)r(\d+)$", suffix)
+    if prerelease:
+        stage_rank = {"alpha": 0, "beta": 1, "pre": 2, "rc": 3}
+        stage = stage_rank[prerelease.group(1)]
+        serial = int(prerelease.group(2) or 0)
+    elif postrelease:
+        stage = 5
+        serial = int(postrelease.group(1))
+    else:
+        stage = 4
+        serial = 0
+    return tuple(core + [stage, serial])
+
+
 def parse_kernel_version(text: str) -> tuple[int, ...] | None:
     match = re.fullmatch(r"(\d+)\.(\d+)(?:\.(\d+))?", text)
     return (
@@ -103,7 +129,9 @@ def candidate_project_version(spec: dict[str, Any], path: str) -> str | None:
 def compatible_key(candidate: Candidate) -> tuple[Any, ...]:
     return (
         candidate.compatibility,
-        version_key(candidate.project_version),
+        project_version_key(candidate.project_version)
+        if candidate.project_version
+        else version_key(candidate.path),
         candidate.kernel_version or (0,),
         candidate.path,
     )
@@ -111,10 +139,30 @@ def compatible_key(candidate: Candidate) -> tuple[Any, ...]:
 
 def latest_key(candidate: Candidate) -> tuple[Any, ...]:
     return (
-        version_key(candidate.project_version or candidate.path),
+        project_version_key(candidate.project_version)
+        if candidate.project_version
+        else version_key(candidate.path),
         candidate.kernel_version or (0,),
         candidate.path,
     )
+
+
+def latest_project_candidates(candidates: list[Candidate]) -> list[Candidate]:
+    """Keep every kernel variant of the newest project release.
+
+    Kernel compatibility must never make an older project release win. Once the
+    newest project release is known, the closest kernel variant is selected and
+    ported when the target kernel has no native patch.
+    """
+    versioned = [item for item in candidates if item.project_version]
+    if not versioned:
+        return candidates
+    latest = max(project_version_key(item.project_version) for item in versioned)
+    return [
+        item
+        for item in versioned
+        if project_version_key(item.project_version) == latest
+    ]
 
 
 def nearest_candidate(candidates: list[Candidate], kernel_version: str) -> Candidate | None:
@@ -139,6 +187,60 @@ def nearest_candidate(candidates: list[Candidate], kernel_version: str) -> Candi
     return max((item for item in versioned if distance(item) == minimum), key=latest_key)
 
 
+def native_series_candidates(candidates: list[Candidate]) -> list[Candidate]:
+    """Return candidates built for the target kernel series.
+
+    ``upstream_candidates()`` assigns compatibility 2 to same-major/minor
+    variants and 3 to an exact patch-level match.  Keeping this decision in a
+    named helper makes the policy explicit: the newest upstream project
+    release is selected first, then its native 6.18 variant is preferred over
+    every local port.
+    """
+    return [item for item in candidates if item.compatibility >= 2]
+
+
+def fallback_metadata(
+    spec: dict[str, Any], kernel_version: str
+) -> dict[str, Any] | None:
+    """Describe the reviewed port that may be used after a real apply failure.
+
+    The resolver must never replace a newest native 6.18 patch with a local
+    port merely because a port exists.  The build-time applicator uses this
+    metadata only after it has proved that the selected upstream bytes do not
+    apply to the selected Valve source tree.
+    """
+    local_port = spec.get("local_port")
+    adaptive_port = spec.get("adaptive_port")
+    if local_port and adaptive_port:
+        raise ResolveError(
+            f"{spec['name']}: local_port and adaptive_port are mutually exclusive"
+        )
+    if local_port:
+        result: dict[str, Any] = {
+            "kind": "local-port",
+            "path": str(local_port),
+            # The port policy may cover the whole 6.18 series, but this lock
+            # describes one exact Valve source tree.  Keep the latter here so
+            # the applicator cannot reuse a fallback from another build.
+            "kernel_version": kernel_version,
+        }
+        for manifest_key, lock_key in (
+            ("local_port_project_version", "project_version"),
+            ("local_port_upstream_sha256", "upstream_sha256"),
+        ):
+            value = spec.get(manifest_key)
+            if value is not None:
+                result[lock_key] = str(value)
+        return result
+    if adaptive_port:
+        return {
+            "kind": "adaptive-port",
+            "adapter": str(adaptive_port),
+            "kernel_version": kernel_version,
+        }
+    return None
+
+
 def paged(url: str, token: str | None) -> Iterable[Any]:
     page = 1
     while True:
@@ -152,11 +254,97 @@ def paged(url: str, token: str | None) -> Iterable[Any]:
         page += 1
 
 
-def resolve_kernel_tag(config: dict[str, Any], token: str | None) -> tuple[str, str]:
-    pattern = re.compile(config["tag_regex"])
+def kernel_matches_policy(version: str, config: dict[str, Any]) -> bool:
+    """Return whether a Valve kernel version belongs to the configured target."""
     required = config.get("version")
     if required:
-        prefix = urllib.parse.quote(str(required), safe="")
+        return version == str(required)
+
+    series = config.get("series")
+    if not series:
+        return True
+    target = parse_kernel_version(str(series))
+    candidate = parse_kernel_version(version)
+    return bool(target and candidate and candidate[: len(target)] == target)
+
+
+def resolve_official_kernel_package(
+    config: dict[str, Any], token: str | None
+) -> dict[str, Any] | None:
+    """Resolve the newest source package in Valve's public SteamOS index.
+
+    The GitHub mirror is convenient for git checkout, but it is not the
+    authority for which SteamOS release is published.  When the manifest
+    enables this check, only a mirror tag that exactly corresponds to the
+    newest source package in the official index can be selected.
+    """
+    index_url = config.get("official_source_index")
+    package_regex = config.get("official_package_regex")
+    if not index_url and not package_regex:
+        return None
+    if not isinstance(index_url, str) or not isinstance(package_regex, str):
+        raise ResolveError(
+            "kernel source must declare both official_source_index and "
+            "official_package_regex"
+        )
+
+    try:
+        listing = request_bytes(index_url, token).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ResolveError(f"official SteamOS source index is not UTF-8: {index_url}") from exc
+
+    pattern = re.compile(package_regex)
+    filenames = {
+        html.unescape(value).rsplit("/", 1)[-1]
+        for value in re.findall(r'''(?i)href=["']([^"']+)["']''', listing)
+    }
+    matches: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    for filename in filenames:
+        match = pattern.fullmatch(filename)
+        if not match:
+            continue
+        version = match.group("version")
+        valve = match.group("valve")
+        pkgrel = match.groupdict().get("pkgrel", "0")
+        if not kernel_matches_policy(version, config):
+            continue
+        try:
+            pkgrel_key = int(pkgrel)
+        except ValueError as exc:
+            raise ResolveError(
+                f"invalid pkgrel {pkgrel!r} in official SteamOS package {filename}"
+            ) from exc
+        matches.append(
+            (
+                (version_key(version), version_key(valve), pkgrel_key, filename),
+                {
+                    "filename": filename,
+                    "url": urllib.parse.urljoin(index_url, filename),
+                    "tag": f"{version}-valve{valve}",
+                    "version": version,
+                    "valve": valve,
+                    "pkgrel": pkgrel_key,
+                },
+            )
+        )
+    if not matches:
+        target = config.get("series") or config.get("version") or "configured"
+        raise ResolveError(
+            f"no official SteamOS source package matched kernel target {target!r}"
+        )
+    return max(matches, key=lambda item: item[0])[1]
+
+
+def resolve_kernel_tag(
+    config: dict[str, Any], token: str | None
+) -> tuple[str, str, dict[str, Any] | None]:
+    pattern = re.compile(config["tag_regex"])
+    required = config.get("version")
+    series = config.get("series")
+    prefix_source = required or series
+    official_package = resolve_official_kernel_package(config, token)
+    if prefix_source:
+        prefix = urllib.parse.quote(str(prefix_source), safe="")
         tags: Iterable[Any] = request_json(
             f"{API}/repos/{config['repository']}/git/matching-refs/tags/{prefix}", token
         )
@@ -179,17 +367,26 @@ def resolve_kernel_tag(config: dict[str, Any], token: str | None) -> tuple[str, 
         match = pattern.fullmatch(name)
         if not match or "-rc" in name.lower():
             continue
-        if required and match.group("version") != required:
+        if not kernel_matches_policy(match.group("version"), config):
+            continue
+        if official_package and name != official_package["tag"]:
             continue
         if sha:
             score = version_key(match.group("version")) + version_key(match.group("valve"))
             matches.append((score, name, sha, annotated_url))
     if not matches:
-        raise ResolveError("no Valve SteamOS 6.16 tag matched")
+        if official_package:
+            raise ResolveError(
+                "the official SteamOS source package "
+                f"{official_package['filename']} requires mirror tag "
+                f"{official_package['tag']}, but it is unavailable"
+            )
+        target = config.get("series") or config.get("version") or "configured"
+        raise ResolveError(f"no Valve SteamOS tag matched kernel target {target!r}")
     _, name, sha, annotated_url = max(matches)
     if annotated_url:
         sha = request_json(annotated_url, token).get("object", {}).get("sha", sha)
-    return name, sha
+    return name, sha, official_package
 
 
 def repository_tree(repo: str, branch: str, token: str | None) -> tuple[str, dict[str, Any]]:
@@ -226,9 +423,7 @@ def upstream_candidates(
             continue
         kernel = candidate_kernel_version(spec, path)
         compatibility = (
-            0
-            if spec.get("always_latest")
-            else 3
+            3
             if kernel == target
             else 2
             if kernel and kernel[:2] == target[:2]
@@ -287,63 +482,48 @@ def decode_mailbox_patch(data: bytes) -> bytes:
 def resolve_github_component(
     spec: dict[str, Any], kernel_version: str, token: str | None, root: Path
 ) -> dict[str, Any]:
-    candidates = upstream_candidates(spec, kernel_version, token)
-    if not candidates:
+    all_candidates = upstream_candidates(spec, kernel_version, token)
+    if not all_candidates:
         raise ResolveError(f"no official upstream patch found for {spec['name']}")
-    compatible = [item for item in candidates if item.compatibility >= 2]
+
+    # A native patch for the target kernel is useful only within the newest
+    # project release. Never let an obsolete 6.16 patch hide a newer release.
+    candidates = latest_project_candidates(all_candidates)
+    native = native_series_candidates(candidates)
+    compatibility_reference = native_series_candidates(all_candidates)
     local_port = spec.get("local_port")
     adaptive_port = spec.get("adaptive_port")
     use_local_port = False
     use_adaptive_port = False
-    if spec.get("always_latest"):
+
+    if native:
+        # This is deliberately ahead of every port branch. A port is a
+        # fallback for an unavailable or non-applying 6.18 variant, never a
+        # substitute for an official latest-release 6.18 patch.
+        candidate = max(native, key=compatible_key)
+        selection = "latest-native-series"
+    elif not any(item.kernel_version for item in candidates):
+        # Some upstreams publish a single, kernel-agnostic patch. It has no
+        # versioned 6.18 sibling to choose from, so retain the newest official
+        # source and let the source-tree application preflight validate it.
         candidate = max(candidates, key=latest_key)
-        use_local_port = bool(local_port)
-        use_adaptive_port = bool(adaptive_port)
-        selection = (
-            "latest-upstream-port"
-            if use_local_port
-            else "latest-upstream-adaptive-port"
-            if use_adaptive_port
-            else "latest-upstream"
-        )
-    elif spec.get("port_for_kernel") == kernel_version:
-        candidate = (
-            max(compatible, key=compatible_key)
-            if compatible
-            else nearest_candidate(candidates, kernel_version)
+        selection = "latest-kernel-agnostic"
+    else:
+        candidate = nearest_candidate(candidates, kernel_version) or max(
+            candidates, key=latest_key
         )
         if (
             not candidate
             or not (local_port or adaptive_port)
             or not spec.get("port_when_incompatible", True)
         ):
-            raise ResolveError(f"approved port is unavailable for {spec['name']}")
+            raise ResolveError(
+                f"no native {kernel_version.rsplit('.', 1)[0]} patch exists for "
+                f"the newest upstream release of {spec['name']}; a tracked port is required"
+            )
         use_local_port = bool(local_port)
         use_adaptive_port = bool(adaptive_port)
-        selection = "upstream-port" if use_local_port else "upstream-adaptive-port"
-    elif compatible:
-        candidate = max(compatible, key=compatible_key)
-        selection = "upstream-compatible"
-    else:
-        candidate = nearest_candidate(candidates, kernel_version)
-        if candidate and spec.get("allow_nearest_upstream"):
-            selection = "nearest-upstream"
-        else:
-            if (
-                not candidate
-                or not (local_port or adaptive_port)
-                or not spec.get("port_when_incompatible")
-            ):
-                raise ResolveError(
-                    f"no compatible upstream patch or approved port for {spec['name']}"
-                )
-            use_local_port = bool(local_port)
-            use_adaptive_port = bool(adaptive_port)
-            selection = (
-                "nearest-upstream-port"
-                if use_local_port
-                else "nearest-upstream-adaptive-port"
-            )
+        selection = "latest-release-port" if use_local_port else "latest-release-adaptive-port"
 
     upstream: dict[str, Any] = {
         "repository": spec["repository"],
@@ -356,8 +536,27 @@ def resolve_github_component(
         upstream["kernel_version"] = ".".join(map(str, candidate.kernel_version))
     if candidate.project_version:
         upstream["project_version"] = candidate.project_version
+
+    # Keep the best direct-compatible baseline visible in the lock for audit
+    # purposes when a newer release is being sourced from another kernel base.
+    if compatibility_reference:
+        reference = max(compatibility_reference, key=compatible_key)
+        if reference.path != candidate.path:
+            upstream["compatibility_reference"] = {
+                "path": reference.path,
+                "kernel_version": ".".join(map(str, reference.kernel_version or ())),
+                "project_version": reference.project_version,
+            }
+
     if not use_local_port and not use_adaptive_port:
-        return {**upstream, "origin": "upstream-compatible"}
+        result = {
+            **upstream,
+            "origin": "upstream-native" if native else "upstream-kernel-agnostic",
+        }
+        fallback = fallback_metadata(spec, kernel_version)
+        if fallback:
+            result["fallback"] = fallback
+        return result
 
     official = request_bytes(candidate.url, token)
     if not looks_like_patch(official):
@@ -377,7 +576,12 @@ def resolve_github_component(
         raise ResolveError(f"local port is missing or invalid: {local_port}")
     official_sha = hashlib.sha256(official).hexdigest()
     expected = spec.get("local_port_upstream_sha256")
-    if expected and official_sha != expected:
+    if not expected:
+        raise ResolveError(
+            f"local port for {spec['name']} must declare local_port_upstream_sha256 "
+            "to track the exact newest upstream bytes"
+        )
+    if official_sha != expected:
         raise ResolveError(
             f"local port for {spec['name']} follows upstream SHA-256 {expected}, "
             f"but current upstream is {official_sha}; refresh and validate the port"
@@ -396,12 +600,6 @@ def resolve_github_component(
                 f"{expected_project_version}, but the selected closest upstream "
                 f"source is {candidate.project_version}; refresh and validate the port"
             )
-    elif not expected:
-        raise ResolveError(
-            f"unversioned local port for {spec['name']} must declare "
-            "local_port_upstream_sha256"
-        )
-
     data = base_data
     overlay_records: list[dict[str, Any]] = []
     for overlay_value in spec.get("local_port_overlays", []):
@@ -458,43 +656,37 @@ def resolve_http_component(
                 "selection": "first-valid",
             }
             local_port = spec.get("local_port")
-            if not local_port:
-                return {
-                    **upstream,
-                    "origin": "upstream-fixed",
-                    "content_bytes": data,
-                }
+            if local_port:
+                path = root / str(local_port)
+                local_data = path.read_bytes() if path.is_file() else b""
+                if not local_data or not looks_like_patch(local_data):
+                    raise ResolveError(f"local port is missing or invalid: {local_port}")
 
-            path = root / str(local_port)
-            local_data = path.read_bytes() if path.is_file() else b""
-            if not local_data or not looks_like_patch(local_data):
-                raise ResolveError(f"local port is missing or invalid: {local_port}")
+                official_sha = hashlib.sha256(data).hexdigest()
+                expected_sha = spec.get("local_port_upstream_sha256")
+                if not expected_sha:
+                    raise ResolveError(
+                        f"unversioned local port for {spec['name']} must declare "
+                        "local_port_upstream_sha256"
+                    )
+                if official_sha != expected_sha:
+                    raise ResolveError(
+                        f"local port for {spec['name']} follows upstream SHA-256 "
+                        f"{expected_sha}, but current upstream is {official_sha}; "
+                        "refresh and validate the port"
+                    )
 
-            official_sha = hashlib.sha256(data).hexdigest()
-            expected_sha = spec.get("local_port_upstream_sha256")
-            if not expected_sha:
-                raise ResolveError(
-                    f"unversioned local port for {spec['name']} must declare "
-                    "local_port_upstream_sha256"
-                )
-            if official_sha != expected_sha:
-                raise ResolveError(
-                    f"local port for {spec['name']} follows upstream SHA-256 "
-                    f"{expected_sha}, but current upstream is {official_sha}; "
-                    "refresh and validate the port"
-                )
+                fallback = fallback_metadata(spec, kernel_version)
+                if fallback is None:
+                    raise ResolveError(
+                        f"local port for {spec['name']} has no fallback metadata"
+                    )
+                upstream["fallback"] = fallback
 
-            upstream |= {"sha256": official_sha, "size": len(data)}
             return {
-                "repository": "zarpon/linux-charcoal-vulcano",
-                "path": str(local_port),
-                "commit": "repository-local",
-                "url": None,
-                "origin": "local-port",
-                "selection": "first-valid-port",
-                "upstream": upstream,
-                "local_port_overlays": [],
-                "content_bytes": local_data,
+                **upstream,
+                "origin": "upstream-fixed",
+                "content_bytes": data,
             }
         except ResolveError as exc:
             errors.append(f"{url}: {exc}")
@@ -574,8 +766,30 @@ def replace_sha_array_with_skip(text: str) -> str:
 
 
 def validate_manifest(manifest: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    if manifest.get("schema") != 2:
+    if manifest.get("schema") != 4:
         raise ResolveError("unsupported patch source manifest schema")
+    kernel_source = manifest.get("kernel_source")
+    if not isinstance(kernel_source, dict):
+        raise ResolveError("kernel_source must be an object")
+    if not isinstance(kernel_source.get("repository"), str) or not isinstance(
+        kernel_source.get("tag_regex"), str
+    ):
+        raise ResolveError("kernel_source requires repository and tag_regex")
+    if kernel_source.get("version") and kernel_source.get("series"):
+        raise ResolveError("kernel_source cannot declare both version and series")
+    if not kernel_source.get("version") and not kernel_source.get("series"):
+        raise ResolveError("kernel_source requires version or series")
+    target = str(kernel_source.get("version") or kernel_source.get("series"))
+    if parse_kernel_version(target) is None:
+        raise ResolveError(f"kernel_source target is invalid: {target!r}")
+    index = kernel_source.get("official_source_index")
+    package_regex = kernel_source.get("official_package_regex")
+    if bool(index) != bool(package_regex):
+        raise ResolveError(
+            "kernel_source official_source_index and official_package_regex must be declared together"
+        )
+    if index and (not isinstance(index, str) or not isinstance(package_regex, str)):
+        raise ResolveError("kernel_source official source settings must be strings")
     groups = {
         "components": list(manifest.get("components", [])),
         "auxiliary_components": list(manifest.get("auxiliary_components", [])),
@@ -596,6 +810,12 @@ def validate_manifest(manifest: dict[str, Any]) -> dict[str, list[dict[str, Any]
         if local_port and adaptive_port:
             raise ResolveError(
                 f"{item['name']}: local_port and adaptive_port are mutually exclusive"
+            )
+        if (local_port or adaptive_port) and not isinstance(
+            item.get("port_for_kernel"), str
+        ):
+            raise ResolveError(
+                f"{item['name']}: every reviewed port requires port_for_kernel"
             )
         if item.get("mailbox") and kind != "http_patch":
             raise ResolveError(f"{item['name']}: mailbox decoding requires http_patch")
@@ -660,7 +880,9 @@ def main() -> int:
             name: fixture.get(name, {}) for name in ("components", "auxiliary_components")
         }
     else:
-        kernel_tag, kernel_sha = resolve_kernel_tag(manifest["kernel_source"], token)
+        kernel_tag, kernel_sha, official_kernel = resolve_kernel_tag(
+            manifest["kernel_source"], token
+        )
         kernel_version = kernel_tag.split("-valve", 1)[0]
         selected_groups = {
             name: {
@@ -670,10 +892,22 @@ def main() -> int:
             for name, specs in groups.items()
         }
 
+    if args.fixture:
+        official_kernel = fixture.get("official_kernel")
+
     kernel_version = kernel_tag.split("-valve", 1)[0]
+    kernel_record: dict[str, Any] = {
+        "tag": kernel_tag,
+        "version": kernel_version,
+        "commit": kernel_sha,
+    }
+    if official_kernel is not None:
+        if not isinstance(official_kernel, dict):
+            raise ResolveError("fixture official_kernel must be an object")
+        kernel_record["official_source_package"] = official_kernel
     lock: dict[str, Any] = {
-        "schema": 3,
-        "kernel": {"tag": kernel_tag, "version": kernel_version, "commit": kernel_sha},
+        "schema": 5,
+        "kernel": kernel_record,
         "components": {},
         "auxiliary_components": {},
     }

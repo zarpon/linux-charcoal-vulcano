@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Install the newest Charcoal SteamOS 7.2 prerelease from the kernel-7.2 line.
+# Install the newest Charcoal SteamOS 7.2 Preview release from the kernel-7.2 line.
 
 set -Eeuo pipefail
 
 readonly REPOSITORY="zarpon/linux-charcoal-vulcano"
 readonly RELEASES_API="https://api.github.com/repos/${REPOSITORY}/releases?per_page=100"
 readonly RELEASE_DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
-readonly RELEASE_TAG_PREFIX="charcoal-7.2-"
+readonly RELEASE_TAG_PREFIX="charcoal-7.2-preview-"
 readonly RELEASE_ZIP_PREFIX="linux-charcoal-72-"
 readonly USER_AGENT="charcoal-kernel-7.2-installer"
 
@@ -132,7 +132,7 @@ for release in releases:
     tag_name = release.get("tag_name")
     if (
         release.get("draft")
-        or not release.get("prerelease")
+        or release.get("prerelease")
         or not isinstance(tag_name, str)
         or not tag_name.startswith(tag_prefix)
     ):
@@ -141,12 +141,12 @@ for release in releases:
     break
 
 if selected is None:
-    raise SystemExit("No published Charcoal SteamOS 7.2 prerelease was found")
+    raise SystemExit("No published Charcoal SteamOS 7.2 Preview release was found")
 
 tag_name = text(selected.get("tag_name"), "release tag")
 assets = selected.get("assets")
 if not isinstance(assets, list):
-    raise SystemExit("GitHub prerelease has no assets")
+    raise SystemExit("GitHub 7.2 Preview release has no assets")
 
 archives = [
     asset for asset in assets
@@ -326,7 +326,7 @@ confirm_transaction() {
   shift
   local -a previous=("$@")
 
-  info "Verified prerelease: ${release_tag}"
+  info "Verified 7.2 Preview release: ${release_tag}"
   if (( ${#previous[@]} )); then
     info "The following previous Charcoal packages will be removed before SteamOS 7.2 is installed:"
     printf '  - %s\n' "${previous[@]}"
@@ -341,7 +341,7 @@ confirm_transaction() {
   [[ -t 0 ]] || die "Interactive confirmation is required; rerun in a terminal"
 
   local answer
-  read -r -p "Continue with the SteamOS 7.2 prerelease installation? [s/N] " answer
+  read -r -p "Continue with the Charcoal SteamOS 7.2 Preview installation? [s/N] " answer
   case "$answer" in
     s|S|y|Y|yes|YES|sim|SIM) ;;
     *) die "Installation cancelled before any package was changed" ;;
@@ -380,7 +380,7 @@ main() {
   WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/charcoal-72-installer.XXXXXX")"
   trap cleanup EXIT
 
-  info "Fetching published Charcoal SteamOS 7.2 prereleases..."
+  info "Fetching published Charcoal SteamOS 7.2 Preview releases..."
   curl \
     --fail \
     --silent \
@@ -398,11 +398,11 @@ main() {
 
   local metadata
   metadata="$(parse_release_metadata "$WORKDIR/releases.json")" \
-    || die "Could not identify a valid SteamOS 7.2 prerelease"
+    || die "Could not identify a valid SteamOS 7.2 Preview release"
 
   local -a fields
   mapfile -t fields <<< "$metadata"
-  (( ${#fields[@]} == 5 )) || die "Incomplete GitHub prerelease metadata"
+  (( ${#fields[@]} == 5 )) || die "Incomplete GitHub 7.2 Preview release metadata"
 
   local release_tag=${fields[0]}
   local archive_name=${fields[1]}
@@ -425,7 +425,7 @@ main() {
 
   local -a packages
   mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name 'linux-charcoal-72-*.pkg.tar.zst' -print0 | sort -z)
-  (( ${#packages[@]} == 2 )) || die "Verified prerelease does not contain exactly the kernel and headers packages"
+  (( ${#packages[@]} == 2 )) || die "Verified 7.2 Preview release does not contain exactly the kernel and headers packages"
 
   info "Preflighting package metadata with pacman before changing the system..."
   pacman -U --print --print-format '%n %v' "${packages[@]}" > "$WORKDIR/pacman-preflight.txt" \
@@ -448,7 +448,7 @@ main() {
     run_privileged pacman -Rdd --noconfirm "${previous_packages[@]}"
   fi
 
-  info "Installing verified Charcoal SteamOS 7.2 prerelease ${release_tag}..."
+  info "Installing verified Charcoal SteamOS 7.2 Preview ${release_tag}..."
   if ! run_privileged pacman -U --noconfirm "${packages[@]}"; then
     if attempt_rollback; then
       die "SteamOS 7.2 installation failed; the previous Charcoal packages were restored"
@@ -459,7 +459,7 @@ main() {
   info "Updating the bootloader configuration..."
   _update_grub
 
-  info "Charcoal SteamOS 7.2 ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
+  info "Charcoal SteamOS 7.2 Preview ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
   info "ZRAM switches to LZ4 with ZSTD --fast=1 priority-1 recompression after booting Charcoal; the active swap is not reset during installation."
 }
 

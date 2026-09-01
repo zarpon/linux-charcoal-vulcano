@@ -48,8 +48,8 @@ assert_precedes() {
 
 make_fixture() {
   local build_dir="$fixture_dir/build"
-  local kernel_package="linux-charcoal-72-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst"
-  local headers_package="linux-charcoal-72-headers-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst"
+  local kernel_package="linux-charcoal-72-7.2.0.valve1.cc1-1-x86_64.pkg.tar.zst"
+  local headers_package="linux-charcoal-72-headers-7.2.0.valve1.cc1-1-x86_64.pkg.tar.zst"
 
   mkdir -p "$build_dir" "$bin_dir"
   printf 'kernel fixture\n' > "$build_dir/$kernel_package"
@@ -92,17 +92,24 @@ releases = [
         "assets": [],
     },
     {
-        "tag_name": "charcoal-7.2-test-r1",
+        "tag_name": "charcoal-7.2-preview-rejected-prerelease",
         "draft": False,
         "prerelease": True,
+        "assets": [],
+    },
+    {
+        "tag_name": "charcoal-7.2-preview-test-r1",
+        "name": "Charcoal 7.2 Preview",
+        "draft": False,
+        "prerelease": False,
         "assets": [
             {
                 "name": archive.name,
-                "browser_download_url": "https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/" + archive.name,
+                "browser_download_url": "https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-preview-test-r1/" + archive.name,
             },
             {
                 "name": "RELEASE-ZIP-SHA256SUM",
-                "browser_download_url": "https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/RELEASE-ZIP-SHA256SUM",
+                "browser_download_url": "https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-preview-test-r1/RELEASE-ZIP-SHA256SUM",
             },
         ],
     },
@@ -127,9 +134,9 @@ write_fake_commands() {
     'case "$url" in' \
     '  "https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases?per_page=100")' \
     '    cp "$CHARCOAL_TEST_FIXTURE/releases.json" "$output" ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/linux-charcoal-72-test-r1.zip)' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-preview-test-r1/linux-charcoal-72-test-r1.zip)' \
     '    cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-72-test-r1.zip" "$output" ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-test-r1/RELEASE-ZIP-SHA256SUM)' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-7.2-preview-test-r1/RELEASE-ZIP-SHA256SUM)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-checksum" ]]; then' \
     '      cp "$CHARCOAL_TEST_FIXTURE/BAD-RELEASE-ZIP-SHA256SUM" "$output"' \
     '    else' \
@@ -205,8 +212,10 @@ run_installer() {
 make_fixture
 write_fake_commands
 
-grep -Fq 'RELEASE_TAG_PREFIX="charcoal-7.2-"' "$INSTALLER" \
-  || fail 'installer is not pinned to the SteamOS 7.2 prerelease tag prefix'
+grep -Fq 'RELEASE_TAG_PREFIX="charcoal-7.2-preview-"' "$INSTALLER" \
+  || fail 'installer is not pinned to the SteamOS 7.2 Preview tag prefix'
+grep -Fq 'or release.get("prerelease")' "$INSTALLER" \
+  || fail 'installer does not reject GitHub prereleases from the 7.2 Preview channel'
 grep -Fq 'linux-charcoal-72' "$INSTALLER" \
   || fail 'installer is not pinned to SteamOS 7.2 package names'
 
@@ -216,8 +225,8 @@ assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
 assert_contains 'pacman -Rdd --noconfirm linux-charcoal-616 linux-charcoal-616-headers'
 assert_contains 'pacman -U --noconfirm '
-assert_contains 'linux-charcoal-72-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst'
-assert_contains 'linux-charcoal-72-headers-7.2.0.rc3.valve.beta1.cc1-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-72-7.2.0.valve1.cc1-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-72-headers-7.2.0.valve1.cc1-1-x86_64.pkg.tar.zst'
 assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
 assert_not_contains 'linux-neptune-72 unrelated-package'
@@ -231,7 +240,7 @@ assert_contains 'pacman -U --noconfirm '
 
 : > "$log_file"
 if run_installer bad-checksum >/dev/null 2>&1; then
-  fail 'installer accepted a prerelease ZIP with an invalid checksum'
+  fail 'installer accepted a 7.2 Preview ZIP with an invalid checksum'
 fi
 assert_not_contains 'steamos-readonly disable'
 assert_not_contains 'pacman -Rdd'
@@ -245,4 +254,4 @@ assert_contains 'pacman -Rdd --noconfirm'
 assert_not_contains 'pacman -U --noconfirm '
 assert_contains 'steamos-readonly enable'
 
-printf 'install-charcoal SteamOS 7.2 tests passed\n'
+printf 'install-charcoal SteamOS 7.2 Preview tests passed\n'
