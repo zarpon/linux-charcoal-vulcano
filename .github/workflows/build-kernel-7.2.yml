@@ -300,6 +300,7 @@ jobs:
           [[ "$RELEASE_TAG" == charcoal-7.2-preview-* ]]
           assets=(
             "$RELEASE_ZIP"
+            linux-charcoal-72-*.pkg.tar.zst
             RELEASE-ZIP-SHA256SUM
             logs/SHA256SUMS
             logs/patch-lock.json
