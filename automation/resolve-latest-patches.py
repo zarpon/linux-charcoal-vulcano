@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import importlib.util
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ spec = importlib.util.spec_from_file_location("charcoal_resolver_base", BASE_PAT
 if spec is None or spec.loader is None:
     raise SystemExit(f"unable to load resolver base: {BASE_PATH}")
 base = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = base
 spec.loader.exec_module(base)
 
 _ORIGINAL_RESOLVE_GITHUB_COMPONENT = base.resolve_github_component
