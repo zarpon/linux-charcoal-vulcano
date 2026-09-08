@@ -239,16 +239,20 @@ def resolve_kernel_tag(config: dict[str, Any], token: str | None) -> tuple[str, 
     return name, sha
 
 
-def repository_tree(repo: str, branch: str, token: str | None) -> tuple[str, dict[str, Any]]:
-    key = (repo, branch)
+def repository_tree(repo: str, ref: str, token: str | None) -> tuple[str, dict[str, Any]]:
+    """Return a recursive tree for a branch or an immutable commit SHA ref."""
+    key = (repo, ref)
     if key not in _TREE_CACHE:
-        encoded = urllib.parse.quote(branch, safe="")
-        branch_data = request_json(f"{API}/repos/{repo}/branches/{encoded}", token)
-        commit = branch_data["commit"]["sha"]
+        if re.fullmatch(r"[0-9a-fA-F]{40}", ref):
+            commit = ref.lower()
+        else:
+            encoded = urllib.parse.quote(ref, safe="")
+            branch_data = request_json(f"{API}/repos/{repo}/branches/{encoded}", token)
+            commit = branch_data["commit"]["sha"]
         tree = request_json(f"{API}/repos/{repo}/git/trees/{commit}?recursive=1", token)
         if tree.get("truncated"):
             raise ResolveError(
-                f"GitHub tree for {repo}@{branch} was truncated; refusing a partial search"
+                f"GitHub tree for {repo}@{ref} was truncated; refusing a partial search"
             )
         _TREE_CACHE[key] = commit, tree
     return _TREE_CACHE[key]
