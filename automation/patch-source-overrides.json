@@ -1,7 +1,8 @@
 {
   "components": {
     "zram_ir": {
-      "local_port_upstream_sha256": "8e144b9df99de5e2556494d9d357c28cf1f5d6afeb0d2517bb696997c512e747"
+      "local_port_project_version": "1.3",
+      "local_port_upstream_sha256": "4427a13153ac19f9fdb5f1b3919780e57cf47ca6ce0401867ad418495b9f2a50"
     },
     "adios": {
       "local_port_upstream_sha256": "2ba19f3c2a8032c6af9fa6ebaf6b77bc7019306b301ff799ca2821ab8fa9f476"
