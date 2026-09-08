@@ -120,8 +120,8 @@ class PatchSourcePolicyTests(unittest.TestCase):
         )
         upstream = b"From 0000000000000000000000000000000000000000\n"
         with (
-            mock.patch.object(resolver, "upstream_candidates", return_value=[candidate]),
-            mock.patch.object(resolver, "request_bytes", return_value=upstream),
+            mock.patch.object(resolver.base, "upstream_candidates", return_value=[candidate]),
+            mock.patch.object(resolver.base, "request_bytes", return_value=upstream),
         ):
             record = resolver.resolve_github_component(
                 component, "6.16.12", None, ROOT
