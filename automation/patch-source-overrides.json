@@ -3,7 +3,9 @@
   "components": {
     "zram_ir": {
       "port_for_kernel": "6.18",
-      "local_port": "6.18.46-zram-ir-1.2.port.patch"
+      "local_port": "6.18.46-zram-ir-1.2.port.patch",
+      "local_port_project_version": "1.3",
+      "local_port_upstream_sha256": "4427a13153ac19f9fdb5f1b3919780e57cf47ca6ce0401867ad418495b9f2a50"
     },
     "bore": {
       "port_for_kernel": "6.18",
