@@ -24,78 +24,85 @@ ADIOS_VERSION = "3.3.0"
 
 OLD_ELEVATOR = r'''void elevator_set_default(struct request_queue *q)
 {
-	struct elv_change_ctx ctx = {
-		.name = "mq-deadline",
-		.no_uevent = true,
-	};
-	int err;
-	struct elevator_type *e;
+\tstruct elv_change_ctx ctx = {
+\t\t.name = \"mq-deadline\",
+\t\t.no_uevent = true,
+\t};
+\tint err;
+\tstruct elevator_type *e;
 
-	/* now we allow to switch elevator */
-	blk_queue_flag_clear(QUEUE_FLAG_NO_ELV_SWITCH, q);
+\t/* now we allow to switch elevator */
+\tblk_queue_flag_clear(QUEUE_FLAG_NO_ELV_SWITCH, q);
 
-	if (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
-		return;
+\tif (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
+\t\treturn;
 
-	/*
-	 * For single queue devices, default to using mq-deadline. If we
-	 * have multiple queues or mq-deadline is not available, default
-	 * to "none".
-	 */
-	e = elevator_find_get(ctx.name);
-	if (!e)
-		return;
+\t/*
+\t * For single queue devices, default to using mq-deadline. If we
+\t * have multiple queues or mq-deadline is not available, default
+\t * to \"none\".
+\t */
+\te = elevator_find_get(ctx.name);
+\tif (!e)
+\t\treturn;
 
-	if ((q->nr_hw_queues == 1 ||
-			blk_mq_is_shared_tags(q->tag_set->flags))) {
-		err = elevator_change(q, &ctx);
-		if (err < 0)
-			pr_warn("\"%s\" elevator initialization, failed %d, falling back to \"none\"\n",
-					ctx.name, err);
-	}
-	elevator_put(e);
+\tif ((q->nr_hw_queues == 1 ||
+\t\t\tblk_mq_is_shared_tags(q->tag_set->flags))) {
+\t\terr = elevator_change(q, &ctx);
+\t\tif (err < 0)
+\t\t\tpr_warn(\"\\\"%s\\\" elevator initialization, failed %d, falling back to \\\"none\\\"\\n\",
+\t\t\t\t\tctx.name, err);
+\t}
+\televator_put(e);
 }
 '''
 
 NEW_ELEVATOR = r'''void elevator_set_default(struct request_queue *q)
 {
-	struct elv_change_ctx ctx = {
-		.name = "mq-deadline",
-		.no_uevent = true,
-	};
-	int err;
-	struct elevator_type *e;
+\tstruct elv_change_ctx ctx = {
+\t\t.name = \"mq-deadline\",
+\t\t.no_uevent = true,
+\t};
+\tint err;
+\tstruct elevator_type *e;
 
-	/* now we allow to switch elevator */
-	blk_queue_flag_clear(QUEUE_FLAG_NO_ELV_SWITCH, q);
+\t/* now we allow to switch elevator */
+\tblk_queue_flag_clear(QUEUE_FLAG_NO_ELV_SWITCH, q);
 
-	if (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
-		return;
+\tif (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
+\t\treturn;
 
 #ifdef CONFIG_MQ_IOSCHED_DEFAULT_ADIOS
-	ctx.name = "adios";
+\tctx.name = \"adios\";
 #else
-	if (q->nr_hw_queues != 1 &&
-	    !blk_mq_is_shared_tags(q->tag_set->flags))
-		return;
+\tif (q->nr_hw_queues != 1 &&
+\t    !blk_mq_is_shared_tags(q->tag_set->flags))
+\t\treturn;
 #endif
 
-	/*
-	 * For single queue devices, default to using mq-deadline. If we
-	 * have multiple queues or mq-deadline is not available, default
-	 * to "none".
-	 */
-	e = elevator_find_get(ctx.name);
-	if (!e)
-		return;
+\t/*
+\t * For single queue devices, default to using mq-deadline. If we
+\t * have multiple queues or mq-deadline is not available, default
+\t * to \"none\".
+\t */
+\te = elevator_find_get(ctx.name);
+\tif (!e)
+\t\treturn;
 
-	err = elevator_change(q, &ctx);
-	if (err < 0)
-		pr_warn("\"%s\" elevator initialization, failed %d, falling back to \"none\"\n",
-				ctx.name, err);
-	elevator_put(e);
+\terr = elevator_change(q, &ctx);
+\tif (err < 0)
+\t\tpr_warn(\"\\\"%s\\\" elevator initialization, failed %d, falling back to \\\"none\\\"\\n\",
+\t\t\t\tctx.name, err);
+\televator_put(e);
 }
 '''
+
+# The templates above are raw strings so C string escapes such as \\n survive
+# unchanged. Normalize only Python-source quoting/indentation escapes before
+# feeding them to difflib, otherwise patch context contains literal "\\t" and
+# "\\\"" bytes and cannot match the Valve source tree.
+OLD_ELEVATOR = OLD_ELEVATOR.replace("\\t", "\t").replace('\\\"', '"')
+NEW_ELEVATOR = NEW_ELEVATOR.replace("\\t", "\t").replace('\\\"', '"')
 
 
 def replace_exact(text: str, old: str, new: str, label: str) -> str:
@@ -150,10 +157,10 @@ def port_adios_616(data: bytes) -> bytes:
     limit_anchor = "+// We limit the depth of request allocation for asynchronous and write requests\n"
     helper = '''+// Convert queue depth to the 6.16 word-depth representation used by sbitmap.
 +static int to_word_depth(struct blk_mq_hw_ctx *hctx, unsigned int qdepth) {
-+	struct sbitmap_queue *bt = &hctx->sched_tags->bitmap_tags;
-+	const unsigned int nrr = hctx->queue->nr_requests;
++\tstruct sbitmap_queue *bt = &hctx->sched_tags->bitmap_tags;
++\tconst unsigned int nrr = hctx->queue->nr_requests;
 +
-+	return ((qdepth << bt->sb.shift) + nrr - 1) / nrr;
++\treturn ((qdepth << bt->sb.shift) + nrr - 1) / nrr;
 +}
 +
 '''
@@ -166,18 +173,18 @@ def port_adios_616(data: bytes) -> bytes:
     )
 
     old_depth = '''+static void adios_depth_updated(struct request_queue *q) {
-+	struct adios_data *ad = q->elevator->elevator_data;
++\tstruct adios_data *ad = q->elevator->elevator_data;
 +
-+	ad->async_depth = q->nr_requests;
-+	blk_mq_set_min_shallow_depth(q, ad->async_depth);
++\tad->async_depth = q->nr_requests;
++\tblk_mq_set_min_shallow_depth(q, ad->async_depth);
 +}
 '''
     new_depth = '''+static void adios_depth_updated(struct blk_mq_hw_ctx *hctx) {
-+	struct request_queue *q = hctx->queue;
-+	struct adios_data *ad = q->elevator->elevator_data;
-+	struct blk_mq_tags *tags = hctx->sched_tags;
-+	ad->async_depth = q->nr_requests;
-+	sbitmap_queue_min_shallow_depth(&tags->bitmap_tags, 1);
++\tstruct request_queue *q = hctx->queue;
++\tstruct adios_data *ad = q->elevator->elevator_data;
++\tstruct blk_mq_tags *tags = hctx->sched_tags;
++\tad->async_depth = q->nr_requests;
++\tsbitmap_queue_min_shallow_depth(&tags->bitmap_tags, 1);
 +}
 '''
     text = replace_exact(text, old_depth, new_depth, "depth-updated API")
@@ -185,8 +192,8 @@ def port_adios_616(data: bytes) -> bytes:
     init_anchor = "+// Initialize the scheduler-specific data when initializing the request queue\n"
     init_hctx = '''+// Initialize the 6.16 per-hardware-queue shallow-depth state.
 +static int adios_init_hctx(struct blk_mq_hw_ctx *hctx, unsigned int hctx_idx) {
-+	adios_depth_updated(hctx);
-+	return 0;
++\tadios_depth_updated(hctx);
++\treturn 0;
 +}
 +
 '''
