@@ -1,11 +1,12 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Charcoal maintainers <charcoal@localhost>
-Date: Thu, 6 Aug 2026 22:00:00 -0300
-Subject: [PATCH] linux7.2-zram-ir-1.2 port
+Date: Tue, 8 Sep 2026 05:30:00 -0300
+Subject: [PATCH] linux7.2-zram-ir-1.3 port
 
-Port ZRAM Immediate Recompression 1.2 from the upstream Linux 7.1 patch
-to Valve's 7.2 tree. Preserve the Charcoal policy of LZ4 primary
-compression with Zstd recompression fixed to Zstd --fast=1 (level -1).
+Port ZRAM Immediate Recompression 1.3 to Valve's 7.2 tree. Preserve the
+Charcoal policy of LZ4 primary compression with Zstd recompression fixed
+to Zstd --fast=1 (level -1). Keep upstream 1.3 last-priority tracking and
+set ZRAM_INCOMPRESSIBLE only after slot_free() resets the slot state.
 
 ---
 diff --git a/drivers/block/zram/backend_zstd.c b/drivers/block/zram/backend_zstd.c
@@ -55,19 +56,21 @@ index 0f76f85..9bd13fd 100644
  
  static int write_incompressible_page(struct zram *zram, struct page *page,
 -				     u32 index)
-+				     u32 index, u8 prio)
++				     u32 index, u8 prio, bool incompressible)
  {
  	unsigned long handle;
  	void *src;
-@@ -44,6 +61,7 @@ static int write_incompressible_page(struct zram *zram, struct page *page,
+@@ -44,6 +61,9 @@ static int write_incompressible_page(struct zram *zram, struct page *page,
  	set_slot_flag(zram, index, ZRAM_HUGE);
++	if (incompressible)
++		set_slot_flag(zram, index, ZRAM_INCOMPRESSIBLE);
  	set_slot_handle(zram, index, handle);
  	set_slot_size(zram, index, PAGE_SIZE);
 +	set_slot_comp_priority(zram, index, prio);
  	slot_unlock(zram, index);
  
  	atomic64_add(PAGE_SIZE, &zram->stats.compr_data_size);
-@@ -60,9 +78,13 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
+@@ -60,9 +80,13 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
  	unsigned long handle;
  	unsigned int comp_len;
  	void *mem;
@@ -75,14 +78,14 @@ index 0f76f85..9bd13fd 100644
 +	struct zcomp_strm *zstrm = NULL;
  	unsigned long element;
  	bool same_filled;
-+	u8 prio, prio_max = ZRAM_MAX_COMPS;
++	u8 prio, prio_max = ZRAM_MAX_COMPS, last_prio = ZRAM_PRIMARY_COMP;
 +#ifdef CONFIG_ZRAM_MULTI_COMP
 +	prio_max = min_t(u8, prio_max, sysctl_zram_recomp_immediate + 1);
 +#endif
  
  	mem = kmap_local_page(page);
  	same_filled = page_same_filled(mem, &element);
-@@ -70,50 +92,67 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
+@@ -70,50 +94,64 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
  	if (same_filled)
  		return write_same_filled_page(zram, element, index);
  
@@ -94,6 +97,7 @@ index 0f76f85..9bd13fd 100644
 +	for (prio = ZRAM_PRIMARY_COMP; prio < prio_max; prio++) {
 +		if (!zram->comps[prio])
 +			continue;
++		last_prio = prio;
 +
 +		zstrm = zcomp_stream_get(zram->comps[prio]);
 +		mem = kmap_local_page(page);
@@ -119,12 +123,8 @@ index 0f76f85..9bd13fd 100644
 -		zcomp_stream_put(zstrm);
 -		return write_incompressible_page(zram, page, index);
 +	if (!zstrm) {
-+		if (prio >= ZRAM_MAX_COMPS) {
-+			slot_lock(zram, index);
-+			set_slot_flag(zram, index, ZRAM_INCOMPRESSIBLE);
-+			slot_unlock(zram, index);
-+		}
-+		ret = write_incompressible_page(zram, page, index, prio - 1);
++		ret = write_incompressible_page(zram, page, index, last_prio,
++						       prio >= ZRAM_MAX_COMPS);
 +		goto out;
  	}
  
@@ -171,7 +171,7 @@ index 0f76f85..9bd13fd 100644
  	}
  
 +#ifdef CONFIG_ZRAM_MULTI_COMP
-+#define ZRAM_IR_VERSION "1.2"
++#define ZRAM_IR_VERSION "1.3"
 +#define ZRAM_IR_PROGNAME "ZRAM Immediate Recompression (ZRAM-IR)"
 +#define ZRAM_IR_AUTHOR   "Masahito Suzuki"
 +	pr_info("%s %s by %s\n", ZRAM_IR_PROGNAME, ZRAM_IR_VERSION,
