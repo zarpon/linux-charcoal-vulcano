@@ -2,7 +2,6 @@
 """Charcoal patch resolver wrapper enforcing newest-upstream adaptive ports."""
 from __future__ import annotations
 
-import difflib
 import importlib.util
 import re
 import sys
@@ -21,97 +20,48 @@ spec.loader.exec_module(base)
 
 _ORIGINAL_RESOLVE_GITHUB_COMPONENT = base.resolve_github_component
 ADIOS_VERSION = "3.3.0"
-ADIOS_ELEVATOR_LINE_616 = 740
 
-OLD_ELEVATOR = r'''void elevator_set_default(struct request_queue *q)
-{
-\tstruct elv_change_ctx ctx = {
-\t\t.name = \"mq-deadline\",
-\t\t.no_uevent = true,
-\t};
-\tint err;
-\tstruct elevator_type *e;
-
-\t/* now we allow to switch elevator */
-\tblk_queue_flag_clear(QUEUE_FLAG_NO_ELV_SWITCH, q);
-
-\tif (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
-\t\treturn;
-
-\t/*
-\t * For single queue devices, default to using mq-deadline. If we
-\t * have multiple queues or mq-deadline is not available, default
-\t * to \"none\".
-\t */
-\te = elevator_find_get(ctx.name);
-\tif (!e)
-\t\treturn;
-
-\tif ((q->nr_hw_queues == 1 ||
-\t\t\tblk_mq_is_shared_tags(q->tag_set->flags))) {
-\t\terr = elevator_change(q, &ctx);
-\t\tif (err < 0)
-\t\t\tpr_warn(\"\\\"%s\\\" elevator initialization, failed %d, falling back to \\\"none\\\"\\n\",
-\t\t\t\t\tctx.name, err);
-\t}
-\televator_put(e);
-}
+# Valve 6.16.12-specific compatibility scaffold for elevator_set_default().
+# This is the exact target-side hunk shape already validated against the
+# SteamOS 6.16 Valve tree. It does not pin ADIOS to an older release: the
+# scheduler implementation below still comes from the newest upstream 3.3.0
+# patch and the version/hash checks deliberately fail when upstream advances.
+ELEVATOR_PATCH_616 = '''diff --git a/block/elevator.c b/block/elevator.c
+--- a/block/elevator.c
++++ b/block/elevator.c
+@@ -752,6 +752,14 @@ void elevator_set_default(struct request_queue *q)
+ \tif (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
+ \t\treturn;
+ 
++#ifdef CONFIG_MQ_IOSCHED_DEFAULT_ADIOS
++\tctx.name = "adios";
++#else
++\tif (q->nr_hw_queues != 1 &&
++\t    !blk_mq_is_shared_tags(q->tag_set->flags))
++\t\treturn;
++#endif
++
+ \t/*
+ \t * For single queue devices, default to using mq-deadline. If we
+ \t * have multiple queues or mq-deadline is not available, default
+@@ -761,13 +769,10 @@ void elevator_set_default(struct request_queue *q)
+ \tif (!e)
+ \t\treturn;
+ 
+-\tif ((q->nr_hw_queues == 1 ||
+-\t\t\tblk_mq_is_shared_tags(q->tag_set->flags))) {
+-\t\terr = elevator_change(q, &ctx);
+-\t\tif (err < 0)
+-\t\t\tpr_warn("\\\"%s\\\" elevator initialization, failed %d, falling back to \\\"none\\\"\\n",
+-\t\t\t\t\tctx.name, err);
+-\t}
++\terr = elevator_change(q, &ctx);
++\tif (err < 0)
++\t\tpr_warn("\\\"%s\\\" elevator initialization, failed %d, falling back to \\\"none\\\"\\n",
++\t\t\t\tctx.name, err);
+ \televator_put(e);
+ }
 '''
-
-NEW_ELEVATOR = r'''void elevator_set_default(struct request_queue *q)
-{
-\tstruct elv_change_ctx ctx = {
-\t\t.name = \"mq-deadline\",
-\t\t.no_uevent = true,
-\t};
-\tint err;
-\tstruct elevator_type *e;
-
-\t/* now we allow to switch elevator */
-\tblk_queue_flag_clear(QUEUE_FLAG_NO_ELV_SWITCH, q);
-
-\tif (q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
-\t\treturn;
-
-#ifdef CONFIG_MQ_IOSCHED_DEFAULT_ADIOS
-\tctx.name = \"adios\";
-#else
-\tif (q->nr_hw_queues != 1 &&
-\t    !blk_mq_is_shared_tags(q->tag_set->flags))
-\t\treturn;
-#endif
-
-\t/*
-\t * For single queue devices, default to using mq-deadline. If we
-\t * have multiple queues or mq-deadline is not available, default
-\t * to \"none\".
-\t */
-\te = elevator_find_get(ctx.name);
-\tif (!e)
-\t\treturn;
-
-\terr = elevator_change(q, &ctx);
-\tif (err < 0)
-\t\tpr_warn(\"\\\"%s\\\" elevator initialization, failed %d, falling back to \\\"none\\\"\\n\",
-\t\t\t\tctx.name, err);
-\televator_put(e);
-}
-'''
-
-
-def _decode_c_template(text: str) -> str:
-    """Decode one Python-source escaping layer while preserving C escapes.
-
-    The raw template uses ``\\t`` for source indentation, ``\\\"`` for ordinary
-    C quotes and ``\\\\\"``/``\\\\n`` for C string escapes.  unicode_escape
-    removes exactly that outer representation layer, yielding the byte-for-byte
-    C source text used by the Valve 6.16 tree.
-    """
-    return text.encode("utf-8").decode("unicode_escape")
-
-
-OLD_ELEVATOR = _decode_c_template(OLD_ELEVATOR)
-NEW_ELEVATOR = _decode_c_template(NEW_ELEVATOR)
 
 
 def replace_exact(text: str, old: str, new: str, label: str) -> str:
@@ -144,36 +94,6 @@ def _recount_new_file_hunk(text: str) -> str:
     )
     replacement = "\n".join(lines) + ("\n" if block.endswith("\n") else "")
     return text[:start] + replacement + text[end:]
-
-
-def _anchor_elevator_hunk(lines: list[str]) -> list[str]:
-    """Translate snippet-relative unified-diff coordinates to Valve 6.16.
-
-    difflib computes hunk coordinates relative to the isolated function
-    snippets. Translate every valid unified-diff hunk start back to the real
-    block/elevator.c coordinates while preserving optional counts and suffixes.
-    """
-    anchored = list(lines)
-    found = False
-    pattern = re.compile(
-        r"@@ -(?P<old_start>\d+)(?P<old_count>,\d+)? "
-        r"\+(?P<new_start>\d+)(?P<new_count>,\d+)? @@(?P<suffix>[^\n]*)(?P<newline>\n?)$"
-    )
-    for index, line in enumerate(anchored):
-        match = pattern.fullmatch(line)
-        if not match:
-            continue
-        old_start = ADIOS_ELEVATOR_LINE_616 + int(match.group("old_start")) - 1
-        new_start = ADIOS_ELEVATOR_LINE_616 + int(match.group("new_start")) - 1
-        anchored[index] = (
-            f"@@ -{old_start}{match.group('old_count') or ''} "
-            f"+{new_start}{match.group('new_count') or ''} @@"
-            f"{match.group('suffix')}{match.group('newline')}"
-        )
-        found = True
-    if not found:
-        raise base.ResolveError("ADIOS adaptive port: elevator hunk header is missing")
-    return anchored
 
 
 def port_adios_616(data: bytes) -> bytes:
@@ -252,19 +172,10 @@ def port_adios_616(data: bytes) -> bytes:
     )
     text = _recount_new_file_hunk(text)
 
-    elevator_diff = list(
-        difflib.unified_diff(
-            OLD_ELEVATOR.splitlines(keepends=True),
-            NEW_ELEVATOR.splitlines(keepends=True),
-            fromfile="a/block/elevator.c",
-            tofile="b/block/elevator.c",
-            n=6,
-        )
-    )
-    if not elevator_diff:
-        raise base.ResolveError("ADIOS adaptive port: elevator diff generation failed")
-    elevator_diff = _anchor_elevator_hunk(elevator_diff)
-    text += "diff --git a/block/elevator.c b/block/elevator.c\n" + "".join(elevator_diff)
+    # Use the proven Valve 6.16 target context rather than synthesizing a
+    # monolithic hunk from an isolated function. Smaller exact hunks remain
+    # resilient to unrelated line movement while preserving the 3.3.0 logic.
+    text += ELEVATOR_PATCH_616
 
     encoded = text.encode("utf-8")
     if b'ADIOS_VERSION "3.3.0"' not in encoded:
