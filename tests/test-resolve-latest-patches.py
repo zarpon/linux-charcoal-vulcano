@@ -84,7 +84,7 @@ class LocalPortTrackingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "demo.patch").write_bytes(PATCH)
-            with mock.patch.object(MODULE, "upstream_candidates", return_value=[self.candidate("2.0")]), mock.patch.object(MODULE, "request_bytes", return_value=PATCH):
+            with mock.patch.object(MODULE.base, "upstream_candidates", return_value=[self.candidate("2.0")]), mock.patch.object(MODULE.base, "request_bytes", return_value=PATCH):
                 with self.assertRaisesRegex(MODULE.ResolveError, "selected closest upstream source is 2.0"):
                     MODULE.resolve_github_component(self.base_spec(), "6.16.12", None, root)
 
@@ -94,7 +94,7 @@ class LocalPortTrackingTests(unittest.TestCase):
             (root / "demo.patch").write_bytes(PATCH)
             spec = self.base_spec()
             spec["local_port_project_version"] = "2.0"
-            with mock.patch.object(MODULE, "upstream_candidates", return_value=[self.candidate("2.0")]), mock.patch.object(MODULE, "request_bytes", return_value=PATCH):
+            with mock.patch.object(MODULE.base, "upstream_candidates", return_value=[self.candidate("2.0")]), mock.patch.object(MODULE.base, "request_bytes", return_value=PATCH):
                 selected = MODULE.resolve_github_component(spec, "6.16.12", None, root)
             self.assertEqual(selected["origin"], "local-port")
             self.assertEqual(selected["upstream"]["project_version"], "2.0")
@@ -105,7 +105,7 @@ class LocalPortTrackingTests(unittest.TestCase):
             (root / "demo.patch").write_bytes(PATCH)
             spec = self.base_spec()
             spec.pop("local_port_project_version")
-            with mock.patch.object(MODULE, "upstream_candidates", return_value=[self.candidate(None)]), mock.patch.object(MODULE, "request_bytes", return_value=PATCH):
+            with mock.patch.object(MODULE.base, "upstream_candidates", return_value=[self.candidate(None)]), mock.patch.object(MODULE.base, "request_bytes", return_value=PATCH):
                 with self.assertRaisesRegex(MODULE.ResolveError, "must declare local_port_upstream_sha256"):
                     MODULE.resolve_github_component(spec, "6.16.12", None, root)
 
@@ -131,7 +131,7 @@ class MailboxLocalPortTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "demo.port.patch").write_bytes(PATCH)
-            with mock.patch.object(MODULE, "request_bytes", return_value=MBOX):
+            with mock.patch.object(MODULE.base, "request_bytes", return_value=MBOX):
                 selected = MODULE.resolve_http_component(
                     self.spec(hashlib.sha256(DECODED_MBOX_PATCH).hexdigest()),
                     "6.16.12",
@@ -150,7 +150,7 @@ class MailboxLocalPortTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "demo.port.patch").write_bytes(PATCH)
-            with mock.patch.object(MODULE, "request_bytes", return_value=MBOX):
+            with mock.patch.object(MODULE.base, "request_bytes", return_value=MBOX):
                 with self.assertRaisesRegex(MODULE.ResolveError, "refresh and validate"):
                     MODULE.resolve_http_component(
                         self.spec("0" * 64), "6.16.12", None, root
