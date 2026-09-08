@@ -111,6 +111,10 @@ jobs:
               "poc_selector": "firelzrd/poc-selector",
               "nap": "firelzrd/nap",
           }
+          expected_adapters = {
+              "adios": "adios-valve-616",
+              "poc_selector": "poc-selector-valve",
+          }
 
           assert set(lock["components"]) == set(expected_repositories)
           for name, item in lock["components"].items():
@@ -125,7 +129,7 @@ jobs:
                   assert item["path"] and item["url"]
               elif item["origin"] == "adaptive-port":
                   assert item["repository"] == expected_repositories[name]
-                  assert item["adapter"] == "poc-selector-valve"
+                  assert item["adapter"] == expected_adapters[name]
                   assert item["commit"] and item["commit"] != "repository-local"
                   assert item["path"] and item["url"]
               else:
@@ -154,9 +158,13 @@ jobs:
           assert bore_sched_ext["origin"] == "local-port"
           assert bore_sched_ext["selection"] == "latest-upstream-port"
 
-          assert lock["components"]["adios"]["selection"] in {
-              "upstream-compatible", "nearest-upstream-port"
-          }
+          adios = lock["components"]["adios"]
+          assert adios["origin"] in {"upstream-compatible", "adaptive-port"}
+          if adios["origin"] == "adaptive-port":
+              assert adios["adapter"] == "adios-valve-616"
+              assert adios["selection"] == "nearest-upstream-adaptive-port"
+          else:
+              assert adios["selection"] == "upstream-compatible"
           poc = lock["components"]["poc_selector"]
           assert poc["origin"] in {"upstream-compatible", "adaptive-port"}
           if poc["origin"] == "adaptive-port":
