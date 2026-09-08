@@ -149,23 +149,31 @@ def _recount_new_file_hunk(text: str) -> str:
 def _anchor_elevator_hunk(lines: list[str]) -> list[str]:
     """Translate snippet-relative unified-diff coordinates to Valve 6.16.
 
-    difflib sees OLD_ELEVATOR as a standalone file and therefore emits a hunk
-    starting at line 1.  The target is block/elevator.c, where the function
-    starts at line 740 in 6.16.12-valve28.  patch(1) can still offset this
-    anchor if a later Valve point revision moves the unchanged function.
+    difflib computes hunk coordinates relative to the isolated function
+    snippets. Translate every valid unified-diff hunk start back to the real
+    block/elevator.c coordinates while preserving optional counts and suffixes.
     """
     anchored = list(lines)
+    found = False
+    pattern = re.compile(
+        r"@@ -(?P<old_start>\d+)(?P<old_count>,\d+)? "
+        r"\+(?P<new_start>\d+)(?P<new_count>,\d+)? @@(?P<suffix>[^\n]*)(?P<newline>\n?)$"
+    )
     for index, line in enumerate(anchored):
-        match = re.fullmatch(r"@@ -1,(\d+) \+1,(\d+) @@\n?", line)
+        match = pattern.fullmatch(line)
         if not match:
             continue
-        newline = "\n" if line.endswith("\n") else ""
+        old_start = ADIOS_ELEVATOR_LINE_616 + int(match.group("old_start")) - 1
+        new_start = ADIOS_ELEVATOR_LINE_616 + int(match.group("new_start")) - 1
         anchored[index] = (
-            f"@@ -{ADIOS_ELEVATOR_LINE_616},{match.group(1)} "
-            f"+{ADIOS_ELEVATOR_LINE_616},{match.group(2)} @@{newline}"
+            f"@@ -{old_start}{match.group('old_count') or ''} "
+            f"+{new_start}{match.group('new_count') or ''} @@"
+            f"{match.group('suffix')}{match.group('newline')}"
         )
-        return anchored
-    raise base.ResolveError("ADIOS adaptive port: elevator hunk header is missing")
+        found = True
+    if not found:
+        raise base.ResolveError("ADIOS adaptive port: elevator hunk header is missing")
+    return anchored
 
 
 def port_adios_616(data: bytes) -> bytes:
