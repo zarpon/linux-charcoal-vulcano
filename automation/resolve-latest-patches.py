@@ -21,6 +21,7 @@ spec.loader.exec_module(base)
 
 _ORIGINAL_RESOLVE_GITHUB_COMPONENT = base.resolve_github_component
 ADIOS_VERSION = "3.3.0"
+ADIOS_ELEVATOR_LINE_616 = 740
 
 OLD_ELEVATOR = r'''void elevator_set_default(struct request_queue *q)
 {
@@ -145,6 +146,28 @@ def _recount_new_file_hunk(text: str) -> str:
     return text[:start] + replacement + text[end:]
 
 
+def _anchor_elevator_hunk(lines: list[str]) -> list[str]:
+    """Translate snippet-relative unified-diff coordinates to Valve 6.16.
+
+    difflib sees OLD_ELEVATOR as a standalone file and therefore emits a hunk
+    starting at line 1.  The target is block/elevator.c, where the function
+    starts at line 740 in 6.16.12-valve28.  patch(1) can still offset this
+    anchor if a later Valve point revision moves the unchanged function.
+    """
+    anchored = list(lines)
+    for index, line in enumerate(anchored):
+        match = re.fullmatch(r"@@ -1,(\d+) \+1,(\d+) @@\n?", line)
+        if not match:
+            continue
+        newline = "\n" if line.endswith("\n") else ""
+        anchored[index] = (
+            f"@@ -{ADIOS_ELEVATOR_LINE_616},{match.group(1)} "
+            f"+{ADIOS_ELEVATOR_LINE_616},{match.group(2)} @@{newline}"
+        )
+        return anchored
+    raise base.ResolveError("ADIOS adaptive port: elevator hunk header is missing")
+
+
 def port_adios_616(data: bytes) -> bytes:
     text = data.decode("utf-8")
     version_match = re.search(r'^\+#define ADIOS_VERSION "([^"]+)"$', text, re.MULTILINE)
@@ -232,6 +255,7 @@ def port_adios_616(data: bytes) -> bytes:
     )
     if not elevator_diff:
         raise base.ResolveError("ADIOS adaptive port: elevator diff generation failed")
+    elevator_diff = _anchor_elevator_hunk(elevator_diff)
     text += "diff --git a/block/elevator.c b/block/elevator.c\n" + "".join(elevator_diff)
 
     encoded = text.encode("utf-8")
