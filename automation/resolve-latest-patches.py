@@ -97,12 +97,20 @@ NEW_ELEVATOR = r'''void elevator_set_default(struct request_queue *q)
 }
 '''
 
-# The templates above are raw strings so C string escapes such as \\n survive
-# unchanged. Normalize only Python-source quoting/indentation escapes before
-# feeding them to difflib, otherwise patch context contains literal "\\t" and
-# "\\\"" bytes and cannot match the Valve source tree.
-OLD_ELEVATOR = OLD_ELEVATOR.replace("\\t", "\t").replace('\\\"', '"')
-NEW_ELEVATOR = NEW_ELEVATOR.replace("\\t", "\t").replace('\\\"', '"')
+
+def _decode_c_template(text: str) -> str:
+    """Decode one Python-source escaping layer while preserving C escapes.
+
+    The raw template uses ``\\t`` for source indentation, ``\\\"`` for ordinary
+    C quotes and ``\\\\\"``/``\\\\n`` for C string escapes.  unicode_escape
+    removes exactly that outer representation layer, yielding the byte-for-byte
+    C source text used by the Valve 6.16 tree.
+    """
+    return text.encode("utf-8").decode("unicode_escape")
+
+
+OLD_ELEVATOR = _decode_c_template(OLD_ELEVATOR)
+NEW_ELEVATOR = _decode_c_template(NEW_ELEVATOR)
 
 
 def replace_exact(text: str, old: str, new: str, label: str) -> str:
