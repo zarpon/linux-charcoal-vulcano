@@ -313,6 +313,7 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "Charcoal 7.2 Preview" \
               --notes-file logs/release-notes.md \
+              --draft=false \
               --prerelease=false \
               --latest=false
           else
