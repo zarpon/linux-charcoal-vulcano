@@ -19,29 +19,27 @@ jobs:
       - name: Fetch complete target kernel source
         run: |
           set -Eeuo pipefail
-          git clone --depth 1 --branch 6.16.12-valve27 \
-            https://github.com/evlaV/linux-integration.git kernel-source
+          git clone --depth 1 --branch 6.16.12-valve27 https://github.com/evlaV/linux-integration.git kernel-source
           git -C kernel-source rev-parse HEAD > kernel-source-commit.txt
 
-      - name: Fetch current upstream BORE patches
+      - name: Fetch current upstream BORE patches and derive semantic delta
         run: |
           set -Eeuo pipefail
-          curl -fL --retry 3 -o bore-6.18.48-7.0.0-rc1.patch \
-            https://raw.githubusercontent.com/firelzrd/bore-scheduler/main/patches/testing/0001-linux6.18.48-bore-7.0.0-rc1.patch
-          curl -fL --retry 3 -o bore-6.18.48-6.8.0.patch \
-            https://raw.githubusercontent.com/firelzrd/bore-scheduler/main/patches/stable/0001-linux6.18.48-bore-6.8.0.patch
+          curl -fL --retry 3 -o bore-6.18.48-7.0.0-rc1.patch https://raw.githubusercontent.com/firelzrd/bore-scheduler/main/patches/testing/0001-linux6.18.48-bore-7.0.0-rc1.patch
+          curl -fL --retry 3 -o bore-6.18.48-6.8.0.patch https://raw.githubusercontent.com/firelzrd/bore-scheduler/main/patches/stable/0001-linux6.18.48-bore-6.8.0.patch
           sha256sum bore-6.18.48-7.0.0-rc1.patch bore-6.18.48-6.8.0.patch > bore-upstream.sha256
+          git clone --depth 1 --branch v6.18.48 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git linux-618
+          cp -a linux-618 linux-618-old
+          git -C linux-618-old apply ../bore-6.18.48-6.8.0.patch
+          git -C linux-618 apply ../bore-6.18.48-7.0.0-rc1.patch
+          diff -ruN --exclude=.git linux-618-old linux-618 > bore-6.8.0-to-7.0.0-rc1.delta.patch || test $? -eq 1
 
       - name: Package complete source and project snapshot
         run: |
           set -Eeuo pipefail
-          tar --exclude=.git -C kernel-source -I 'zstd -10 -T0' \
-            -cf valve-linux-6.16.12-valve27.tar.zst .
-          git archive --format=tar HEAD | zstd -10 -T0 \
-            -o linux-charcoal-vulcano-validation.tar.zst
-          sha256sum valve-linux-6.16.12-valve27.tar.zst \
-            linux-charcoal-vulcano-validation.tar.zst \
-            > source-archives.sha256
+          tar --exclude=.git -C kernel-source -I 'zstd -10 -T0' -cf valve-linux-6.16.12-valve27.tar.zst .
+          git archive --format=tar HEAD | zstd -10 -T0 -o linux-charcoal-vulcano-validation.tar.zst
+          sha256sum valve-linux-6.16.12-valve27.tar.zst linux-charcoal-vulcano-validation.tar.zst > source-archives.sha256
 
       - name: Upload full source artifact
         uses: actions/upload-artifact@v4
@@ -54,6 +52,7 @@ jobs:
             source-archives.sha256
             bore-6.18.48-7.0.0-rc1.patch
             bore-6.18.48-6.8.0.patch
+            bore-6.8.0-to-7.0.0-rc1.delta.patch
             bore-upstream.sha256
           compression-level: 0
           retention-days: 1
