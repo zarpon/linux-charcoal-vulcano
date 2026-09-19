@@ -23,6 +23,15 @@ jobs:
             https://github.com/evlaV/linux-integration.git kernel-source
           git -C kernel-source rev-parse HEAD > kernel-source-commit.txt
 
+      - name: Fetch current upstream BORE patches
+        run: |
+          set -Eeuo pipefail
+          curl -fL --retry 3 -o bore-6.18.48-7.0.0-rc1.patch \
+            https://raw.githubusercontent.com/firelzrd/bore-scheduler/main/patches/testing/0001-linux6.18.48-bore-7.0.0-rc1.patch
+          curl -fL --retry 3 -o bore-6.18.48-6.8.0.patch \
+            https://raw.githubusercontent.com/firelzrd/bore-scheduler/main/patches/stable/0001-linux6.18.48-bore-6.8.0.patch
+          sha256sum bore-6.18.48-7.0.0-rc1.patch bore-6.18.48-6.8.0.patch > bore-upstream.sha256
+
       - name: Package complete source and project snapshot
         run: |
           set -Eeuo pipefail
@@ -43,6 +52,9 @@ jobs:
             linux-charcoal-vulcano-validation.tar.zst
             kernel-source-commit.txt
             source-archives.sha256
+            bore-6.18.48-7.0.0-rc1.patch
+            bore-6.18.48-6.8.0.patch
+            bore-upstream.sha256
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
