@@ -1,5 +1,5 @@
 {
-  "conclusion": "",
+  "conclusion": "failure",
   "created_at": "2026-09-19T22:10:17Z",
   "event": "push",
   "head_branch": "validation/bore-full-source-export",
@@ -8,7 +8,7 @@
   "run_attempt": 1,
   "run_id": 35472545684,
   "run_number": 875,
-  "status": "in_progress",
-  "updated_at": "2026-09-19T22:10:37Z",
+  "status": "completed",
+  "updated_at": "2026-09-19T22:22:43Z",
   "workflow": "Build latest SteamOS Charcoal kernel"
 }
