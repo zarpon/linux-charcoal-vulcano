@@ -278,6 +278,7 @@ jobs:
             # Verify again, now against real SHA-256 values, before prepare/build.
             makepkg --verifysource 2>&1 | tee logs/verifysource.log
             makepkg -Ccf --noconfirm 2>&1 | tee logs/makepkg.log
+            git -C src/archlinux-linux-charcoal diff --check | tee logs/git-diff-check.txt
             ccache --show-stats | tee logs/ccache-after.txt
           '
           # The container created logs as nobody; host-side post-processing

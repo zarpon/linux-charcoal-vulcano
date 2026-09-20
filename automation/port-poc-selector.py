@@ -21,13 +21,10 @@ FAIR_SECTION_HEADER = "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\n"
 EXPECTED_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tunsigned int\t\tpoc_idle_committed;\n"
+    "+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n"
     "+#endif\n"
 )
-FIELD_BLOCK = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "+\tunsigned int\t\tpoc_idle_committed;\n"
-    "+#endif\n"
-)
+FIELD_BLOCK = EXPECTED_ADDITIONS
 SCHED_ANCHOR_RE = re.compile(
     r"(?m)^(#ifdef CONFIG_SMP\n"
     r"\tunsigned int\t\tttwu_pending;\n"
@@ -171,7 +168,7 @@ def sched_hunk(sched_header: str) -> str:
     line = sched_header.count("\n", 0, match.start()) + 1
     lines = match.group(1).splitlines(keepends=True)
     return (
-        f"@@ -{line},4 +{line},7 @@ struct rq {{\n"
+        f"@@ -{line},4 +{line},8 @@ struct rq {{\n"
         + "".join(f" {item}" for item in lines[:2])
         + FIELD_BLOCK
         + "".join(f" {item}" for item in lines[2:])
