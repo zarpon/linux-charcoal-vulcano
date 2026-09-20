@@ -29,7 +29,10 @@ CURRENT_ADDITIONS = (
     "+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n"
     "+#endif\n"
 )
-# Legacy fixture/API alias; current upstream selection passes CURRENT_ADDITIONS\n# explicitly so the 3.0.0-rc1 poc_busy_bit field is never dropped.\nFIELD_BLOCK = LEGACY_ADDITIONS\nSCHED_ANCHOR_RE = re.compile(
+# Legacy fixture/API alias; current upstream selection passes CURRENT_ADDITIONS
+# explicitly so the 3.0.0-rc1 poc_busy_bit field is never dropped.
+FIELD_BLOCK = LEGACY_ADDITIONS
+SCHED_ANCHOR_RE = re.compile(
     r"(?m)^(#ifdef CONFIG_SMP\n"
     r"\tunsigned int\t\tttwu_pending;\n"
     r"#endif\n"
