@@ -155,9 +155,15 @@ jobs:
               assert fallback["kind"] in {"local-port", "adaptive-port"}
 
           lru = lock["components"]["lru_marie"]
-          assert lru["origin"] == "upstream-native"
-          assert lru["selection"] == "latest-native-series"
-          assert lru["kernel_version"].startswith("6.18.")
+          assert lru["origin"] in {"upstream-native", "local-port", "adaptive-port"}
+          if lru["origin"] == "upstream-native":
+              assert lru["selection"] == "latest-native-series"
+              assert lru["kernel_version"].startswith("6.18.")
+          else:
+              assert lru["selection"] in {"latest-release-port", "latest-release-adaptive-port"}
+              upstream = lru.get("upstream", lru)
+              assert upstream["repository"] == "firelzrd/lru_marie"
+              assert upstream["project_version"]
 
           poc = lock["components"]["poc_selector"]
           assert poc["origin"] in {"upstream-native", "adaptive-port"}
