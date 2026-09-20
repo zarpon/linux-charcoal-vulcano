@@ -16,10 +16,11 @@
     },
     "bore": {
       "local_port_overlays": [
-        "6.16.12-bore-6.8.0-final.patch"
+        "6.16.12-bore-6.8.0-final.patch",
+        "6.16.12-bore-7.0.0-rc1.patch"
       ],
-      "local_port_project_version": "6.8.0",
-      "local_port_upstream_sha256": "f650285feb58e9f3654836c8f84fb82723c30b3ad77a26cea5f218ce41ed7b14"
+      "local_port_project_version": "7.0.0-rc1",
+      "local_port_upstream_sha256": "d0e97b896e999e96a73b3f82fcfdaef066f12116d96081fca83a136004eddc7b"
     },
     "nap": {
       "local_port_upstream_sha256": "509ffed2466ab434e22a7eb4662c6a2a4dd0c117c04e2fc5a0f9a2c5c0b0bbfe"

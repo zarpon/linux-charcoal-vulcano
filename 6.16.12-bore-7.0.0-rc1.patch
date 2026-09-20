@@ -1,0 +1,239 @@
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -824,6 +824,7 @@
+ 
+ struct bore_ctx {
+-	u64				burst_time;
+-	u16				prev_penalty;
++	u64				burst_time;
++	u64				credit_sleep;
++	u16				prev_penalty;
+ 	u16				curr_penalty;
+ 	u16				penalty;
+diff --git a/include/linux/sched/bore.h b/include/linux/sched/bore.h
+--- a/include/linux/sched/bore.h
++++ b/include/linux/sched/bore.h
+@@ -12,5 +12,5 @@
+ #define SCHED_BORE_PROGNAME "BORE CPU Scheduler modification"
+ 
+-#define SCHED_BORE_VERSION  "6.8.0"
++#define SCHED_BORE_VERSION  "7.0.0-rc1"
+ 
+ extern u8   __read_mostly sched_bore;
+@@ -21,6 +21,13 @@
+ extern uint __read_mostly sched_burst_penalty_scale;
+ extern uint __read_mostly sched_burst_cache_lifetime;
+-extern u8   __read_mostly sched_burst_protect_slice_lv;
+-DECLARE_STATIC_KEY_TRUE(sched_burst_protect_slice_cond_key);
++extern u8   __read_mostly sched_burst_protect_slice_lv;
++
++extern uint __read_mostly sched_credit_cap_us;
++DECLARE_STATIC_KEY_FALSE(sched_credit_key);
++
++extern void bore_note_sleep(struct task_struct *p, u64 now);
++extern u64  bore_credit_ns(struct task_struct *p);
++
++DECLARE_STATIC_KEY_TRUE(sched_burst_protect_slice_cond_key);
+ DECLARE_STATIC_KEY_FALSE(sched_burst_protect_slice_prefer_key);
+ 
+@@ -41,8 +48,10 @@
+ extern int  sched_burst_inherit_type_update_handler(const struct ctl_table *table,
+ 	int write, void __user *buffer, size_t *lenp, loff_t *ppos);
+-extern int  sched_burst_protect_slice_lv_update_handler(const struct ctl_table *table,
+-	int write, void __user *buffer, size_t *lenp, loff_t *ppos);
+-
+-extern void reweight_entity(
++extern int  sched_burst_protect_slice_lv_update_handler(const struct ctl_table *table,
++	int write, void __user *buffer, size_t *lenp, loff_t *ppos);
++extern int  sched_credit_cap_us_update_handler(const struct ctl_table *table,
++	int write, void __user *buffer, size_t *lenp, loff_t *ppos);
++
++extern void reweight_entity(
+ 	struct cfs_rq *cfs_rq, struct sched_entity *se, unsigned long weight);
+ 
+diff --git a/kernel/sched/bore.c b/kernel/sched/bore.c
+--- a/kernel/sched/bore.c
++++ b/kernel/sched/bore.c
+@@ -16,9 +16,14 @@
+ u8   __read_mostly sched_burst_penalty_offset   = 24;
+ uint __read_mostly sched_burst_penalty_scale    = 1536;
+-uint __read_mostly sched_burst_cache_lifetime   = 75000000;
+-static int __maybe_unused maxval_prio    =   39;
+-static int __maybe_unused maxval_6_bits  =   63;
+-static int __maybe_unused maxval_8_bits  =  255;
+-static int __maybe_unused maxval_12_bits = 4095;
++uint __read_mostly sched_burst_cache_lifetime   = 75000000;
++
++uint __read_mostly sched_credit_cap_us = 16000;
++
++static int __maybe_unused maxval_prio    =   39;
++static int __maybe_unused maxval_6_bits  =   63;
++static int __maybe_unused maxval_8_bits  =  255;
++static int __maybe_unused maxval_12_bits = 4095;
++static int __maybe_unused maxval_16_bits = 65535;
++static int __maybe_unused maxval_1_million = 1000000;
+ 
+ #define MAX_BURST_PENALTY ((40U << 8) - 1)
+@@ -31,5 +36,6 @@
+ DEFINE_STATIC_KEY_TRUE(sched_burst_ancestor_key);
+ DEFINE_STATIC_KEY_TRUE(sched_burst_protect_slice_cond_key);
+-DEFINE_STATIC_KEY_FALSE(sched_burst_protect_slice_prefer_key);
++DEFINE_STATIC_KEY_FALSE(sched_burst_protect_slice_prefer_key);
++DEFINE_STATIC_KEY_FALSE(sched_credit_key);
+ 
+ static inline u32 log2p1_u64_u32fp(u64 v, u8 fp) {
+@@ -41,5 +47,28 @@
+ }
+ 
+-static inline u32 calc_burst_penalty(u64 burst_time) {
++void bore_note_sleep(struct task_struct *p, u64 now)
++{
++	p->bore.credit_sleep = now;
++}
++
++u64 bore_credit_ns(struct task_struct *p)
++{
++	u64 cap = (u64)sched_credit_cap_us * 1000ULL;
++	u64 slept = 0, credit = 0;
++
++	if (p->bore.credit_sleep) {
++		slept = rq_clock(task_rq(p)) - p->bore.credit_sleep;
++		if ((s64)slept > 0) {
++			p->bore.credit_sleep = 0;
++			credit = slept < cap ? slept : cap;
++		} else {
++			slept = 0;
++		}
++	}
++
++	return credit;
++}
++
++static inline u32 calc_burst_penalty(u64 burst_time) {
+ 	u32 greed = log2p1_u64_u32fp(burst_time, 8),
+ 		tolerance = sched_burst_penalty_offset << 8;
+@@ -326,7 +355,10 @@
+ 		bore_reciprocal_lut[i] = (u32)div64_u64(0xffffffffULL + i, i);
+ 
+-	reset_task_bore(&init_task);
+-	update_inherit_type();
+-}
++	reset_task_bore(&init_task);
++	update_inherit_type();
++
++	if (sched_credit_cap_us)
++		static_branch_enable(&sched_credit_key);
++}
+ 
+ static void readjust_all_task_weights(void) {
+@@ -394,6 +426,20 @@
+ }
+ 
+-#ifdef CONFIG_SYSCTL
+-static struct ctl_table sched_bore_sysctls[] = {
++int sched_credit_cap_us_update_handler(const struct ctl_table *table,
++		int write, void __user *buffer, size_t *lenp, loff_t *ppos) {
++	int ret = proc_douintvec_minmax(table, write, buffer, lenp, ppos);
++	if (ret || !write)
++		return ret;
++
++	if (sched_credit_cap_us)
++		static_branch_enable(&sched_credit_key);
++	else
++		static_branch_disable(&sched_credit_key);
++
++	return 0;
++}
++
++#ifdef CONFIG_SYSCTL
++static struct ctl_table sched_bore_sysctls[] = {
+ 	{
+ 		.procname	= "sched_bore",
+@@ -449,13 +495,22 @@
+ 	},
+ 	{
+-		.procname	= "sched_burst_protect_slice_lv",
+-		.data		= &sched_burst_protect_slice_lv,
+-		.maxlen		= sizeof(u8),
+-		.mode		= 0644,
+-		.proc_handler = sched_burst_protect_slice_lv_update_handler,
+-		.extra1		= SYSCTL_ZERO,
+-		.extra2		= SYSCTL_THREE,
+-	},
+-};
++		.procname	= "sched_burst_protect_slice_lv",
++		.data		= &sched_burst_protect_slice_lv,
++		.maxlen		= sizeof(u8),
++		.mode		= 0644,
++		.proc_handler = sched_burst_protect_slice_lv_update_handler,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_THREE,
++	},
++	{
++		.procname	= "sched_credit_cap_us",
++		.data		= &sched_credit_cap_us,
++		.maxlen		= sizeof(uint),
++		.mode		= 0644,
++		.proc_handler = sched_credit_cap_us_update_handler,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= &maxval_1_million,
++	},
++};
+ 
+ static int __init sched_bore_sysctl_init(void) {
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -5362,11 +5362,13 @@
+ 	}
+ 
+-	se->vruntime = vruntime - lag;
+-
+-	if (se->rel_deadline) {
+-		se->deadline += se->vruntime;
+-		se->rel_deadline = 0;
+-		return;
+-	}
++	se->vruntime = vruntime - lag;
++
++	u64 place_from = se->vruntime;
++
++	if (se->rel_deadline) {
++		se->deadline += place_from;
++		se->rel_deadline = 0;
++		return;
++	}
+ #ifdef CONFIG_SCHED_BORE
+ 	if (static_branch_likely(&sched_bore_key) &&
+@@ -5395,6 +5397,16 @@
+ 	 * EEVDF: vd_i = ve_i + r_i/w_i
+ 	 */
+-	se->deadline = se->vruntime + vslice;
+-}
++	se->deadline = place_from + vslice;
++
++#ifdef CONFIG_SCHED_BORE
++	if (static_branch_unlikely(&sched_credit_key) &&
++	    entity_is_task(se) && (flags & ENQUEUE_WAKEUP)) {
++		u64 credit = bore_credit_ns(task_of(se));
++
++		if (credit && se->deadline > credit)
++			se->deadline -= credit;
++	}
++#endif /* CONFIG_SCHED_BORE */
++}
+ 
+ static void check_enqueue_throttle(struct cfs_rq *cfs_rq);
+@@ -7295,7 +7307,8 @@
+ 	struct sched_entity *se = &p->se;
+ 	if ((flags & DEQUEUE_SLEEP) && entity_is_task(se)) {
+-		if (cfs_rq->curr == se)
+-			update_curr(cfs_rq);
+-		restart_burst_bore(p);
++		if (cfs_rq->curr == se)
++			update_curr(cfs_rq);
++		bore_note_sleep(p, rq_clock(rq));
++		restart_burst_bore(p);
+ 	}
+ #endif /* CONFIG_SCHED_BORE */
