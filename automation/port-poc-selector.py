@@ -22,6 +22,7 @@ FAIR_SECTION_HEADER = "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\n"
 EXPECTED_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tunsigned int\t\tpoc_idle_committed;\n"
+    "+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n"
     "+#endif\n"
 )
 FIELD_BLOCK = EXPECTED_ADDITIONS
@@ -179,7 +180,7 @@ def sched_hunk(sched_header: str) -> str:
     line = sched_header.count("\n", 0, match.start()) + 1
     lines = match.group(1).splitlines(keepends=True)
     return (
-        f"@@ -{line},4 +{line},7 @@ struct rq {{\n"
+        f"@@ -{line},4 +{line},8 @@ struct rq {{\n"
         + "".join(f" {item}" for item in lines[:2])
         + FIELD_BLOCK
         + "".join(f" {item}" for item in lines[2:])
@@ -236,7 +237,7 @@ def adapt_patch(
 
     if is_native_72_sched_context(body):
         # Native 7.2 POC already targets the Linux 7.2 scheduler layout.
-        # BORE 6.8.0 does not alter either reviewed hunk. Validate both
+        # The active BORE port does not alter either reviewed hunk. Validate both
         # original contexts against the post-BORE source and keep the patch
         # unchanged; git apply --check remains the authoritative full check.
         if sched_header is not None:

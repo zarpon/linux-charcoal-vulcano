@@ -15,9 +15,9 @@
       "ref": "main",
       "target": "latest-lru_marie.patch",
       "source_regex": "6\\.\\d+(?:\\.\\d+)?-lru_marie-[^\\s]+\\.patch",
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*\\.patch$",
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*)\\.patch$"
+      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$"
     },
     {
       "name": "zram_ir",
@@ -28,7 +28,7 @@
       "source_regex": "0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch",
       "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:\\.y)?-zram-ir-[0-9.]+\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)zram-ir-(?P<version>[0-9]+(?:\\.[0-9]+)*)\\.patch$",
+      "project_version_regex": "(?i)zram-ir-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
       "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zram-ir-1.2.port.patch",
@@ -42,9 +42,9 @@
       "ref": "main",
       "target": "latest-adios.patch",
       "source_regex": "6\\.\\d+(?:\\.\\d+)?-ADIOS-[^\\s]+\\.patch",
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.\\d+)?-ADIOS-[0-9.]+\\.patch$",
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-ADIOS-[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)ADIOS-(?P<version>[0-9]+(?:\\.[0-9]+)*)\\.patch$",
+      "project_version_regex": "(?i)ADIOS-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$",
       "exclude_regex": "(?i)default"
     },
     {
@@ -56,7 +56,7 @@
       "source_regex": "(?:6\\.\\d+\\.\\d+-bore-[0-9][^\\s]*|latest-bore\\.patch)",
       "filename_regex": "(?i)^patches/(?:testing/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?|stable/linux-\\d+\\.\\d+-bore/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?)\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+)?)\\.patch$",
+      "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
       "always_latest": true,
       "port_for_kernel": "6.18",
       "local_port": "6.18.45-bore-6.8.0.port.patch",
@@ -85,7 +85,7 @@
       "source_regex": "6\\.\\d+(?:\\.\\d+)?-poc-selector-[^\\s]+\\.patch",
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-\\d+\\.\\d+(?:\\.\\d+)?(?:-[0-9A-Za-z.]+)?-poc-selector-[0-9A-Za-z._-]+\\.patch$",
       "kernel_version_regex": "(?i)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$",
+      "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
       "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "adaptive_port": "poc-selector-valve"
@@ -99,7 +99,7 @@
       "source_regex": "6\\.\\d+(?:\\.\\d+)?-nap-v?[^\\s]+\\.patch",
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-\\d+\\.\\d+(?:\\.\\d+)?(?:-[0-9A-Za-z.]+)?-nap-v?[0-9A-Za-z._-]+\\.patch$",
       "kernel_version_regex": "(?i)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)nap-v?(?P<version>[0-9]+(?:\\.[0-9]+)*)\\.patch$"
+      "project_version_regex": "(?i)nap-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$"
     }
   ],
   "auxiliary_components": [

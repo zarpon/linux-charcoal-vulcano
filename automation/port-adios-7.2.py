@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Explicitly port the locked ADIOS elevator hunk to Linux/Valve 7.2.
 
-ADIOS 3.2.0 is available for multiple kernel generations.  The 7.2 resolver
-prefers the newest compatible predecessor, while this adapter handles only the
+ADIOS is resolved from the globally newest upstream project revision, including
+stable/testing revisions. When that revision lacks a native 7.2 patch, this
+adapter handles only the
 elevator_set_default() layout difference between upstream Linux and Valve 7.2.
 All non-elevator ADIOS hunks are preserved byte-for-byte.
 """
@@ -127,7 +128,7 @@ def main() -> int:
         raise SystemExit(f"ADIOS 7.2 port failed: {exc}") from exc
     args.output.write_text(adapted, encoding="utf-8")
     print(
-        "Prepared explicit ADIOS 3.2.0 -> Linux/Valve 7.2 elevator port; "
+        "Prepared explicit latest-upstream ADIOS -> Linux/Valve 7.2 elevator port; "
         "all non-elevator upstream hunks preserved"
     )
     return 0

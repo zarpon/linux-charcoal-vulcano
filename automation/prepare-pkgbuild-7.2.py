@@ -118,7 +118,7 @@ def skip_upstreamed_72_patches(text: str) -> str:
 
 
 def wire_adios_72_port(text: str) -> str:
-    """Use the explicit ADIOS 3.2.0 elevator port only in the 7.2 build.
+    """Use the explicit latest-upstream ADIOS elevator port only in the 7.2 build.
 
     The production PKGBUILD has a full if/elif patch dispatcher, while unit-test
     fixtures intentionally use a compact one-line POC branch. Support both

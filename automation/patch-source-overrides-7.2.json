@@ -3,8 +3,14 @@
   "components": {
     "lru_marie": {
       "source_regex": "(?:latest-lru_marie\\.patch|6\\.\\d+(?:\\.\\d+)?-lru_marie-[^\\s]+\\.patch)",
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*\\.patch$",
-      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?"
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?\\.patch$",
+      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?",
+      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$",
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "local_port": "7.2-lru_marie-0.11.1r2.port.patch",
+      "local_port_project_version": "0.11.1r2",
+      "local_port_upstream_sha256": "a28ff39ed30034290ae7e30ae42f0725b9fdb531e3a10a127f26f53b0c217551"
     },
     "zram_ir": {
       "source_regex": "(?:latest-zram-ir\\.patch|0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch)",
@@ -23,7 +29,9 @@
       "local_port": null,
       "local_port_project_version": null,
       "local_port_upstream_sha256": null,
-      "adaptive_port": "adios-pkgbuild-7.2"
+      "adaptive_port": "adios-pkgbuild-7.2",
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-ADIOS-[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?\\.patch$",
+      "project_version_regex": "(?i)ADIOS-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$"
     },
     "bore": {
       "always_latest": true,
@@ -31,7 +39,8 @@
       "local_port": null,
       "local_port_upstream_sha256": null,
       "local_port_project_version": null,
-      "local_port_overlays": []
+      "local_port_overlays": [],
+      "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$"
     },
     "bore_sched_ext_coexistence": {
       "always_latest": true,
@@ -43,13 +52,15 @@
       "source_regex": "(?:latest-poc-selector\\.patch|6\\.\\d+(?:\\.\\d+)?-poc-selector-[^\\s]+\\.patch)",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
-      "adaptive_port": "poc-selector-valve"
+      "adaptive_port": "poc-selector-valve",
+      "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$"
     },
     "nap": {
       "source_regex": "(?:latest-nap\\.patch|6\\.\\d+(?:\\.\\d+)?-nap-v?[^\\s]+\\.patch)",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
-      "adaptive_port": "nap-direct-apply-7.2"
+      "adaptive_port": "nap-direct-apply-7.2",
+      "project_version_regex": "(?i)nap-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$"
     }
   },
   "auxiliary_components": {
