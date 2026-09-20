@@ -30,7 +30,7 @@ CURRENT_ADDITIONS = (
     "+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n"
     "+#endif\n"
 )
-SCHED_ANCHOR_RE = re.compile(
+# Legacy fixture/API alias; current upstream selection passes CURRENT_ADDITIONS\n# explicitly so the 3.0.0-rc1 poc_busy_bit field is never dropped.\nFIELD_BLOCK = LEGACY_ADDITIONS\nSCHED_ANCHOR_RE = re.compile(
     r"(?m)^(#ifdef CONFIG_SMP\n"
     r"\tunsigned int\t\tttwu_pending;\n"
     r"#endif\n"
@@ -174,7 +174,7 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
     return text[:hunk] + header + adapted_body + text[hunk_end:]
 
 
-def sched_hunk(sched_header: str, field_block: str) -> str:
+def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
     if "poc_idle_committed" in sched_header:
         raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
     matches = list(SCHED_ANCHOR_RE.finditer(sched_header))
