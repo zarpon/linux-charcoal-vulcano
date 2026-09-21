@@ -84,7 +84,7 @@ class PocPortTests(unittest.TestCase):
             adapted,
         )
         self.assertIn("@@ -1,4 +1,7 @@ struct rq {", adapted)
-        self.assertIn(module.FIELD_BLOCK, adapted)
+        self.assertIn(module.LEGACY_ADDITIONS, adapted)
 
     def test_adapter_rejects_an_unreviewed_patch(self) -> None:
         changed = UPSTREAM_PATCH.replace(
@@ -106,7 +106,7 @@ class PocPortTests(unittest.TestCase):
 
     def test_adapter_rejects_ambiguous_kernel_anchor(self) -> None:
         with self.assertRaises(module.PortError):
-            module.sched_hunk(SCHED_HEADER + SCHED_HEADER)
+            module.sched_hunk(SCHED_HEADER + SCHED_HEADER, module.LEGACY_ADDITIONS)
 
     def test_adapter_rejects_an_unreviewed_fair_hunk(self) -> None:
         changed = UPSTREAM_PATCH.replace(
@@ -122,7 +122,10 @@ class PocPortTests(unittest.TestCase):
 
     def test_adapter_rejects_a_previously_modified_kernel_header(self) -> None:
         with self.assertRaises(module.PortError):
-            module.sched_hunk(SCHED_HEADER.replace("nr_switches", "poc_idle_committed"))
+            module.sched_hunk(
+                SCHED_HEADER.replace("nr_switches", "poc_idle_committed"),
+                module.LEGACY_ADDITIONS,
+            )
 
     def test_cli_generates_a_patch_without_mutating_the_kernel_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
