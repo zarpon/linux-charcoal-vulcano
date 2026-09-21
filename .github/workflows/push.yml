@@ -283,7 +283,10 @@ jobs:
 
             # Verify again, now against real SHA-256 values, before prepare/build.
             makepkg --verifysource 2>&1 | tee logs/verifysource.log
-            makepkg -Ccf --noconfirm 2>&1 | tee logs/makepkg.log
+            # Keep the prepared tree until the mandatory post-build diff check.
+            # makepkg -c removed src/ after a successful package build, making
+            # the check fail deterministically even though compilation succeeded.
+            makepkg -Cf --noconfirm 2>&1 | tee logs/makepkg.log
             git -C src/archlinux-linux-charcoal diff --check | tee logs/git-diff-check.txt
             ccache --show-stats | tee logs/ccache-after.txt
           '
