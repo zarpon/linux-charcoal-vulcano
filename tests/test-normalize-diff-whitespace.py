@@ -18,9 +18,7 @@ SPEC.loader.exec_module(MODULE)
 
 
 def run(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        args, cwd=cwd, text=True, capture_output=True, check=True
-    )
+    return subprocess.run(args, cwd=cwd, text=True, capture_output=True, check=True)
 
 
 class NormalizeTests(unittest.TestCase):
@@ -34,13 +32,14 @@ class NormalizeTests(unittest.TestCase):
         run("git", "commit", "-qm", "base", cwd=root)
         return root
 
-    def test_normalizes_only_diff_check_errors(self) -> None:
+    def test_normalizes_diff_check_errors_including_blank_eof(self) -> None:
         root = self.repo()
         (root / "sample.c").write_text(
             "int base;\n"
             "\tint clean;\n"
             "   \tint mixed;\n"
-            "int trailing;   \n",
+            "int trailing;   \n"
+            "\n",
             encoding="utf-8",
         )
         before = MODULE.run_diff_check(root)
@@ -52,14 +51,12 @@ class NormalizeTests(unittest.TestCase):
         self.assertIn("int mixed;", text)
         self.assertIn("int trailing;\n", text)
         self.assertNotIn("int trailing;   ", text)
+        self.assertFalse(text.endswith("\n\n"))
 
     def test_clean_tree_is_noop(self) -> None:
         root = self.repo()
         self.assertEqual(MODULE.normalize(root), 0)
-        self.assertEqual(
-            run("git", "status", "--porcelain", cwd=root).stdout,
-            "",
-        )
+        self.assertEqual(run("git", "status", "--porcelain", cwd=root).stdout, "")
 
 
 if __name__ == "__main__":
