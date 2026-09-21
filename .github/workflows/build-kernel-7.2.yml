@@ -57,13 +57,16 @@ jobs:
             automation/audit-latest-patch-versions.py \
             automation/port-poc-selector.py \
             automation/port-adios-7.2.py \
+            automation/normalize-diff-whitespace.py \
             tests/test-prepare-steamos-7.2.py \
             tests/test-prepare-pkgbuild-7.2.py \
-            tests/test-resolve-latest-patches-7.2.py
+            tests/test-resolve-latest-patches-7.2.py \
+            tests/test-normalize-diff-whitespace.py
           python3 tests/test-prepare-steamos-7.2.py -v
           python3 tests/test-prepare-pkgbuild-7.2.py -v
           python3 tests/test-resolve-latest-patches-7.2.py -v
           python3 tests/test-resolve-latest-patches.py -v
+          python3 tests/test-normalize-diff-whitespace.py -v
           bash -n install-charcoal.sh
           bash tests/test-install-charcoal.sh
 
@@ -145,7 +148,7 @@ jobs:
       - name: Compute compiler cache keys
         id: ccache-key
         env:
-          CCACHE_INPUT_HASH: ${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/prepare-pkgbuild-7.2.py', 'automation/prepare-steamos-7.2.py', 'automation/patch-sources.json', 'automation/patch-source-overrides-7.2.json', 'automation/resolve-latest-patches-7.2.py', 'automation/resolve-latest-patches-7.2-policy.py', 'automation/resolve-latest-patches.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
+          CCACHE_INPUT_HASH: ${{ hashFiles('Dockerfile', 'docker/setup.sh', 'PKGBUILD', 'automation/prepare-pkgbuild-7.2.py', 'automation/prepare-steamos-7.2.py', 'automation/patch-sources.json', 'automation/patch-source-overrides-7.2.json', 'automation/resolve-latest-patches-7.2.py', 'automation/resolve-latest-patches-7.2-policy.py', 'automation/resolve-latest-patches.py', 'automation/normalize-diff-whitespace.py', 'logs/patch-lock.json', '**/*.patch', 'config', 'config-neptune', 'config-charcoal') }}
         run: |
           set -Eeuo pipefail
           restore_prefix="ccache-${RUNNER_OS}-${RUNNER_ARCH}-llvm-${CCACHE_INPUT_HASH}"
@@ -212,6 +215,8 @@ jobs:
 
             makepkg --verifysource 2>&1 | tee logs/verifysource.log
             makepkg -Cof --noconfirm 2>&1 | tee logs/prepare-7.2.log
+            python3 automation/normalize-diff-whitespace.py \
+              --root src/archlinux-linux-charcoal | tee logs/whitespace-normalization.log
             git -C src/archlinux-linux-charcoal diff --check | tee logs/git-diff-check.txt
           '
           restore_owner
