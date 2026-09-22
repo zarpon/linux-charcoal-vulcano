@@ -60,7 +60,6 @@ index c65f4da937..105b12fd86 100644
 +
 +clean:
 +	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-+
 diff --git a/block/adios.c b/block/adios.c
 new file mode 100644
 index 0000000000..8d497717f7

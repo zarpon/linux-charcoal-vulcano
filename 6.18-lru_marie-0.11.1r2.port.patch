@@ -14453,7 +14453,7 @@ index 95b1179a14..a3d15d0cc9 100644
 +			return FOLIOREF_ACTIVATE;
 +
 +		if (referenced_ptes > 0 && (vm_flags & VM_EXEC) &&
-+		    						folio_is_file_lru(folio))
++		    folio_is_file_lru(folio))
 +			return FOLIOREF_ACTIVATE;
 +
 +		if (hot_votes == 1 && referenced_folio && folio_is_file_lru(folio))

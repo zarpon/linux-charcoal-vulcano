@@ -125,5 +125,64 @@ class ResolvedPatchApplicationTests(unittest.TestCase):
         self.assertEqual((tree / "demo.txt").read_text(), "ported\n")
 
 
+    def test_bore_700_native_whitespace_is_normalized_without_changing_source_lock(self) -> None:
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(directory, ignore_errors=True))
+        tree = directory / "tree"
+        (tree / "kernel").mkdir(parents=True)
+        path = tree / "kernel/Kconfig.hz"
+        path.write_text(
+            "config SCHED_HRTICK\n"
+            "\tdef_bool HIGH_RES_TIMERS\n"
+            "\n"
+            "config MIN_BASE_SLICE_NS\n"
+            "\tint \"Default value for min_base_slice_ns\"\n"
+            "\tdefault 2000000\n"
+            "\thelp\n"
+            "\t The BORE Scheduler automatically calculates the optimal base\n"
+            "\t slice for the configured HZ using the following equation:\n"
+            "\t \n"
+            "\t base_slice_ns =\n"
+            "\t \t1000000000/HZ * DIV_ROUNDUP(min_base_slice_ns, 1000000000/HZ)\n"
+            "\t \n"
+            "\t This option sets the default lower bound limit of the base slice\n"
+            "\t to prevent the loss of task throughput due to overscheduling.\n"
+            "\t \n"
+            "\t Setting this value too high can cause high scheduling latency.\n",
+            encoding="utf-8",
+        )
+        record = {
+            "project_version": "7.0.0",
+            "sha256": applicator.BORE_700_61848_SHA256,
+        }
+
+        changed = applicator.normalize_bore_700_native_whitespace(tree, record)
+        result = path.read_text(encoding="utf-8")
+
+        self.assertTrue(changed)
+        self.assertNotIn("\t \n", result)
+        self.assertNotIn("\t \t1000000000/HZ", result)
+        self.assertIn("\t\t1000000000/HZ", result)
+        self.assertEqual(record["sha256"], applicator.BORE_700_61848_SHA256)
+
+    def test_reviewed_618_ports_do_not_reintroduce_known_whitespace_defects(self) -> None:
+        adios_port = (ROOT / "6.18-adios-3.3.0r2.port.patch").read_text(encoding="utf-8")
+        marie_port = (ROOT / "6.18-lru_marie-0.11.1r2.port.patch").read_text(encoding="utf-8")
+
+        self.assertNotIn(
+            "+clean:\n+\tmake -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean\n+\n"
+            "diff --git a/block/adios.c b/block/adios.c\n",
+            adios_port,
+        )
+        self.assertNotIn(
+            "+\t\t    \t\t\t\t\t\tfolio_is_file_lru(folio))",
+            marie_port,
+        )
+        self.assertIn(
+            "+\t\t    folio_is_file_lru(folio))",
+            marie_port,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -272,6 +272,57 @@ def apply_adaptive_port(
             raise ApplyError(f"{name}: adapted patch does not apply: {details}")
 
 
+
+BORE_700_61848_SHA256 = "529ac503052e2ea09d9c54cbf536ffaac842ba436ff368c4a595585f46e7b709"
+
+
+def normalize_bore_700_native_whitespace(tree: Path, record: dict[str, Any]) -> bool:
+    """Remove whitespace-only defects from the exact locked BORE 7.0.0 patch.
+
+    The upstream 6.18.48 patch is still the selected and checksum-verified
+    source. This only normalizes three blank help lines and the indentation of
+    the displayed equation after that exact patch has been applied.
+    """
+    if (
+        record.get("project_version") != "7.0.0"
+        or record.get("sha256") != BORE_700_61848_SHA256
+    ):
+        return False
+
+    path = tree / "kernel/Kconfig.hz"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ApplyError(f"bore: unable to read {path}: {exc}") from exc
+
+    marker = "config MIN_BASE_SLICE_NS\n"
+    if text.count(marker) != 1:
+        raise ApplyError("bore: expected exactly one MIN_BASE_SLICE_NS block")
+
+    prefix, block = text.split(marker, 1)
+    bad_blank = "\t \n"
+    bad_equation = (
+        "\t \t1000000000/HZ * "
+        "DIV_ROUNDUP(min_base_slice_ns, 1000000000/HZ)\n"
+    )
+    if block.count(bad_blank) != 3:
+        raise ApplyError(
+            "bore: locked 7.0.0 whitespace shape changed "
+            f"(blank lines={block.count(bad_blank)}, expected 3)"
+        )
+    if block.count(bad_equation) != 1:
+        raise ApplyError("bore: locked 7.0.0 equation indentation changed")
+
+    block = block.replace(bad_blank, "\n")
+    block = block.replace(
+        bad_equation,
+        "\t\t1000000000/HZ * "
+        "DIV_ROUNDUP(min_base_slice_ns, 1000000000/HZ)\n",
+        1,
+    )
+    path.write_text(prefix + marker + block, encoding="utf-8")
+    return True
+
 def resolve_record(
     root: Path, target: str
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
@@ -325,6 +376,8 @@ def apply_component(root: Path, tree: Path, patch: Path, target: str) -> str:
 
     applied, details = apply_checked(tree, patch)
     if applied:
+        if name == "bore":
+            normalize_bore_700_native_whitespace(tree, record)
         return "upstream-native" if origin == "upstream-native" else "upstream"
 
     if name == "bt_ssp" and bt_ssp_semantics_present(tree):
