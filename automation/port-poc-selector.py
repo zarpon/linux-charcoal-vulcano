@@ -38,6 +38,11 @@ SCHED_ANCHOR_RE = re.compile(
     r"#endif\n"
     r"\tu64\t\t\tnr_switches;\n)"
 )
+CURRENT_SCHED_ANCHOR_RE = re.compile(
+    r"(?m)^(#endif /\* CONFIG_NO_HZ_COMMON \*/\n\n"
+    r"\tunsigned int\t\tttwu_pending;\n"
+    r"\tu64\t\t\tnr_switches;\n)"
+)
 TTWU_CONTEXT_RE = re.compile(r"(?m)^[ \t]*unsigned int[ \t]+ttwu_pending;[ \t]*\n")
 HUNK_RE = re.compile(
     r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
@@ -168,18 +173,27 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
 def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
     if "poc_idle_committed" in sched_header:
         raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
-    matches = list(SCHED_ANCHOR_RE.finditer(sched_header))
-    if len(matches) != 1:
-        raise PortError(f"expected one Valve/BORE ttwu_pending anchor, found {len(matches)}")
-    match = matches[0]
+    legacy_matches = list(SCHED_ANCHOR_RE.finditer(sched_header))
+    current_matches = list(CURRENT_SCHED_ANCHOR_RE.finditer(sched_header))
+    if len(legacy_matches) + len(current_matches) != 1:
+        raise PortError(
+            "expected one reviewed Valve/BORE ttwu_pending anchor, found "
+            f"{len(legacy_matches) + len(current_matches)}"
+        )
+    current_layout = bool(current_matches)
+    match = (current_matches or legacy_matches)[0]
     line = sched_header.count("\n", 0, match.start()) + 1
     lines = match.group(1).splitlines(keepends=True)
+    # Valve 6.18.50-valve1 moved ttwu_pending out of CONFIG_SMP. Preserve the
+    # exact POC insertion point immediately after ttwu_pending in either
+    # reviewed layout; reject every other shape.
+    insert_at = 3 if current_layout else 2
     added_lines = field_block.count("\n")
     return (
         f"@@ -{line},4 +{line},{4 + added_lines} @@ struct rq {{\n"
-        + "".join(f" {item}" for item in lines[:2])
+        + "".join(f" {item}" for item in lines[:insert_at])
         + field_block
-        + "".join(f" {item}" for item in lines[2:])
+        + "".join(f" {item}" for item in lines[insert_at:])
     )
 
 
