@@ -209,7 +209,29 @@ def adapt_idle_sibling_hunk(text,fair_source=None):
     if VALVE_SMP_GUARD in body: raise PortError("select_idle_sibling hunk already has a CONFIG_SMP guard")
     body2=body.replace(PELT_INCLUDE,PELT_INCLUDE+VALVE_SMP_GUARD)
     header=increment_hunk_context(text[h:he])
-    if fair_source is not None: header=rebase_hunk_header(header,body2,fair_source)
+    if fair_source is not None:
+        try:
+            header=rebase_hunk_header(header,body2,fair_source)
+        except PortError as exc:
+            # BORE may legitimately change unrelated context in this native POC
+            # hunk.  Preserve the exact POC semantic edit and relocate only the
+            # declaration when its old form and SMP scope are uniquely proven.
+            removed=[line for line in body.splitlines(keepends=True) if line.startswith("-")]
+            added=[line for line in body.splitlines(keepends=True) if line.startswith("+")]
+            if removed != ["-"+IDLE_SIBLING_DECLARATION] or added != ["+"+IDLE_SIBLING_SYNC_DECLARATION]:
+                raise exc
+            off=fair_source.find(IDLE_SIBLING_DECLARATION)
+            if off < 0 or fair_source.find(IDLE_SIBLING_DECLARATION,off+1) >= 0:
+                raise exc
+            prefix=fair_source[:off]
+            pelt=prefix.rfind('#include "pelt.h"')
+            smp=prefix.rfind("#ifdef CONFIG_SMP")
+            if pelt < 0 or smp < pelt:
+                raise PortError("unique select_idle_sibling declaration is not in the reviewed CONFIG_SMP scope") from exc
+            line=fair_source.count("\n",0,off)+1
+            delta=hunk_delta(text[h:he])
+            header=f"@@ -{line},1 +{line+delta},1 @@\n"
+            body2="-"+IDLE_SIBLING_DECLARATION+"+"+IDLE_SIBLING_SYNC_DECLARATION
     return text[:h]+header+body2+text[hend:]
 
 def sched_hunk(sched_header,field_block=FIELD_BLOCK):
