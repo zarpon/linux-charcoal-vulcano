@@ -26,7 +26,39 @@ HUNK_RE = re.compile(r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? \+(?P<new
 IDLE_SIBLING_DECLARATION = "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);\n"
 IDLE_SIBLING_SYNC_DECLARATION = "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);\n"
 PELT_INCLUDE = ' #include "pelt.h"\n'
-VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\n"
+VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\\n"
+INCLUDE_SCHED_SECTION_HEADER = "diff --git a/include/linux/sched.h b/include/linux/sched.h\\n"
+CURRENT_POC_SYNC_ADDITIONS = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\\n"
+    "+/* Learned WF_SYNC honesty of a waker, see kernel/sched/fair.c */\\n"
+    "+struct poc_sync {\\n"
+    "+\\tu64\\t\\t\\t\\tmark;\\t\\t/* own exec at the pending sync wake + 1, 0 = none */\\n"
+    "+\\tu8\\t\\t\\t\\thist;\\t\\t/* last 8 resolved sync wakes, bit = 1: a lie */\\n"
+    "+\\tu8\\t\\t\\t\\texplore;\\t/* waker's-CPU verdicts since the last exploration */\\n"
+    "+\\tbool\\t\\t\\t\\ton_waker_cpu;\\t/* pending wake put its wakee on our CPU */\\n"
+    "+\\tbool\\t\\t\\t\\tnopreempt;\\t/* as a wakee: must not preempt its waker */\\n"
+    "+};\\n"
+    "+#endif\\n"
+    "+\\n"
+)
+CURRENT_POC_SLEEP_ADDITIONS = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\\n"
+    "+\\tif (flags & DEQUEUE_SLEEP)\\n"
+    "+\\t\\tpoc_sync_note_sleep(p);\\n"
+    "+#endif\\n"
+)
+BORE_TASK_STRUCT_ANCHOR = (
+    "#endif /* CONFIG_SCHED_BORE */\\n"
+    "\\n"
+    "struct task_struct {\\n"
+    "#ifdef CONFIG_THREAD_INFO_IN_TASK\\n"
+)
+BORE_DEQUEUE_ANCHOR = (
+    "\\tif (!p->se.sched_delayed)\\n"
+    "\\t\\tutil_est_dequeue(&rq->cfs, p);\\n"
+    "\\n"
+    "#ifdef CONFIG_SCHED_BORE\\n"
+)
 
 class PortError(RuntimeError): pass
 
@@ -59,6 +91,95 @@ def old_hunk_text(body):
         if line.startswith(("-"," ")): out.append(line[1:]); continue
         raise PortError("select_idle_sibling hunk has unsupported patch syntax")
     return "".join(out)
+
+def reviewed_addition_hunk(text, section_header, additions, description):
+    section_start, section_end = section_bounds(text, section_header, description)
+    candidate = None
+    hunk = text.find("@@ ", section_start, section_end)
+    while hunk >= 0:
+        header_end = text.find("\n", hunk, section_end)
+        if header_end < 0:
+            raise PortError(f"{description} hunk is malformed")
+        header_end += 1
+        hunk_end = next_hunk_end(text, hunk, section_end)
+        body = text[header_end:hunk_end]
+        if additions in body:
+            if candidate is not None:
+                raise PortError(f"multiple {description} hunks found upstream")
+            candidate = (hunk, header_end, hunk_end, body)
+        hunk = text.find("@@ ", hunk_end, section_end)
+    if candidate is None:
+        raise PortError(f"reviewed {description} hunk was not found")
+    return candidate
+
+
+def hunk_delta(header):
+    match = HUNK_RE.match(header)
+    if not match:
+        raise PortError("reviewed hunk header changed upstream")
+    return int(match.group("new_start")) - int(match.group("old_start"))
+
+
+def unique_anchor_line(source, anchor, description):
+    offset = source.find(anchor)
+    if offset < 0:
+        raise PortError(f"{description} anchor does not match Valve/BORE source")
+    if source.find(anchor, offset + 1) >= 0:
+        raise PortError(f"{description} anchor is ambiguous in Valve/BORE source")
+    return source.count("\n", 0, offset) + 1
+
+
+def adapt_native_72_include_overlap(text, include_source):
+    hunk, header_end, hunk_end, body = reviewed_addition_hunk(
+        text,
+        INCLUDE_SCHED_SECTION_HEADER,
+        CURRENT_POC_SYNC_ADDITIONS,
+        "native 7.2 poc_sync",
+    )
+    if body.count("struct poc_sync") != 1 or body.count("nopreempt") != 1:
+        raise PortError("native 7.2 poc_sync hunk changed upstream")
+
+    old_start = unique_anchor_line(
+        include_source, BORE_TASK_STRUCT_ANCHOR, "BORE task_struct"
+    )
+    delta = hunk_delta(text[hunk:header_end])
+    added = CURRENT_POC_SYNC_ADDITIONS.count("\n")
+    replacement = (
+        f"@@ -{old_start},4 +{old_start + delta},{4 + added} @@\n"
+        " #endif /* CONFIG_SCHED_BORE */\n"
+        " \n"
+        + CURRENT_POC_SYNC_ADDITIONS
+        + " struct task_struct {\n"
+        " #ifdef CONFIG_THREAD_INFO_IN_TASK\n"
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
+
+
+def adapt_native_72_fair_overlap(text, fair_source):
+    hunk, header_end, hunk_end, body = reviewed_addition_hunk(
+        text,
+        FAIR_SECTION_HEADER,
+        CURRENT_POC_SLEEP_ADDITIONS,
+        "native 7.2 poc_sync_note_sleep",
+    )
+    if body.count("poc_sync_note_sleep(p);") != 1:
+        raise PortError("native 7.2 poc_sync_note_sleep hunk changed upstream")
+
+    old_start = unique_anchor_line(
+        fair_source, BORE_DEQUEUE_ANCHOR, "BORE dequeue_task_fair"
+    )
+    delta = hunk_delta(text[hunk:header_end])
+    added = CURRENT_POC_SLEEP_ADDITIONS.count("\n")
+    replacement = (
+        f"@@ -{old_start},4 +{old_start + delta},{4 + added} @@\n"
+        " \tif (!p->se.sched_delayed)\n"
+        " \t\tutil_est_dequeue(&rq->cfs, p);\n"
+        " \n"
+        + CURRENT_POC_SLEEP_ADDITIONS
+        + " #ifdef CONFIG_SCHED_BORE\n"
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
+
 
 def rebase_hunk_header(header,body,source):
     m=HUNK_RE.match(header)
@@ -126,15 +247,37 @@ def reviewed_sched_field_hunk(text,s,e):
     if candidate is None: raise PortError("reviewed rq::poc_idle_committed hunk was not found")
     return candidate
 
-def adapt_patch(text,fair_source=None,sched_header=None):
+def adapt_patch(text, fair_source=None, sched_header=None, include_source=None):
     s,e=section_bounds(text,SECTION_HEADER,"kernel/sched/sched.h"); h,n,body=reviewed_sched_field_hunk(text,s,e)
     field=CURRENT_ADDITIONS if CURRENT_ADDITIONS in body else LEGACY_ADDITIONS
     adapted=text[:h]+text[n:]
     if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
-    # Relocate only the reviewed field hunk against the actual post-BORE Valve
-    # tree. Native 7.2 keeps its upstream NO_HZ/UCLAMP placement; legacy POC
-    # keeps the historical ttwu_pending placement. This preserves the locked
-    # upstream revision without depending on stale pre-BORE line context.
+
+    # Preserve the locked native 7.2 POC revision. BORE overlaps exactly two
+    # unrelated source contexts: the poc_sync type insertion and the
+    # DEQUEUE_SLEEP hook. Rebase only those exact reviewed hunks.
+    if field == CURRENT_ADDITIONS and is_native_72_sched_context(body):
+        reviewed_addition_hunk(
+            text, INCLUDE_SCHED_SECTION_HEADER, CURRENT_POC_SYNC_ADDITIONS,
+            "native 7.2 poc_sync"
+        )
+        reviewed_addition_hunk(
+            text, FAIR_SECTION_HEADER, CURRENT_POC_SLEEP_ADDITIONS,
+            "native 7.2 poc_sync_note_sleep"
+        )
+        if sched_header is None and fair_source is None and include_source is None:
+            return text
+        if sched_header is None or fair_source is None or include_source is None:
+            raise PortError("native 7.2 adaptation requires sched.h, fair.c and include/linux/sched.h")
+
+        # Keep the rq fields at the native NO_HZ/UCLAMP boundary selected by
+        # POC 3.x. The existing native anchor port is fail-closed.
+        adapted=insert_sched_hunk(adapted,sched_hunk(sched_header,field))
+        adapted=adapt_native_72_include_overlap(adapted,include_source)
+        adapted=adapt_native_72_fair_overlap(adapted,fair_source)
+        return adapt_idle_sibling_hunk(adapted,fair_source)
+
+    # Reviewed compatibility path for older POC layouts.
     if sched_header is not None: adapted=insert_sched_hunk(adapted,sched_hunk(sched_header,field))
     return adapt_idle_sibling_hunk(adapted,fair_source)
 
@@ -146,7 +289,16 @@ def main():
         except (UnicodeDecodeError,PortError) as exc: raise SystemExit(f"POC Valve port failed: {exc}") from exc
         print("POC Valve adapter accepted the current upstream hunk; the exact source bytes are recorded in patch-lock.json"); return
     if not a.output or not a.sched_header or not a.fair_source: p.error("output, sched_header and fair_source are required unless --validate is used")
-    try: out=adapt_patch(a.patch.read_text(encoding="utf-8"),a.fair_source.read_text(encoding="utf-8"),a.sched_header.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError,PortError) as exc: raise SystemExit(f"POC Valve port failed: {exc}") from exc
-    a.output.write_text(out,encoding="utf-8"); print("Prepared the locked upstream POC patch by explicitly porting reviewed scheduler hunks to the post-BORE Valve layout")
+    sched_path=a.sched_header.resolve()
+    tree_root=sched_path.parents[2]
+    include_path=tree_root/"include/linux/sched.h"
+    try:
+        out=adapt_patch(
+            a.patch.read_text(encoding="utf-8"),
+            a.fair_source.read_text(encoding="utf-8"),
+            a.sched_header.read_text(encoding="utf-8"),
+            include_path.read_text(encoding="utf-8"),
+        )
+    except (UnicodeDecodeError,OSError,PortError) as exc: raise SystemExit(f"POC Valve port failed: {exc}") from exc
+    a.output.write_text(out,encoding="utf-8"); print("Prepared the locked upstream POC patch by porting only reviewed Valve/BORE overlap hunks")
 if __name__=="__main__": main()

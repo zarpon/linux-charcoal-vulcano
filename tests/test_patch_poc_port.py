@@ -155,5 +155,114 @@ class PocPortTests(unittest.TestCase):
             self.assertIn("poc_idle_committed", output.read_text(encoding="utf-8"))
 
 
+    def test_native_72_rebases_bore_overlaps_without_dropping_poc_fields(self) -> None:
+        native_patch = """diff --git a/include/linux/sched.h b/include/linux/sched.h
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -823,6 +823,17 @@ struct kmap_ctrl {
+ #endif
+ };
+ 
++#ifdef CONFIG_SCHED_POC_SELECTOR
++/* Learned WF_SYNC honesty of a waker, see kernel/sched/fair.c */
++struct poc_sync {
++	u64				mark;		/* own exec at the pending sync wake + 1, 0 = none */
++	u8				hist;		/* last 8 resolved sync wakes, bit = 1: a lie */
++	u8				explore;	/* waker's-CPU verdicts since the last exploration */
++	bool				on_waker_cpu;	/* pending wake put its wakee on our CPU */
++	bool				nopreempt;	/* as a wakee: must not preempt its waker */
++};
++#endif
++
+ struct task_struct {
+ #ifdef CONFIG_THREAD_INFO_IN_TASK
+ 	/*
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -1262,7 +1263,7 @@ static bool update_deadline(struct cfs_rq *cfs_rq, struct sched_entity *se)
+ 
+ #include "pelt.h"
+ 
+-static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);
++static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);
+ static unsigned long task_h_load(struct task_struct *p);
+ static unsigned long capacity_of(int cpu);
+ 
+@@ -8043,6 +8099,10 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
+ 	if (!p->se.sched_delayed)
+ 		util_est_dequeue(&rq->cfs, p);
+ 
++#ifdef CONFIG_SCHED_POC_SELECTOR
++	if (flags & DEQUEUE_SLEEP)
++		poc_sync_note_sleep(p);
++#endif
+ 	if (dequeue_entities(rq, &p->se, flags) < 0)
+ 		return false;
+ 
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -1177,6 +1177,11 @@ struct rq {
+ 	call_single_data_t	nohz_csd;
+ #endif /* CONFIG_NO_HZ_COMMON */
+ 
++#ifdef CONFIG_SCHED_POC_SELECTOR
++	unsigned int		poc_idle_committed;
++	u64			poc_busy_bit;	/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */
++#endif
++
+ #ifdef CONFIG_UCLAMP_TASK
+ 	struct uclamp_rq	uclamp[UCLAMP_CNT] ____cacheline_aligned;
+"""
+        include_source = """#ifdef CONFIG_SCHED_BORE
+struct bore_ctx {
+	bool stop_update;
+};
+#endif /* CONFIG_SCHED_BORE */
+
+struct task_struct {
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+	/*
+"""
+        fair_source = """#include "pelt.h"
+#ifdef CONFIG_SMP
+
+static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);
+static unsigned long task_h_load(struct task_struct *p);
+static unsigned long capacity_of(int cpu);
+
+static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
+{
+	if (!p->se.sched_delayed)
+		util_est_dequeue(&rq->cfs, p);
+
+#ifdef CONFIG_SCHED_BORE
+	struct cfs_rq *cfs_rq = cfs_rq_of(&p->se);
+#endif /* CONFIG_SCHED_BORE */
+	if (dequeue_entities(rq, &p->se, flags) < 0)
+		return false;
+}
+"""
+        sched_source = """struct rq {
+#ifdef CONFIG_NO_HZ_COMMON
+	unsigned int		nohz_tick_stopped;
+	call_single_data_t	nohz_csd;
+#endif /* CONFIG_NO_HZ_COMMON */
+
+#ifdef CONFIG_UCLAMP_TASK
+	struct uclamp_rq	uclamp[UCLAMP_CNT] ____cacheline_aligned;
+"""
+        adapted = module.adapt_patch(
+            native_patch, fair_source, sched_source, include_source
+        )
+        self.assertIn("struct poc_sync", adapted)
+        self.assertIn("poc_sync_note_sleep(p);", adapted)
+        self.assertIn("poc_idle_committed", adapted)
+        self.assertIn("poc_busy_bit", adapted)
+        self.assertIn("#ifdef CONFIG_SCHED_BORE", adapted)
+        self.assertIn("NO_HZ", adapted)
+
+
 if __name__ == "__main__":
     unittest.main()
