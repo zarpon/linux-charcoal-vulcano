@@ -226,7 +226,6 @@ struct task_struct {
 	/*
 """
         fair_source = """#include "pelt.h"
-#ifdef CONFIG_SMP
 
 static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);
 static unsigned long task_h_load(struct task_struct *p);
@@ -262,6 +261,12 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
         self.assertIn("poc_busy_bit", adapted)
         self.assertIn("#ifdef CONFIG_SCHED_BORE", adapted)
         self.assertIn("NO_HZ", adapted)
+        native_decl = (
+            '-static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);\n'
+            '+static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);\n'
+        )
+        self.assertIn(native_decl, adapted)
+        self.assertNotIn(' #include "pelt.h"\n #ifdef CONFIG_SMP\n', adapted)
 
 
 if __name__ == "__main__":
