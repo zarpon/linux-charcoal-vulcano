@@ -238,8 +238,10 @@ def sched_hunk(sched_header,field_block=FIELD_BLOCK):
         if len(matches)!=1: raise PortError(f"expected one Valve 7.2 NO_HZ/UCLAMP anchor, found {len(matches)}")
         m=matches[0]; line=sched_header.count("\n",0,m.start())+1
         before=m.group(1); after=m.group(2); old_count=before.count("\n")+after.count("\n")
-        added=field_block.count("\n")
-        return f"@@ -{line},{old_count} +{line},{old_count+added} @@ struct rq {{\n"+"".join(f" {x}" for x in before.splitlines(keepends=True))+"+\n"+field_block+"+\n"+"".join(f" {x}" for x in after.splitlines(keepends=True))
+        # The native POC hunk keeps the blank line before the field block as
+        # context and adds exactly one blank line after it.
+        added=field_block.count("\n")+1
+        return f"@@ -{line},{old_count} +{line},{old_count+added} @@ struct rq {{\n"+"".join(f" {x}" for x in before.splitlines(keepends=True))+field_block+"+\n"+"".join(f" {x}" for x in after.splitlines(keepends=True))
     matches=list(SCHED_ANCHOR_RE.finditer(sched_header))
     if len(matches)!=1: raise PortError(f"expected one Valve/BORE ttwu_pending anchor, found {len(matches)}")
     m=matches[0]; line=sched_header.count("\n",0,m.start())+1; lines=m.group(1).splitlines(keepends=True); added=field_block.count("\n")
