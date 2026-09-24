@@ -26,38 +26,38 @@ HUNK_RE = re.compile(r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? \+(?P<new
 IDLE_SIBLING_DECLARATION = "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);\n"
 IDLE_SIBLING_SYNC_DECLARATION = "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);\n"
 PELT_INCLUDE = ' #include "pelt.h"\n'
-VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\\n"
-INCLUDE_SCHED_SECTION_HEADER = "diff --git a/include/linux/sched.h b/include/linux/sched.h\\n"
+VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\n"
+INCLUDE_SCHED_SECTION_HEADER = "diff --git a/include/linux/sched.h b/include/linux/sched.h\n"
 CURRENT_POC_SYNC_ADDITIONS = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\\n"
-    "+/* Learned WF_SYNC honesty of a waker, see kernel/sched/fair.c */\\n"
-    "+struct poc_sync {\\n"
-    "+\\tu64\\t\\t\\t\\tmark;\\t\\t/* own exec at the pending sync wake + 1, 0 = none */\\n"
-    "+\\tu8\\t\\t\\t\\thist;\\t\\t/* last 8 resolved sync wakes, bit = 1: a lie */\\n"
-    "+\\tu8\\t\\t\\t\\texplore;\\t/* waker's-CPU verdicts since the last exploration */\\n"
-    "+\\tbool\\t\\t\\t\\ton_waker_cpu;\\t/* pending wake put its wakee on our CPU */\\n"
-    "+\\tbool\\t\\t\\t\\tnopreempt;\\t/* as a wakee: must not preempt its waker */\\n"
-    "+};\\n"
-    "+#endif\\n"
-    "+\\n"
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+/* Learned WF_SYNC honesty of a waker, see kernel/sched/fair.c */\n"
+    "+struct poc_sync {\n"
+    "+\tu64\t\t\t\tmark;\t\t/* own exec at the pending sync wake + 1, 0 = none */\n"
+    "+\tu8\t\t\t\thist;\t\t/* last 8 resolved sync wakes, bit = 1: a lie */\n"
+    "+\tu8\t\t\t\texplore;\t/* waker's-CPU verdicts since the last exploration */\n"
+    "+\tbool\t\t\t\ton_waker_cpu;\t/* pending wake put its wakee on our CPU */\n"
+    "+\tbool\t\t\t\tnopreempt;\t/* as a wakee: must not preempt its waker */\n"
+    "+};\n"
+    "+#endif\n"
+    "+\n"
 )
 CURRENT_POC_SLEEP_ADDITIONS = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\\n"
-    "+\\tif (flags & DEQUEUE_SLEEP)\\n"
-    "+\\t\\tpoc_sync_note_sleep(p);\\n"
-    "+#endif\\n"
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tif (flags & DEQUEUE_SLEEP)\n"
+    "+\t\tpoc_sync_note_sleep(p);\n"
+    "+#endif\n"
 )
 BORE_TASK_STRUCT_ANCHOR = (
-    "#endif /* CONFIG_SCHED_BORE */\\n"
-    "\\n"
-    "struct task_struct {\\n"
-    "#ifdef CONFIG_THREAD_INFO_IN_TASK\\n"
+    "#endif /* CONFIG_SCHED_BORE */\n"
+    "\n"
+    "struct task_struct {\n"
+    "#ifdef CONFIG_THREAD_INFO_IN_TASK\n"
 )
 BORE_DEQUEUE_ANCHOR = (
-    "\\tif (!p->se.sched_delayed)\\n"
-    "\\t\\tutil_est_dequeue(&rq->cfs, p);\\n"
-    "\\n"
-    "#ifdef CONFIG_SCHED_BORE\\n"
+    "\tif (!p->se.sched_delayed)\n"
+    "\t\tutil_est_dequeue(&rq->cfs, p);\n"
+    "\n"
+    "#ifdef CONFIG_SCHED_BORE\n"
 )
 
 class PortError(RuntimeError): pass
