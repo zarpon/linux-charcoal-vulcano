@@ -18,6 +18,7 @@ LEGACY_ADDITIONS = "+#ifdef CONFIG_SCHED_POC_SELECTOR\n+\tunsigned int\t\tpoc_id
 CURRENT_ADDITIONS = "+#ifdef CONFIG_SCHED_POC_SELECTOR\n+\tunsigned int\t\tpoc_idle_committed;\n+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n+#endif\n"
 FIELD_BLOCK = LEGACY_ADDITIONS
 SCHED_ANCHOR_RE = re.compile(r"(?m)^(#ifdef CONFIG_SMP\n\tunsigned int\t\tttwu_pending;\n#endif\n\tu64\t\t\tnr_switches;\n)")
+NATIVE_SCHED_ANCHOR_RE = re.compile(r"(?m)^(#ifdef CONFIG_NO_HZ_COMMON\n(?:.*\n)*?\tcall_single_data_t\tnohz_csd;\n#endif /\* CONFIG_NO_HZ_COMMON \*/\n\n)(#ifdef CONFIG_UCLAMP_TASK\n)")
 TTWU_CONTEXT_RE = re.compile(r"(?m)^[ \t]*unsigned int[ \t]+ttwu_pending;[ \t]*\n")
 NATIVE_72_NOHZ_CONTEXT_RE = re.compile(r"(?m)^ [ \t]*call_single_data_t[ \t]+nohz_csd;[ \t]*\n^ #endif /\* CONFIG_NO_HZ_COMMON \*/[ \t]*\n")
 NATIVE_72_UCLAMP_CONTEXT_RE = re.compile(r"(?m)^ #ifdef CONFIG_UCLAMP_TASK[ \t]*\n")
@@ -92,6 +93,13 @@ def adapt_idle_sibling_hunk(text,fair_source=None):
 
 def sched_hunk(sched_header,field_block=FIELD_BLOCK):
     if "poc_idle_committed" in sched_header: raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
+    if field_block == CURRENT_ADDITIONS:
+        matches=list(NATIVE_SCHED_ANCHOR_RE.finditer(sched_header))
+        if len(matches)!=1: raise PortError(f"expected one Valve 7.2 NO_HZ/UCLAMP anchor, found {len(matches)}")
+        m=matches[0]; line=sched_header.count("\n",0,m.start())+1
+        before=m.group(1); after=m.group(2); old_count=before.count("\n")+after.count("\n")
+        added=field_block.count("\n")
+        return f"@@ -{line},{old_count} +{line},{old_count+added} @@ struct rq {{\n"+"".join(f" {x}" for x in before.splitlines(keepends=True))+"+\n"+field_block+"+\n"+"".join(f" {x}" for x in after.splitlines(keepends=True))
     matches=list(SCHED_ANCHOR_RE.finditer(sched_header))
     if len(matches)!=1: raise PortError(f"expected one Valve/BORE ttwu_pending anchor, found {len(matches)}")
     m=matches[0]; line=sched_header.count("\n",0,m.start())+1; lines=m.group(1).splitlines(keepends=True); added=field_block.count("\n")
@@ -123,9 +131,10 @@ def adapt_patch(text,fair_source=None,sched_header=None):
     field=CURRENT_ADDITIONS if CURRENT_ADDITIONS in body else LEGACY_ADDITIONS
     adapted=text[:h]+text[n:]
     if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
-    # Both native 7.2 and legacy POC revisions are relocated against the actual
-    # post-BORE Valve tree. This keeps the exact locked upstream revision while
-    # avoiding stale native context after BORE changes sched.h/fair.c.
+    # Relocate only the reviewed field hunk against the actual post-BORE Valve
+    # tree. Native 7.2 keeps its upstream NO_HZ/UCLAMP placement; legacy POC
+    # keeps the historical ttwu_pending placement. This preserves the locked
+    # upstream revision without depending on stale pre-BORE line context.
     if sched_header is not None: adapted=insert_sched_hunk(adapted,sched_hunk(sched_header,field))
     return adapt_idle_sibling_hunk(adapted,fair_source)
 
