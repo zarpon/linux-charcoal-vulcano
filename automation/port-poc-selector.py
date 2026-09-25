@@ -156,18 +156,27 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
     if VALVE_SMP_GUARD in body:
         raise PortError("select_idle_sibling hunk already has a CONFIG_SMP guard")
 
+    # Prefer the upstream-native hunk unchanged. Valve 6.18.50-valve1 keeps
+    # this declaration in the same context as POC 3.0.0-rc2, even after BORE.
+    # Only use the older Valve CONFIG_SMP context port when the native context
+    # is absent. Ambiguous native context remains a hard failure.
+    if fair_source is not None:
+        try:
+            header = rebase_hunk_header(text[hunk:header_end], body, fair_source)
+            return text[:hunk] + header + body + text[hunk_end:]
+        except PortError as exc:
+            if str(exc) != (
+                "select_idle_sibling context does not match Valve/BORE fair.c"
+            ):
+                raise
+
     adapted_body = body.replace(PELT_INCLUDE, PELT_INCLUDE + VALVE_SMP_GUARD)
     if adapted_body == body:
         raise PortError("could not add the Valve CONFIG_SMP patch context")
     header = increment_hunk_context(text[hunk:header_end])
     if fair_source is not None:
         header = rebase_hunk_header(header, adapted_body, fair_source)
-    return (
-        text[:hunk]
-        + header
-        + adapted_body
-        + text[hunk_end:]
-    )
+    return text[:hunk] + header + adapted_body + text[hunk_end:]
 
 
 def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
