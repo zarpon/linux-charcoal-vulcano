@@ -48,6 +48,28 @@ CURRENT_POC_SLEEP_ADDITIONS = (
     "+\t\tpoc_sync_note_sleep(p);\n"
     "+#endif\n"
 )
+V300_WAKEE_WAITS_ADDITIONS = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tif (poc_sync_wakee_waits(rq, curr, p, wake_flags))\n"
+    "+\t\treturn;\n"
+    "+#endif\n"
+)
+V300_NATIVE_WAKEUP_PREFIX = (
+    " \tif (p->sched_class != &fair_sched_class)\n"
+    " \t\treturn;\n"
+    " \n"
+)
+V300_BORE_WAKEUP_PREFIX = (
+    "\tif (p->sched_class != &fair_sched_class ||\n"
+    "\t    donor->sched_class != &fair_sched_class)\n"
+    "\t\treturn;\n"
+    "\n"
+)
+V300_WAKEUP_SUFFIX = (
+    "\tif (unlikely(se == pse))\n"
+    "\t\treturn;\n"
+    "\n"
+)
 V300_REQUIRED = (
     "Subject: [PATCH] 7.2-rc1-poc-selector-v3.0.0",
     "+\tu16\t\t\t\thist;\t\t/* last 16 resolved sync wakes, bit = 1: a lie */",
@@ -198,6 +220,46 @@ def adapt_native_72_fair_overlap(text, fair_source):
     return text[:hunk] + replacement + text[hunk_end:]
 
 
+def patch_context(source):
+    return "".join(f" {line}" for line in source.splitlines(keepends=True))
+
+
+def adapt_native_72_v300_wakeup_overlap(text, fair_source):
+    hunk, header_end, hunk_end, body = reviewed_addition_hunk(
+        text,
+        FAIR_SECTION_HEADER,
+        V300_WAKEE_WAITS_ADDITIONS,
+        "native 7.2 POC 3.0.0 wakee-waits",
+    )
+    expected = (
+        V300_NATIVE_WAKEUP_PREFIX
+        + V300_WAKEE_WAITS_ADDITIONS
+        + patch_context(V300_WAKEUP_SUFFIX)
+    ).removesuffix("\n")
+    if body != expected:
+        raise PortError("native 7.2 POC 3.0.0 wakee-waits hunk changed upstream")
+
+    anchor = V300_BORE_WAKEUP_PREFIX + V300_WAKEUP_SUFFIX
+    old_start = unique_anchor_line(
+        fair_source, anchor, "BORE wakeup_preempt_fair class guard"
+    )
+    header = text[hunk:header_end]
+    match = HUNK_RE.match(header)
+    if not match:
+        raise PortError("native 7.2 POC 3.0.0 wakee-waits header changed upstream")
+    delta = hunk_delta(header)
+    old_count = anchor.count("\n")
+    added = V300_WAKEE_WAITS_ADDITIONS.count("\n")
+    replacement = (
+        f"@@ -{old_start},{old_count} +{old_start + delta},{old_count + added} @@"
+        f"{match.group('context')}"
+        + patch_context(V300_BORE_WAKEUP_PREFIX)
+        + V300_WAKEE_WAITS_ADDITIONS
+        + patch_context(V300_WAKEUP_SUFFIX).removesuffix("\n")
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
+
+
 def rebase_hunk_header(header,body,source):
     m=HUNK_RE.match(header)
     if not m: raise PortError("select_idle_sibling hunk header changed upstream")
@@ -291,7 +353,12 @@ def sched_hunk(sched_header,field_block=FIELD_BLOCK):
 
 def insert_sched_hunk(text,header):
     s,e=section_bounds(text,SECTION_HEADER,"kernel/sched/sched.h"); first=text.find("@@ ",s,e)
-    if first<0: raise PortError("POC patch has no remaining kernel/sched/sched.h hunk")
+    if first<0:
+        marker="+++ b/kernel/sched/sched.h\n"
+        marker_at=text.find(marker,s,e)
+        if marker_at<0 or text.find(marker,marker_at+1,e)>=0:
+            raise PortError("POC patch has no unambiguous kernel/sched/sched.h header")
+        first=marker_at+len(marker)
     return text[:first]+header+text[first:]
 
 def is_native_72_sched_context(body): return bool(NATIVE_72_NOHZ_CONTEXT_RE.search(body) and NATIVE_72_UCLAMP_CONTEXT_RE.search(body))
@@ -313,21 +380,21 @@ def reviewed_sched_field_hunk(text,s,e):
 def adapt_patch(text, fair_source=None, sched_header=None, include_source=None):
     s,e=section_bounds(text,SECTION_HEADER,"kernel/sched/sched.h"); h,n,body=reviewed_sched_field_hunk(text,s,e)
     field=CURRENT_ADDITIONS if CURRENT_ADDITIONS in body else LEGACY_ADDITIONS
-    adapted=text[:h]+text[n:]
-    if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
 
-    # Preserve the locked native 7.2 POC revision. BORE overlaps exactly two
-    # unrelated source contexts: the poc_sync type insertion and the
-    # DEQUEUE_SLEEP hook. Rebase only those exact reviewed hunks.
+    # Preserve the locked native 7.2 POC revision. The 3.0.0 overlap is the
+    # wakeup class guard; older reviewed layouts overlap the poc_sync type
+    # insertion and DEQUEUE_SLEEP hook. Rebase only those exact hunks.
     if field == CURRENT_ADDITIONS and is_native_72_sched_context(body):
         if V300_REQUIRED[0] in text:
             validate_v300_shape(text)
             if sched_header is None and fair_source is None and include_source is None:
                 return text
-            raise PortError(
-                "native 7.2 POC 3.0.0 did not apply cleanly to the post-patch tree; "
-                "refusing to rewrite unreviewed hunks"
-            )
+            if fair_source is None:
+                raise PortError("native 7.2 POC 3.0.0 adaptation requires fair.c")
+            return adapt_native_72_v300_wakeup_overlap(text, fair_source)
+
+        adapted=text[:h]+text[n:]
+        if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
 
         reviewed_addition_hunk(
             text, INCLUDE_SCHED_SECTION_HEADER, CURRENT_POC_SYNC_ADDITIONS,
@@ -350,6 +417,8 @@ def adapt_patch(text, fair_source=None, sched_header=None, include_source=None):
         return adapt_idle_sibling_hunk(adapted,fair_source)
 
     # Reviewed compatibility path for older POC layouts.
+    adapted=text[:h]+text[n:]
+    if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
     if sched_header is not None: adapted=insert_sched_hunk(adapted,sched_hunk(sched_header,field))
     return adapt_idle_sibling_hunk(adapted,fair_source)
 
@@ -368,7 +437,7 @@ def main():
         patch_text=a.patch.read_text(encoding="utf-8")
         native_ok, native_error = native_patch_applies(tree_root, a.patch.resolve())
         if native_ok:
-            a.output.write_text(patch_text, encoding="utf-8")
+            a.output.write_text(patch_text, encoding="utf-8", newline="\n")
             print("Locked native POC patch applies cleanly after prior Valve/BORE patches; no port required")
             return
 
@@ -388,5 +457,5 @@ def main():
             else ""
         )
         raise SystemExit(f"POC Valve port failed: {exc}{detail}") from exc
-    a.output.write_text(out,encoding="utf-8"); print("Prepared the locked upstream POC patch by porting only reviewed Valve/BORE overlap hunks")
+    a.output.write_text(out,encoding="utf-8",newline="\n"); print("Prepared the locked upstream POC patch by porting only reviewed Valve/BORE overlap hunks")
 if __name__=="__main__": main()

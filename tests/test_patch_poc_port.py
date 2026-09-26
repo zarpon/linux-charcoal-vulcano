@@ -152,6 +152,7 @@ class PocPortTests(unittest.TestCase):
             )
 
             self.assertEqual(sched_header.read_bytes(), before)
+            self.assertNotIn(b"\r\n", output.read_bytes())
             self.assertIn("poc_idle_committed", output.read_text(encoding="utf-8"))
 
 
@@ -225,7 +226,8 @@ struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
 """
-        fair_source = """#include "pelt.h"
+        fair_source = """
+#include "pelt.h"
 
 static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);
 static unsigned long task_h_load(struct task_struct *p);
@@ -267,6 +269,31 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
         )
         self.assertIn(native_decl, adapted)
         self.assertNotIn(' #include "pelt.h"\n #ifdef CONFIG_SMP\n', adapted)
+
+    def test_v300_ports_only_wakeup_class_guard_overlap(self) -> None:
+        before = (
+            module.FAIR_SECTION_HEADER
+            + "--- a/kernel/sched/fair.c\n+++ b/kernel/sched/fair.c\n"
+            + "@@ -9781,6 +9871,10 @@ static void wakeup_preempt_fair\n"
+        )
+        body = (
+            module.V300_NATIVE_WAKEUP_PREFIX
+            + module.V300_WAKEE_WAITS_ADDITIONS
+            + module.patch_context(module.V300_WAKEUP_SUFFIX)
+        )
+        after = "diff --git a/kernel/sched/idle.c b/kernel/sched/idle.c\n"
+        patch = before + body + after
+        source = module.V300_BORE_WAKEUP_PREFIX + module.V300_WAKEUP_SUFFIX
+        adapted = module.adapt_native_72_v300_wakeup_overlap(patch, source)
+        self.assertEqual(adapted.count(module.V300_WAKEE_WAITS_ADDITIONS), 1)
+        self.assertIn(module.patch_context(module.V300_BORE_WAKEUP_PREFIX), adapted)
+        self.assertTrue(adapted.endswith(after))
+        with self.assertRaises(module.PortError):
+            module.adapt_native_72_v300_wakeup_overlap(patch, source + source)
+        with self.assertRaises(module.PortError):
+            module.adapt_native_72_v300_wakeup_overlap(
+                patch.replace("+\t\treturn;", "+\t\treturn false;"), source
+            )
 
 
 if __name__ == "__main__":
