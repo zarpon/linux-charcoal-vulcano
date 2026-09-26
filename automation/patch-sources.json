@@ -320,16 +320,6 @@
       "always_latest": true
     },
     {
-      "name": "ath11k_disable_key",
-      "kind": "http_patch",
-      "target": "latest-ath11k-disable-key.patch",
-      "source_regex": "https://git\\.codelinaro\\.org/.+/350-ath11k-Revert-clear-the-keys-properly-when-DISABLE_K\\.patch",
-      "urls": [
-        "https://git.codelinaro.org/clo/qsdk/oss/system/feeds/wlan-open/-/raw/win.wlan_host_opensource.3.0.r24/patches/ath11k/350-ath11k-Revert-clear-the-keys-properly-when-DISABLE_K.patch",
-        "https://git.infobricfleet.com/gtu/openwrt/-/raw/95341cc9c560ff371c06db2a8221d19bb62d0c30/package/kernel/mac80211/patches/ath11k/940-ath11k-Revert-clear-the-keys-properly-when-DISABLE_K.patch"
-      ]
-    },
-    {
       "name": "ath11k_upstream",
       "kind": "http_patch",
       "target": "latest-ath11k-upstream.patch",
