@@ -36,7 +36,7 @@ UPSTREAM_FILES = {
 
 
 class LruLatestPortTests(unittest.TestCase):
-    def test_all_25_project_files_match_newest_upstream_not_older_glue(self):
+    def project_files(self):
         patch = (ROOT / "6.16.12-lru-marie-0.11.1r2.port.patch").read_text(encoding="utf-8")
         found = {}
         for block in re.split(r"(?m)(?=^diff --git )", patch):
@@ -53,8 +53,52 @@ class LruLatestPortTests(unittest.TestCase):
                 elif line.startswith("-- "):
                     break
             self.assertNotIn(path, found)
-            found[path] = hashlib.sha256(("\n".join(lines) + "\n").encode()).hexdigest()
+            found[path] = "\n".join(lines) + "\n"
+        return found
+
+    def test_all_25_project_files_match_newest_upstream_except_target_api_glue(self):
+        found = self.project_files()
+        # Only this target API adaptation is permitted; normalize it back to
+        # the authenticated r2 payload before checking all 25 upstream hashes.
+        path = "mm/lru_marie/state_compat.h"
+        for target, upstream in (
+            ("Valve 6.16 already has shrink_folio_list()'s trailing @memcg (the scan is",
+             "shrink_folio_list() gained a trailing @memcg parameter in 6.18 (the scan is"),
+            ("does not forward it on the pre-6.16 signature.",
+             "does not forward it on the pre-6.18 signature."),
+            ("{\n#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)\n\treturn shrink_folio_list",
+             "{\n#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)\n\treturn shrink_folio_list"),
+        ):
+            self.assertEqual(found[path].count(target), 1)
+            found[path] = found[path].replace(target, upstream)
+        found = {path: hashlib.sha256(body.encode()).hexdigest()
+                 for path, body in found.items()}
         self.assertEqual(found, UPSTREAM_FILES)
+
+    def test_valve_616_reclaim_wrapper_forwards_native_memcg_argument(self):
+        # Signature from Valve 6.16.12-valve28 at 9f266e6d1b267bafcc016d2a05c04f573c6275b3,
+        # mm/vmscan.c; it already has the sixth argument before any patches.
+        native = ("struct list_head *folio_list, struct pglist_data *pgdat, "
+                  "struct scan_control *sc, struct reclaim_stat *stat, "
+                  "bool ignore_references, struct mem_cgroup *memcg")
+        patch = (ROOT / "6.16.12-lru-marie-0.11.1r2.port.patch").read_text(encoding="utf-8")
+        declaration = re.search(r"\+unsigned int shrink_folio_list\((.*?)\);", patch, re.S)
+        self.assertIsNotNone(declaration)
+        self.assertEqual(" ".join(declaration[1].replace("\n+", " ").split()), native)
+        header = self.project_files()["mm/lru_marie/state_compat.h"]
+        wrapper = header.split("marie_shrink_folio_list(", 1)[1].split("\n}", 1)[0]
+        gate = re.search(r"#if LINUX_VERSION_CODE >= KERNEL_VERSION\((\d+), (\d+), (\d+)\)", wrapper)
+        self.assertIsNotNone(gate)
+        branches = wrapper.split(gate[0], 1)[1].split("#else", 1)
+        native_arity = len(native.split(","))
+        for version in ((6, 16, 12), (6, 18, 50), (7, 3, 0)):
+            selected = branches[0] if version >= tuple(map(int, gate.groups())) else branches[1]
+            call = re.search(r"return shrink_folio_list\((.*?)\);", selected, re.S)[1]
+            self.assertEqual(len(call.split(",")), native_arity)
+            self.assertEqual(call.split(",")[-1].strip(), "memcg")
+        # Reproduce the old gate's deterministic failure on the exact target.
+        old_call = re.search(r"return shrink_folio_list\((.*?)\);", branches[1], re.S)[1]
+        self.assertEqual(len(old_call.split(",")), native_arity - 1)
 
 
 if __name__ == "__main__":

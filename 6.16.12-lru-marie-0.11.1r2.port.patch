@@ -8045,17 +8045,17 @@ index 0000000000..0eb587eec4
 +#endif
 +
 +/*
-+ * shrink_folio_list() gained a trailing @memcg parameter in 6.18 (the scan is
++ * Valve 6.16 already has shrink_folio_list()'s trailing @memcg (the scan is
 + * told which memcg it is reclaiming for).  Marie always has the memcg in hand
 + * at the call site, so the uniform wrapper takes it unconditionally and simply
-+ * does not forward it on the pre-6.18 signature.
++ * does not forward it on the pre-6.16 signature.
 + */
 +static inline unsigned int
 +marie_shrink_folio_list(struct list_head *folio_list, struct pglist_data *pgdat,
 +			struct scan_control *sc, struct reclaim_stat *stat,
 +			bool ignore_references, struct mem_cgroup *memcg)
 +{
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
 +	return shrink_folio_list(folio_list, pgdat, sc, stat, ignore_references,
 +				 memcg);
 +#else
