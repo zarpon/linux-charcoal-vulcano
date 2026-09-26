@@ -49,6 +49,45 @@ IDLE_SIBLING_SYNC_DECLARATION = (
 )
 PELT_INCLUDE = ' #include "pelt.h"\n'
 VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\n"
+V300_SLEEP_HOOK = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tif (flags & DEQUEUE_SLEEP)\n"
+    "+\t\tpoc_sync_note_sleep(rq, p);\n"
+    "+#endif\n"
+)
+V300_SLEEP_CONTEXT = (
+    " \t\treturn true;\n"
+    " \t}\n"
+    " \n"
+    + V300_SLEEP_HOOK
+    + " \tif (!p->se.sched_delayed)\n"
+    " \t\tutil_est_dequeue(&rq->cfs, p);\n"
+    " \n"
+)
+VALVE_DEQUEUE_ANCHOR = (
+    "static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)\n"
+    "{\n"
+    "\tif (!p->se.sched_delayed)\n"
+    "\t\tutil_est_dequeue(&rq->cfs, p);\n"
+    "\n"
+)
+V300_WAKEUP_BODY = (
+    " \tstruct cfs_rq *cfs_rq = task_cfs_rq(donor);\n"
+    " \tint cse_is_idle, pse_is_idle;\n"
+    " \tbool do_preempt_short = false;\n"
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\t/* the task running here, the waker if this is a local sync wake */\n"
+    "+\tstruct task_struct *curr = rq->curr;\n"
+    "+#endif\n"
+    " \n"
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tif (poc_sync_wakee_waits(rq, curr, p, wake_flags))\n"
+    "+\t\treturn;\n"
+    "+#endif\n"
+    " \tif (unlikely(se == pse))\n"
+    " \t\treturn;\n"
+    " "
+)
 
 
 class PortError(RuntimeError):
@@ -163,6 +202,78 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
     )
 
 
+def adapt_v300_sleep_hunk(text: str, fair_source: str | None) -> str:
+    if "Subject: [PATCH] 6.18.3-poc-selector-v3.0.0" not in text:
+        return text
+    start, end = section_bounds(text, FAIR_SECTION_HEADER, "kernel/sched/fair.c")
+    candidate = None
+    hunk = text.find("@@ ", start, end)
+    while hunk >= 0:
+        header_end = text.find("\n", hunk, end) + 1
+        hunk_end = next_hunk_end(text, hunk, end)
+        body = text[header_end:hunk_end]
+        if V300_SLEEP_HOOK in body:
+            if candidate is not None or body != V300_SLEEP_CONTEXT:
+                raise PortError("POC 3.0.0 sleep hook context changed upstream")
+            candidate = (hunk, header_end, hunk_end)
+        hunk = text.find("@@ ", hunk_end, end)
+    if candidate is None:
+        raise PortError("reviewed POC 3.0.0 sleep hook was not found")
+    if fair_source is None:
+        return text
+    offset = fair_source.find(VALVE_DEQUEUE_ANCHOR)
+    if offset < 0 or fair_source.find(VALVE_DEQUEUE_ANCHOR, offset + 1) >= 0:
+        raise PortError("POC sleep hook requires one exact Valve dequeue_task_fair anchor")
+    hunk, header_end, hunk_end = candidate
+    match = HUNK_RE.match(text[hunk:header_end])
+    if match is None:
+        raise PortError("POC sleep hook header changed upstream")
+    line = fair_source.count("\n", 0, offset) + 1
+    delta = int(match.group("new_start")) - int(match.group("old_start"))
+    context = VALVE_DEQUEUE_ANCHOR.splitlines(keepends=True)
+    replacement = (
+        f"@@ -{line},5 +{line + delta},9 @@\n"
+        + "".join(f" {item}" for item in context[:2])
+        + V300_SLEEP_HOOK
+        + "".join(f" {item}" for item in context[2:])
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
+
+
+def adapt_v300_wakeup_hunk(text: str, fair_source: str | None) -> str:
+    if "Subject: [PATCH] 6.18.3-poc-selector-v3.0.0" not in text:
+        return text
+    start, end = section_bounds(text, FAIR_SECTION_HEADER, "kernel/sched/fair.c")
+    hunk = text.find("@@ ", start, end)
+    candidate = None
+    while hunk >= 0:
+        header_end = text.find("\n", hunk, end) + 1
+        hunk_end = next_hunk_end(text, hunk, end)
+        body = text[header_end:hunk_end]
+        if "+\tif (poc_sync_wakee_waits(rq, curr, p, wake_flags))\n" in body:
+            if candidate is not None or body != V300_WAKEUP_BODY:
+                raise PortError("POC 3.0.0 wakeup hook context changed upstream")
+            candidate = (hunk, header_end, hunk_end, body)
+        hunk = text.find("@@ ", hunk_end, end)
+    if candidate is None:
+        raise PortError("reviewed POC 3.0.0 wakeup hook was not found")
+    if fair_source is None:
+        return text
+    hunk, header_end, hunk_end, body = candidate
+    # Valve 6.16 has no do_preempt_short local at this hook. Preserve every
+    # POC addition and rebase only the exact obsolete context line.
+    body = body.replace(" \tbool do_preempt_short = false;\n", "", 1)
+    match = HUNK_RE.match(text[hunk:header_end])
+    if match is None:
+        raise PortError("POC wakeup hook header changed upstream")
+    header = (
+        f"@@ -{match.group('old_start')},6 +{match.group('new_start')},14 @@"
+        f"{match.group('context')}"
+    )
+    header = rebase_hunk_header(header, body, fair_source)
+    return text[:hunk] + header + body + text[hunk_end:]
+
+
 def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
     if "poc_idle_committed" in sched_header:
         raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
@@ -225,7 +336,9 @@ def adapt_patch(
         raise PortError("rq::poc_idle_committed hunk remains in sched.h")
     if sched_header is not None:
         adapted = insert_sched_hunk(adapted, sched_hunk(sched_header, field_block))
-    return adapt_idle_sibling_hunk(adapted, fair_source)
+    adapted = adapt_idle_sibling_hunk(adapted, fair_source)
+    adapted = adapt_v300_sleep_hunk(adapted, fair_source)
+    return adapt_v300_wakeup_hunk(adapted, fair_source)
 
 
 def main() -> None:
@@ -266,7 +379,7 @@ def main() -> None:
     except (UnicodeDecodeError, PortError) as exc:
         raise SystemExit(f"POC Valve port failed: {exc}") from exc
 
-    args.output.write_text(adapted_patch, encoding="utf-8")
+    args.output.write_text(adapted_patch, encoding="utf-8", newline="\n")
     print(
         "Prepared the locked upstream POC port with an atomic Valve/BORE "
         "ttwu_pending hunk and exact CONFIG_SMP context"
