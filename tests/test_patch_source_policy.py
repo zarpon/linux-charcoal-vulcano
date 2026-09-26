@@ -44,6 +44,32 @@ def source_lines(text: str) -> list[str]:
 
 
 class PatchSourcePolicyTests(unittest.TestCase):
+    def test_removed_ath11k_download_is_not_resolved_or_applied(self) -> None:
+        self.assertNotIn("ath11k_disable_key", {item["name"] for item in components()})
+        self.assertNotIn("latest-ath11k-disable-key.patch", source_lines(PKGBUILD))
+        self.assertNotIn("git.codelinaro.org", json.dumps(MANIFEST))
+        # Keep the other ath11k fixes, in their established order.
+        lines = source_lines(PKGBUILD)
+        self.assertLess(
+            lines.index("latest-ath11k-remapped-ce.patch"),
+            lines.index("latest-ath11k-upstream.patch"),
+        )
+        names = {item["name"] for item in components()}
+        self.assertTrue({"ath11k_remapped_ce", "ath11k_upstream"} <= names)
+
+    def test_source_and_checksum_arrays_remain_aligned(self) -> None:
+        start, end = resolver.find_array_bounds(PKGBUILD, "sha256sums")
+        checksums = [
+            line.strip().strip("'")
+            for line in PKGBUILD[start:end].splitlines()[1:-1]
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(len(source_lines(PKGBUILD)), len(checksums))
+        self.assertTrue(all(
+            value == "SKIP" or re.fullmatch(r"[0-9a-f]{64}", value)
+            for value in checksums
+        ))
+
     def test_manifest_names_targets_and_source_matchers_are_unique(self) -> None:
         items = components()
         self.assertEqual(len({item["name"] for item in items}), len(items))

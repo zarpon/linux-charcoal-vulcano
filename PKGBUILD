@@ -100,7 +100,6 @@ source=(
   latest-minstrel-fluctuation.patch
   latest-minstrel-downgrade.patch
   latest-ath11k-remapped-ce.patch
-  latest-ath11k-disable-key.patch
   latest-ath11k-upstream.patch
   latest-adios.patch
   latest-adios-default.patch
@@ -145,8 +144,6 @@ sha256sums=(
   'SKIP'
   '4bcf61814a6daac8f72c46a425b9ce88c07f6bd95f6a0ac287d73dfd4d5da60b'
   'ff3bbe78d6f072d57f567878e870956242ee78ccddd258b1ec2e4729621138fe'
-  'SKIP'
-  'SKIP'
   'SKIP'
   'SKIP'
   'SKIP'
