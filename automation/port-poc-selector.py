@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 from pathlib import Path
 
 SECTION_HEADER = "diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h\n"
@@ -47,6 +48,22 @@ CURRENT_POC_SLEEP_ADDITIONS = (
     "+\t\tpoc_sync_note_sleep(p);\n"
     "+#endif\n"
 )
+V300_REQUIRED = (
+    "Subject: [PATCH] 7.2-rc1-poc-selector-v3.0.0",
+    "+\tu16\t\t\t\thist;\t\t/* last 16 resolved sync wakes, bit = 1: a lie */",
+    "+\tu16\t\t\t\tchain;\t\t/* same 16, bit = 1: more sync wakes joined it */",
+    "+\tu8\t\t\t\tlie_log2;\t/* log2 of how long a lie ran on, in ns, rounded up */",
+    "+\tu8\t\t\t\ton_waker_cpu:1;",
+    "+\tu8\t\t\t\tsampled:1;",
+    "+\tu8\t\t\t\tjoined:1;",
+    "+\tu8\t\t\t\texplore:4;",
+    "+#define POC_SYNC_INIT\t((struct poc_sync){ .hist = 0xffff, .lie_log2 = 14 })",
+    "+\tstruct poc_sync\t\t\tpoc_sync;",
+    "+\tp->poc_sync = POC_SYNC_INIT;",
+    "+\t\tpoc_sync_note_sleep(rq, p);",
+    "+static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);",
+)
+
 BORE_TASK_STRUCT_ANCHOR = (
     "#endif /* CONFIG_SCHED_BORE */\n"
     "\n"
@@ -203,6 +220,31 @@ def reviewed_idle_sibling_hunk(text):
     if candidate is None: raise PortError("reviewed select_idle_sibling hunk was not found")
     return candidate
 
+def validate_v300_shape(text):
+    missing = [item for item in V300_REQUIRED if text.count(item) != 1]
+    if missing:
+        raise PortError(
+            "native 7.2 POC 3.0.0 shape changed: "
+            f"{len(missing)} required markers missing or non-unique"
+        )
+    if "+\tbool\t\t\t\tnopreempt;" in text or "+\t\tpoc_sync_note_sleep(p);" in text:
+        raise PortError("old POC sync layout is mixed into native POC 3.0.0")
+
+
+def native_patch_applies(tree_root, patch_path):
+    if not (tree_root / ".git").exists():
+        return False, "target is not a git worktree"
+    for recount in (False, True):
+        command = ["git", "-C", str(tree_root), "apply", "--check"]
+        if recount:
+            command.append("--recount")
+        command.append(str(patch_path))
+        result = subprocess.run(command, check=False, text=True, capture_output=True)
+        if result.returncode:
+            return False, result.stderr.strip() or result.stdout.strip()
+    return True, ""
+
+
 def adapt_idle_sibling_hunk(text,fair_source=None):
     h,he,hend,body=reviewed_idle_sibling_hunk(text)
     if body.count(PELT_INCLUDE)!=1: raise PortError("select_idle_sibling hunk no longer has one pelt.h anchor")
@@ -278,6 +320,15 @@ def adapt_patch(text, fair_source=None, sched_header=None, include_source=None):
     # unrelated source contexts: the poc_sync type insertion and the
     # DEQUEUE_SLEEP hook. Rebase only those exact reviewed hunks.
     if field == CURRENT_ADDITIONS and is_native_72_sched_context(body):
+        if V300_REQUIRED[0] in text:
+            validate_v300_shape(text)
+            if sched_header is None and fair_source is None and include_source is None:
+                return text
+            raise PortError(
+                "native 7.2 POC 3.0.0 did not apply cleanly to the post-patch tree; "
+                "refusing to rewrite unreviewed hunks"
+            )
+
         reviewed_addition_hunk(
             text, INCLUDE_SCHED_SECTION_HEADER, CURRENT_POC_SYNC_ADDITIONS,
             "native 7.2 poc_sync"
@@ -314,12 +365,28 @@ def main():
     tree_root=sched_path.parents[2]
     include_path=tree_root/"include/linux/sched.h"
     try:
+        patch_text=a.patch.read_text(encoding="utf-8")
+        native_ok, native_error = native_patch_applies(tree_root, a.patch.resolve())
+        if native_ok:
+            a.output.write_text(patch_text, encoding="utf-8")
+            print("Locked native POC patch applies cleanly after prior Valve/BORE patches; no port required")
+            return
+
+        include_source = (
+            include_path.read_text(encoding="utf-8") if include_path.is_file() else None
+        )
         out=adapt_patch(
-            a.patch.read_text(encoding="utf-8"),
+            patch_text,
             a.fair_source.read_text(encoding="utf-8"),
             a.sched_header.read_text(encoding="utf-8"),
-            include_path.read_text(encoding="utf-8"),
+            include_source,
         )
-    except (UnicodeDecodeError,OSError,PortError) as exc: raise SystemExit(f"POC Valve port failed: {exc}") from exc
+    except (UnicodeDecodeError,OSError,PortError) as exc:
+        detail = (
+            f"; native check: {native_error}"
+            if "native_error" in locals() and native_error
+            else ""
+        )
+        raise SystemExit(f"POC Valve port failed: {exc}{detail}") from exc
     a.output.write_text(out,encoding="utf-8"); print("Prepared the locked upstream POC patch by porting only reviewed Valve/BORE overlap hunks")
 if __name__=="__main__": main()
