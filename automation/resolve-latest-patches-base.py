@@ -787,7 +787,7 @@ def main() -> int:
     updated = replace_source_entries(updated, all_components, replacements)
     updated = replace_sha_array_with_skip(updated)
     if args.write:
-        pkgbuild_path.write_text(updated, encoding="utf-8")
+        pkgbuild_path.write_text(updated, encoding="utf-8", newline="\n")
 
     lock_path = root / args.lock
     lock_path.parent.mkdir(parents=True, exist_ok=True)

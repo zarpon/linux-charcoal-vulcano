@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import sys
@@ -27,6 +28,7 @@ TRACKED_VERSIONED = {
     "nap",
 }
 TRACKED_LOCAL_BYTES = {
+    "lru_marie",
     "zram_ir",
     "adios",
     "bore",
@@ -79,7 +81,12 @@ def main() -> int:
     }
 
     failures: list[str] = []
-    for name in sorted(TRACKED_VERSIONED):
+    versioned_names = {
+        name for name, spec in specs.items()
+        if spec.get("kind", "github_tree") == "github_tree"
+        and spec.get("project_version_regex")
+    }
+    for name in sorted(versioned_names):
         spec = specs[name]
         candidates = resolver.upstream_candidates(spec, kernel_version, token)
         versioned = [item for item in candidates if item.project_version]
@@ -89,7 +96,7 @@ def main() -> int:
         latest = max(versioned, key=resolver.latest_key)
         latest_version = str(latest.project_version)
         selected_version = selected_project_version(locked[name])
-        if resolver.version_key(selected_version) != resolver.version_key(latest_version):
+        if resolver.project_version_key(selected_version) != resolver.project_version_key(latest_version):
             failures.append(
                 f"{name}: selected {selected_version or 'unknown'} but upstream latest is "
                 f"{latest_version} ({latest.path})"
@@ -99,6 +106,28 @@ def main() -> int:
                 f"{name}: latest project version {latest_version} confirmed; "
                 f"selected={selected_version}; newest_path={latest.path}"
             )
+
+    # Check every tree-backed family, not only the six named projects. This
+    # also detects same-version upstream edits and current native path drift.
+    for name, spec in sorted(specs.items()):
+        if spec.get("kind", "github_tree") != "github_tree":
+            continue
+        fresh = resolver.resolve_component(spec, kernel_version, token, ROOT)
+        expected = locked[name]
+        data = fresh.get("content_bytes")
+        if data is None:
+            data = resolver.request_bytes(fresh["url"], token)
+        digest = hashlib.sha256(data).hexdigest()
+        current_source = fresh.get("upstream", fresh)
+        locked_source = expected.get("upstream", expected)
+        for key in ("commit", "path", "url"):
+            if current_source.get(key) != locked_source.get(key):
+                failures.append(f"{name}: current upstream {key} differs from lock")
+        if digest != expected.get("sha256"):
+            failures.append(f"{name}: freshly resolved patch bytes differ from lock")
+        if fresh.get("upstream_sha256") != expected.get("upstream_sha256"):
+            failures.append(f"{name}: adapted source checksum differs from lock")
+        print(f"{name}: complete current upstream source and payload audited")
 
     for name in sorted(TRACKED_LOCAL_BYTES):
         item = locked[name]

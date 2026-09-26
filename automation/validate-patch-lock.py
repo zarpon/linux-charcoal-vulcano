@@ -66,6 +66,12 @@ def validate_record(name: str, spec: dict[str, Any], record: dict[str, Any]) -> 
             raise ValidationError(
                 f"{name}: adaptive port adapter differs from the manifest"
             )
+        if adaptive_port == "adios-valve-616":
+            source_digest = record.get("upstream_sha256")
+            if not isinstance(source_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", source_digest):
+                raise ValidationError(f"{name}: adapted ADIOS has no upstream SHA-256")
+            if not isinstance(record.get("upstream_size"), int) or record["upstream_size"] <= 0:
+                raise ValidationError(f"{name}: adapted ADIOS has no upstream size")
 
     if local_port:
         if record.get("origin") != "local-port":

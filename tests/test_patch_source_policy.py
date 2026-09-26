@@ -235,6 +235,7 @@ class PatchSourcePolicyTests(unittest.TestCase):
                 os.chdir(previous)
 
             lock = json.loads((root / "logs/patch-lock.json").read_text())
+            self.assertNotIn(b"\r\n", (root / "PKGBUILD").read_bytes())
             self.assertEqual(lock["schema"], 3)
             self.assertEqual(
                 set(lock["components"]),
