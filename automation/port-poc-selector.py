@@ -102,7 +102,11 @@ def section_bounds(text: str, header: str, description: str) -> tuple[int, int]:
 
 def next_hunk_end(text: str, hunk: int, section_end: int) -> int:
     next_hunk = text.find("\n@@ ", hunk + 1, section_end)
-    return section_end if next_hunk < 0 else next_hunk + 1
+    if next_hunk >= 0:
+        return next_hunk + 1
+    if section_end < len(text) and text.startswith("\ndiff --git ", section_end):
+        return section_end + 1
+    return section_end
 
 
 def increment_hunk_context(header: str) -> str:
@@ -453,14 +457,18 @@ def main() -> None:
         parser.error("output, sched_header and fair_source are required unless --validate is used")
 
     try:
-        core_source = args.fair_source.with_name("core.c")
-        if not core_source.is_file():
-            raise PortError(f"missing sibling Valve source: {core_source}")
+        patch_text = args.patch.read_text(encoding="utf-8")
+        core_text = None
+        if "poc_sync" in patch_text:
+            core_source = args.fair_source.with_name("core.c")
+            if not core_source.is_file():
+                raise PortError(f"missing sibling Valve source: {core_source}")
+            core_text = core_source.read_text(encoding="utf-8")
         adapted_patch = adapt_patch(
-            args.patch.read_text(encoding="utf-8"),
+            patch_text,
             args.fair_source.read_text(encoding="utf-8"),
             args.sched_header.read_text(encoding="utf-8"),
-            core_source.read_text(encoding="utf-8"),
+            core_text,
         )
     except (UnicodeDecodeError, PortError) as exc:
         raise SystemExit(f"POC Valve port failed: {exc}") from exc
