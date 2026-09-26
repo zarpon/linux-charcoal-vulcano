@@ -18,16 +18,18 @@ from pathlib import Path
 
 SECTION_HEADER = "diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h\n"
 FAIR_SECTION_HEADER = "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\n"
-EXPECTED_ADDITIONS = (
+LEGACY_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tunsigned int\t\tpoc_idle_committed;\n"
     "+#endif\n"
 )
-FIELD_BLOCK = (
+CURRENT_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tunsigned int\t\tpoc_idle_committed;\n"
+    "+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n"
     "+#endif\n"
 )
+FIELD_BLOCK = LEGACY_ADDITIONS
 SCHED_ANCHOR_RE = re.compile(
     r"(?m)^(#ifdef CONFIG_SMP\n"
     r"\tunsigned int\t\tttwu_pending;\n"
@@ -161,7 +163,7 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
     )
 
 
-def sched_hunk(sched_header: str) -> str:
+def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
     if "poc_idle_committed" in sched_header:
         raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
     matches = list(SCHED_ANCHOR_RE.finditer(sched_header))
@@ -170,10 +172,11 @@ def sched_hunk(sched_header: str) -> str:
     match = matches[0]
     line = sched_header.count("\n", 0, match.start()) + 1
     lines = match.group(1).splitlines(keepends=True)
+    added_lines = field_block.count("\n")
     return (
-        f"@@ -{line},4 +{line},7 @@ struct rq {{\n"
+        f"@@ -{line},4 +{line},{4 + added_lines} @@ struct rq {{\n"
         + "".join(f" {item}" for item in lines[:2])
-        + FIELD_BLOCK
+        + field_block
         + "".join(f" {item}" for item in lines[2:])
     )
 
@@ -197,7 +200,7 @@ def reviewed_sched_field_hunk(
             raise PortError("rq::poc_idle_committed hunk is malformed")
         hunk_end = next_hunk_end(text, hunk, section_end)
         body = text[header_end + 1 : hunk_end]
-        if EXPECTED_ADDITIONS in body:
+        if LEGACY_ADDITIONS in body or CURRENT_ADDITIONS in body:
             if body.count("poc_idle_committed") != 1 or not TTWU_CONTEXT_RE.search(body):
                 raise PortError("rq::poc_idle_committed hunk changed upstream")
             if candidate is not None:
@@ -213,14 +216,15 @@ def adapt_patch(
     text: str, fair_source: str | None = None, sched_header: str | None = None
 ) -> str:
     section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
-    hunk, next_hunk, _ = reviewed_sched_field_hunk(text, section, section_end)
+    hunk, next_hunk, body = reviewed_sched_field_hunk(text, section, section_end)
+    field_block = CURRENT_ADDITIONS if CURRENT_ADDITIONS in body else LEGACY_ADDITIONS
 
     adapted = text[:hunk] + text[next_hunk:]
     adapted_sched = sched_section(adapted)
     if "poc_idle_committed" in adapted_sched:
         raise PortError("rq::poc_idle_committed hunk remains in sched.h")
     if sched_header is not None:
-        adapted = insert_sched_hunk(adapted, sched_hunk(sched_header))
+        adapted = insert_sched_hunk(adapted, sched_hunk(sched_header, field_block))
     return adapt_idle_sibling_hunk(adapted, fair_source)
 
 
