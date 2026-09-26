@@ -18,6 +18,7 @@ from pathlib import Path
 
 SECTION_HEADER = "diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h\n"
 FAIR_SECTION_HEADER = "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\n"
+CORE_SECTION_HEADER = "diff --git a/kernel/sched/core.c b/kernel/sched/core.c\n"
 LEGACY_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tunsigned int\t\tpoc_idle_committed;\n"
@@ -56,6 +57,27 @@ IDLE_SIBLING_SYNC_DECLARATION = (
 )
 PELT_INCLUDE = ' #include "pelt.h"\n'
 VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\n"
+CORE_POC_SYNC_BLOCK = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\t/* no history yet: treat the new task's sync wakes as lies until proven */\n"
+    "+\tp->poc_sync = POC_SYNC_INIT;\n"
+    "+#endif\n"
+)
+PREEMPT_CURR_BLOCK = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\t/* the task running here, the waker if this is a local sync wake */\n"
+    "+\tstruct task_struct *curr = rq->curr;\n"
+    "+#endif\n"
+)
+PREEMPT_WAIT_BLOCK = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tif (poc_sync_wakee_waits(rq, curr, p, wake_flags))\n"
+    "+\t\treturn;\n"
+    "+#endif\n"
+)
+CORE_GROUP_ANCHOR = "\tINIT_LIST_HEAD(&p->se.group_node);\n"
+PREEMPT_DECL_ANCHOR = "\tint cse_is_idle, pse_is_idle;\n"
+PREEMPT_FIRST_IF = "\tif (unlikely(se == pse))\n"
 
 
 class PortError(RuntimeError):
@@ -179,6 +201,148 @@ def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
     return text[:hunk] + header + adapted_body + text[hunk_end:]
 
 
+def reviewed_add_only_hunk(
+    text: str,
+    section_header: str,
+    description: str,
+    expected_blocks: tuple[str, ...],
+) -> tuple[int, int, int, str]:
+    section_start, section_end = section_bounds(text, section_header, description)
+    candidate: tuple[int, int, int, str] | None = None
+    hunk = text.find("@@ ", section_start, section_end)
+    while hunk >= 0:
+        header_end = text.find("\n", hunk, section_end)
+        if header_end < 0:
+            raise PortError(f"{description} POC hunk is malformed")
+        header_end += 1
+        hunk_end = next_hunk_end(text, hunk, section_end)
+        body = text[header_end:hunk_end]
+        if all(block in body for block in expected_blocks):
+            additions = "".join(
+                line for line in body.splitlines(keepends=True) if line.startswith("+")
+            )
+            if additions != "".join(expected_blocks):
+                raise PortError(f"{description} POC hunk has unexpected additions")
+            if any(line.startswith("-") for line in body.splitlines()):
+                raise PortError(f"{description} POC hunk unexpectedly removes source lines")
+            if candidate is not None:
+                raise PortError(f"multiple reviewed {description} POC hunks found")
+            candidate = (hunk, header_end, hunk_end, body)
+        hunk = text.find("@@ ", hunk_end, section_end)
+    if candidate is None:
+        raise PortError(f"reviewed {description} POC hunk was not found")
+    return candidate
+
+
+def unique_source_line(lines: list[str], anchor: str, description: str) -> int:
+    matches = [index for index, line in enumerate(lines) if line == anchor]
+    if len(matches) != 1:
+        raise PortError(
+            f"{description} source anchor must be unique, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def insertion_hunk(
+    lines: list[str],
+    start: int,
+    end: int,
+    additions_after: dict[int, str],
+    additions_before: dict[int, str] | None = None,
+) -> str:
+    additions_before = additions_before or {}
+    old_count = end - start
+    added_count = sum(
+        block.count("\n")
+        for block in (*additions_after.values(), *additions_before.values())
+    )
+    body: list[str] = []
+    for index in range(start, end):
+        if index in additions_before:
+            body.append(additions_before[index])
+        body.append(" " + lines[index])
+        if index in additions_after:
+            body.append(additions_after[index])
+    return (
+        f"@@ -{start + 1},{old_count} +{start + 1},{old_count + added_count} @@\n"
+        + "".join(body)
+    )
+
+
+def adapt_sched_fork_hunk(text: str, core_source: str | None = None) -> str:
+    hunk, _header_end, hunk_end, _body = reviewed_add_only_hunk(
+        text,
+        CORE_SECTION_HEADER,
+        "kernel/sched/core.c __sched_fork",
+        (CORE_POC_SYNC_BLOCK,),
+    )
+    if core_source is None:
+        return text
+    if "p->poc_sync = POC_SYNC_INIT;" in core_source:
+        raise PortError("kernel/sched/core.c already contains POC sync initialization")
+
+    lines = core_source.splitlines(keepends=True)
+    function_anchor = "static void __sched_fork(u64 clone_flags, struct task_struct *p)\n"
+    function_index = unique_source_line(lines, function_anchor, "__sched_fork")
+    group_index = unique_source_line(lines, CORE_GROUP_ANCHOR, "__sched_fork group_node")
+    if not (function_index < group_index <= function_index + 40):
+        raise PortError("__sched_fork group_node anchor moved outside reviewed function")
+
+    start = max(function_index + 1, group_index - 2)
+    end = min(len(lines), group_index + 3)
+    replacement = insertion_hunk(
+        lines, start, end, {group_index: CORE_POC_SYNC_BLOCK}
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
+
+
+def adapt_preempt_wakeup_hunk(text: str, fair_source: str | None = None) -> str:
+    hunk, _header_end, hunk_end, _body = reviewed_add_only_hunk(
+        text,
+        FAIR_SECTION_HEADER,
+        "kernel/sched/fair.c check_preempt_wakeup_fair",
+        (PREEMPT_CURR_BLOCK, PREEMPT_WAIT_BLOCK),
+    )
+    if fair_source is None:
+        return text
+    if "poc_sync_wakee_waits(rq, curr, p, wake_flags)" in fair_source:
+        raise PortError("kernel/sched/fair.c already contains POC sync wakee handling")
+
+    lines = fair_source.splitlines(keepends=True)
+    function_anchor = (
+        "static void check_preempt_wakeup_fair(struct rq *rq, "
+        "struct task_struct *p, int wake_flags)\n"
+    )
+    function_index = unique_source_line(
+        lines, function_anchor, "check_preempt_wakeup_fair"
+    )
+    decl_index = unique_source_line(
+        lines, PREEMPT_DECL_ANCHOR, "check_preempt_wakeup_fair declarations"
+    )
+    first_if_index = unique_source_line(
+        lines, PREEMPT_FIRST_IF, "check_preempt_wakeup_fair first guard"
+    )
+    if not (
+        function_index < decl_index < first_if_index
+        and decl_index - function_index <= 12
+        and first_if_index - decl_index <= 12
+    ):
+        raise PortError("check_preempt_wakeup_fair reviewed anchors changed")
+    if first_if_index + 1 >= len(lines) or lines[first_if_index + 1] != "\t\treturn;\n":
+        raise PortError("check_preempt_wakeup_fair first guard body changed")
+
+    start = max(function_index + 1, decl_index - 3)
+    end = min(len(lines), first_if_index + 3)
+    replacement = insertion_hunk(
+        lines,
+        start,
+        end,
+        {decl_index: PREEMPT_CURR_BLOCK},
+        {first_if_index: PREEMPT_WAIT_BLOCK},
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
+
+
 def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
     if "poc_idle_committed" in sched_header:
         raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
@@ -238,7 +402,10 @@ def reviewed_sched_field_hunk(
 
 
 def adapt_patch(
-    text: str, fair_source: str | None = None, sched_header: str | None = None
+    text: str,
+    fair_source: str | None = None,
+    sched_header: str | None = None,
+    core_source: str | None = None,
 ) -> str:
     section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
     hunk, next_hunk, body = reviewed_sched_field_hunk(text, section, section_end)
@@ -250,6 +417,9 @@ def adapt_patch(
         raise PortError("rq::poc_idle_committed hunk remains in sched.h")
     if sched_header is not None:
         adapted = insert_sched_hunk(adapted, sched_hunk(sched_header, field_block))
+    if "poc_sync" in adapted:
+        adapted = adapt_sched_fork_hunk(adapted, core_source)
+        adapted = adapt_preempt_wakeup_hunk(adapted, fair_source)
     return adapt_idle_sibling_hunk(adapted, fair_source)
 
 
@@ -283,10 +453,14 @@ def main() -> None:
         parser.error("output, sched_header and fair_source are required unless --validate is used")
 
     try:
+        core_source = args.fair_source.with_name("core.c")
+        if not core_source.is_file():
+            raise PortError(f"missing sibling Valve source: {core_source}")
         adapted_patch = adapt_patch(
             args.patch.read_text(encoding="utf-8"),
             args.fair_source.read_text(encoding="utf-8"),
             args.sched_header.read_text(encoding="utf-8"),
+            core_source.read_text(encoding="utf-8"),
         )
     except (UnicodeDecodeError, PortError) as exc:
         raise SystemExit(f"POC Valve port failed: {exc}") from exc
