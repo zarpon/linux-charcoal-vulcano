@@ -2,18 +2,19 @@ From: Jan Alexander Steffens (heftig) <jan.steffens@gmail.com>
 Date: Mon, 27 Jan 2020 18:21:09 +0100
 Subject: [PATCH] ZEN: INTERACTIVE: Enable background reclaim of hugepages
 
-Reviewed port for Valve SteamOS 6.18.45.
+Reviewed port for Valve SteamOS 6.18.50 after the Zen INTERACTIVE base patch.
 Upstream: zen-kernel/zen-kernel 21dd0495958b7c1bd34f2d83537a4f3af5b804c3
-Upstream SHA-256: ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc
+Upstream SHA-256: 7693d3ea136510ab9d32e6cbf7b5d098ad2590e7942cb5c3893281a921764116
 
 Preserve the upstream Zen INTERACTIVE semantics while rebasing the Kconfig
-help text and transparent hugepage default onto Valve's 6.18.45 layout.
+help text and transparent hugepage default onto Valve's 6.18.50 layout.
+Revalidated from the current upstream patch: all eight added lines are kept.
 ---
 
 diff --git a/init/Kconfig b/init/Kconfig
 --- a/init/Kconfig
 +++ b/init/Kconfig
-@@ -11,6 +11,10 @@ config ZEN_INTERACTIVE
+@@ -196,6 +196,10 @@ config ZEN_INTERACTIVE
  	help
  	  Tunes the kernel for responsiveness at the cost of throughput and power usage.
  
@@ -27,7 +28,7 @@ diff --git a/init/Kconfig b/init/Kconfig
 diff --git a/mm/huge_memory.c b/mm/huge_memory.c
 --- a/mm/huge_memory.c
 +++ b/mm/huge_memory.c
-@@ -5,7 +5,11 @@ unsigned long transparent_hugepage_flags __read_mostly =
+@@ -64,7 +64,11 @@ unsigned long transparent_hugepage_flags __read_mostly =
  #ifdef CONFIG_TRANSPARENT_HUGEPAGE_MADVISE
  	(1<<TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG)|
  #endif

@@ -96,7 +96,7 @@
       "port_for_kernel": "6.18",
       "port_when_incompatible": true,
       "local_port": "6.18.45-zen-04.port.patch",
-      "local_port_upstream_sha256": "ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc"
+      "local_port_upstream_sha256": "7693d3ea136510ab9d32e6cbf7b5d098ad2590e7942cb5c3893281a921764116"
     },
     "zen_05": {
       "port_for_kernel": "6.18",
