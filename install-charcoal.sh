@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Install the latest published Charcoal SteamOS kernel release.
+# Install the newest verified stable Charcoal 6.18 SteamOS release from master.
 
 set -Eeuo pipefail
 
 readonly REPOSITORY="zarpon/linux-charcoal-vulcano"
-readonly RELEASE_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+readonly LATEST_RELEASE_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
 readonly RELEASE_DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
+readonly KERNEL_SERIES="6.18"
+readonly PACKAGE_PREFIX="linux-charcoal-618"
 readonly USER_AGENT="charcoal-kernel-installer"
 
 WORKDIR=""
@@ -89,51 +91,71 @@ download_file() {
 parse_release_metadata() {
   local release_json=$1
 
-  python3 - "$release_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" <<'PY'
+  python3 - "$release_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" "$KERNEL_SERIES" <<'PY'
 import json
+import re
 import sys
 from pathlib import PurePosixPath
 
-release_json, repository, download_prefix = sys.argv[1:]
+release_json, repository, download_prefix, kernel_series = sys.argv[1:]
+tag_pattern = re.compile(
+    rf"^charcoal-{re.escape(kernel_series)}\.[0-9A-Za-z][0-9A-Za-z._-]*-r[1-9][0-9]*$"
+)
 
 try:
     with open(release_json, encoding="utf-8") as handle:
-        release = json.load(handle)
+        releases = json.load(handle)
 except (OSError, json.JSONDecodeError) as exc:
     raise SystemExit(f"Could not parse the GitHub release response: {exc}")
 
-if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
-    raise SystemExit("GitHub did not return a published stable release")
+if not isinstance(releases, dict):
+    raise SystemExit("GitHub did not return a release object")
 
 def text(value, label):
     if not isinstance(value, str) or not value or any(char in value for char in "\x00\r\n"):
         raise SystemExit(f"Invalid {label} in the GitHub release response")
     return value
 
-def asset_url(asset, expected_name):
+def asset_url(asset, expected_name, tag_name):
     name = text(asset.get("name"), "asset name")
     url = text(asset.get("browser_download_url"), "asset URL")
     if name != expected_name:
         raise SystemExit(f"Unexpected asset name: {name}")
-    if not url.startswith(download_prefix):
-        raise SystemExit(f"Refusing asset outside {repository} releases: {url}")
+    expected_prefix = f"{download_prefix}{tag_name}/"
+    if not url.startswith(expected_prefix):
+        raise SystemExit(f"Refusing asset outside release {tag_name} in {repository}: {url}")
     return name, url
 
-tag_name = text(release.get("tag_name"), "release tag")
-assets = release.get("assets")
+if releases.get("draft") is not False or releases.get("prerelease") is not False:
+    raise SystemExit("GitHub latest release is not a published stable release")
+if not isinstance(releases.get("published_at"), str) or not releases["published_at"]:
+    raise SystemExit("GitHub latest release has no publication timestamp")
+
+tag_name = text(releases.get("tag_name"), "release tag")
+if not tag_pattern.fullmatch(tag_name):
+    raise SystemExit(
+        f"GitHub latest stable release is not a Charcoal {kernel_series} release: {tag_name}"
+    )
+
+assets = releases.get("assets")
 if not isinstance(assets, list):
-    raise SystemExit("GitHub release has no assets")
+    raise SystemExit("GitHub latest release did not return an asset list")
 
-archives = [asset for asset in assets if isinstance(asset, dict) and str(asset.get("name", "")).startswith("linux-charcoal-") and str(asset.get("name", "")).endswith(".zip")]
-checksums = [asset for asset in assets if isinstance(asset, dict) and asset.get("name") == "RELEASE-ZIP-SHA256SUM"]
+expected_archive_name = f"linux-{tag_name}.zip"
+archives = [
+    asset for asset in assets
+    if isinstance(asset, dict) and asset.get("name") == expected_archive_name
+]
+checksums = [
+    asset for asset in assets
+    if isinstance(asset, dict) and asset.get("name") == "RELEASE-ZIP-SHA256SUM"
+]
+if len(archives) != 1 or len(checksums) != 1:
+    raise SystemExit("GitHub latest release is missing unique verified archive assets")
+archive, checksum = archives[0], checksums[0]
 
-if len(archives) != 1:
-    raise SystemExit("Expected exactly one linux-charcoal release ZIP")
-if len(checksums) != 1:
-    raise SystemExit("Expected exactly one RELEASE-ZIP-SHA256SUM asset")
-
-archive_name, archive_url = asset_url(archives[0], text(archives[0].get("name"), "archive name"))
-checksum_name, checksum_url = asset_url(checksums[0], "RELEASE-ZIP-SHA256SUM")
+archive_name, archive_url = asset_url(archive, expected_archive_name, tag_name)
+checksum_name, checksum_url = asset_url(checksum, "RELEASE-ZIP-SHA256SUM", tag_name)
 
 if PurePosixPath(archive_name).name != archive_name:
     raise SystemExit("Invalid release ZIP filename")
@@ -186,8 +208,9 @@ PY
 extract_and_verify_packages() {
   local archive=$1
   local destination=$2
+  local package_prefix=$3
 
-  python3 - "$archive" "$destination" <<'PY'
+  python3 - "$archive" "$destination" "$package_prefix" <<'PY'
 import hashlib
 import re
 import stat
@@ -195,9 +218,11 @@ import sys
 import zipfile
 from pathlib import Path, PurePosixPath
 
-archive, destination = map(Path, sys.argv[1:])
-package_pattern = re.compile(r"^linux-charcoal-[^/\\\x00\r\n]+\.pkg\.tar\.zst$")
-checksum_pattern = re.compile(r"([0-9a-fA-F]{64}) [ *](linux-charcoal-[^/\\\x00\r\n]+\.pkg\.tar\.zst)")
+archive = Path(sys.argv[1])
+destination = Path(sys.argv[2])
+package_prefix = sys.argv[3]
+package_pattern = re.compile(rf"^{re.escape(package_prefix)}-[^/\\\x00\r\n]+\.pkg\.tar\.zst$")
+checksum_pattern = re.compile(rf"([0-9a-fA-F]{{64}}) [ *]({re.escape(package_prefix)}-[^/\\\x00\r\n]+\.pkg\.tar\.zst)")
 
 try:
     with zipfile.ZipFile(archive) as handle:
@@ -271,7 +296,7 @@ main() {
   WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/charcoal-installer.XXXXXX")"
   trap cleanup EXIT
 
-  info "Fetching the latest published Charcoal release..."
+  info "Fetching GitHub's latest stable Charcoal ${KERNEL_SERIES} release..."
   curl \
     --fail \
     --silent \
@@ -285,16 +310,22 @@ main() {
     --header 'X-GitHub-Api-Version: 2022-11-28' \
     --user-agent "$USER_AGENT" \
     --output "$WORKDIR/release.json" \
-    "$RELEASE_API"
+    "$LATEST_RELEASE_API"
 
   local metadata
   if ! metadata="$(parse_release_metadata "$WORKDIR/release.json")"; then
-    die "Could not identify the required assets in the latest release"
+    die "GitHub's latest stable release is not a verified Charcoal ${KERNEL_SERIES} release"
   fi
 
   local -a fields
   mapfile -t fields <<< "$metadata"
   (( ${#fields[@]} == 5 )) || die "Incomplete GitHub release metadata"
+  # GitHub/SteamOS uses LF, but strip a transport CR defensively so the
+  # verified URLs cannot be altered by a CRLF-producing Python runtime.
+  local index
+  for index in "${!fields[@]}"; do
+    fields[$index]=${fields[$index]%$'\r'}
+  done
 
   local release_tag=${fields[0]}
   local archive_name=${fields[1]}
@@ -305,6 +336,7 @@ main() {
   local checksum_path="$WORKDIR/$checksum_name"
   local package_dir="$WORKDIR/packages"
 
+  info "Selected latest stable Charcoal ${KERNEL_SERIES} release: ${release_tag}"
   info "Downloading release ${release_tag}..."
   download_file "$archive_url" "$archive_path"
   download_file "$checksum_url" "$checksum_path"
@@ -313,10 +345,10 @@ main() {
   verify_release_archive "$archive_path" "$checksum_path" "$archive_name"
 
   info "Extracting and verifying kernel package SHA-256 checksums..."
-  extract_and_verify_packages "$archive_path" "$package_dir"
+  extract_and_verify_packages "$archive_path" "$package_dir" "$PACKAGE_PREFIX"
 
   local -a packages
-  mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name 'linux-charcoal-*.pkg.tar.zst' -print0 | sort -z)
+  mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name "${PACKAGE_PREFIX}-*.pkg.tar.zst" -print0 | sort -z)
   (( ${#packages[@]} >= 2 )) || die "Verified release does not contain the expected kernel and headers packages"
 
   info "Making SteamOS writable for the package transaction..."

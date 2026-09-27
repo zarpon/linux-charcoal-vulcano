@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the compiled packages as a GitHub release (master only)
+        description: Publish the compiled packages as the latest stable GitHub release (master only)
         required: true
         default: true
         type: boolean
@@ -75,13 +75,16 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py
+          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py tests/test_patch_fsync_port.py tests/test_patch_cpu_optimizations_port.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
+          python3 automation/audit-latest-patch-versions.py | tee logs/latest-patch-audit.log
           python3 automation/port-poc-selector.py --validate latest-poc-selector.patch | tee logs/poc-adapter-validation.log
           python3 tests/test-bore-overlay.py
+          python3 tests/test_patch_fsync_port.py
+          python3 tests/test_patch_cpu_optimizations_port.py
           bash -n PKGBUILD
-          grep -Fq 'patches/testing/0001-linux6.16.12-lru_marie-' logs/patch-lock.json
+          grep -Fq '"version": "6.18.' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
           grep -Fq 'latest-lru_marie.patch' PKGBUILD
           grep -Fq 'latest-zram-ir.patch' PKGBUILD
@@ -102,6 +105,8 @@ jobs:
           with open("logs/patch-lock.json", encoding="utf-8") as handle:
               lock = json.load(handle)
 
+          assert lock["kernel"]["version"].startswith("6.18.")
+
           expected_repositories = {
               "lru_marie": "firelzrd/lru_marie",
               "zram_ir": "firelzrd/zram-ir",
@@ -111,25 +116,26 @@ jobs:
               "poc_selector": "firelzrd/poc-selector",
               "nap": "firelzrd/nap",
           }
-          expected_adapters = {
-              "adios": "adios-valve-616",
-              "poc_selector": "poc-selector-valve",
-          }
 
           assert set(lock["components"]) == set(expected_repositories)
           for name, item in lock["components"].items():
               assert re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
               assert item["size"] > 0
               assert item["origin"] in {
-                  "upstream-compatible", "adaptive-port", "local-port"
+                  "upstream-native", "upstream-kernel-agnostic",
+                  "adaptive-port", "local-port"
               }
-              if item["origin"] == "upstream-compatible":
+              assert item["selection"] in {
+                  "latest-native-series", "latest-kernel-agnostic",
+                  "latest-release-port", "latest-release-adaptive-port",
+              }
+              if item["origin"] in {"upstream-native", "upstream-kernel-agnostic"}:
                   assert item["repository"] == expected_repositories[name]
                   assert item["commit"] and item["commit"] != "repository-local"
                   assert item["path"] and item["url"]
               elif item["origin"] == "adaptive-port":
                   assert item["repository"] == expected_repositories[name]
-                  assert item["adapter"] == expected_adapters[name]
+                  assert item["adapter"] == "poc-selector-valve"
                   assert item["commit"] and item["commit"] != "repository-local"
                   assert item["path"] and item["url"]
               else:
@@ -141,40 +147,31 @@ jobs:
                   assert re.fullmatch(r"[0-9a-f]{64}", upstream["sha256"])
                   assert upstream["size"] > 0
 
-          bore = lock["components"]["bore"]
-          assert bore["origin"] == "local-port"
-          assert bore["selection"] == "latest-upstream-port"
-          with open("automation/patch-source-overrides.json", encoding="utf-8") as handle:
-              bore_policy = json.load(handle)["components"]["bore"]
-          upstream = bore["upstream"]
-          expected_version = bore_policy["local_port_project_version"]
-          assert upstream["project_version"] == expected_version
-          assert upstream["path"].endswith(f"-bore-{expected_version}.patch")
-          assert re.fullmatch(r"[0-9a-f]{40}", upstream["commit"])
-          assert re.fullmatch(r"[0-9a-f]{64}", upstream["sha256"])
-          assert [item["path"] for item in bore["local_port_overlays"]] == bore_policy["local_port_overlays"]
+          for item in lock["components"].values():
+              fallback = item.get("fallback")
+              if not fallback:
+                  continue
+              assert fallback["kernel_version"] == lock["kernel"]["version"]
+              assert fallback["kind"] in {"local-port", "adaptive-port"}
 
-          bore_sched_ext = lock["components"]["bore_sched_ext_coexistence"]
-          assert bore_sched_ext["origin"] == "local-port"
-          assert bore_sched_ext["selection"] == "latest-upstream-port"
-
-          adios = lock["components"]["adios"]
-          assert adios["origin"] in {"upstream-compatible", "adaptive-port"}
-          if adios["origin"] == "adaptive-port":
-              assert adios["adapter"] == "adios-valve-616"
-              assert adios["selection"] == "nearest-upstream-adaptive-port"
+          lru = lock["components"]["lru_marie"]
+          assert lru["origin"] in {"upstream-native", "local-port", "adaptive-port"}
+          if lru["origin"] == "upstream-native":
+              assert lru["selection"] == "latest-native-series"
+              assert lru["kernel_version"].startswith("6.18.")
           else:
-              assert adios["selection"] == "upstream-compatible"
+              assert lru["selection"] in {"latest-release-port", "latest-release-adaptive-port"}
+              upstream = lru.get("upstream", lru)
+              assert upstream["repository"] == "firelzrd/lru_marie"
+              assert upstream["project_version"]
+
           poc = lock["components"]["poc_selector"]
-          assert poc["origin"] in {"upstream-compatible", "adaptive-port"}
+          assert poc["origin"] in {"upstream-native", "adaptive-port"}
           if poc["origin"] == "adaptive-port":
               assert poc["adapter"] == "poc-selector-valve"
-              assert poc["selection"] == "nearest-upstream-adaptive-port"
+              assert poc["selection"] == "latest-release-adaptive-port"
           else:
-              assert poc["selection"] == "upstream-compatible"
-          assert lock["components"]["nap"]["selection"] in {
-              "upstream-compatible", "nearest-upstream-port"
-          }
+              assert poc["selection"] == "latest-native-series"
           PY
 
       - name: Prepare compiler cache
@@ -286,7 +283,11 @@ jobs:
 
             # Verify again, now against real SHA-256 values, before prepare/build.
             makepkg --verifysource 2>&1 | tee logs/verifysource.log
-            makepkg -Ccf --noconfirm 2>&1 | tee logs/makepkg.log
+            # Keep the prepared tree until the mandatory post-build diff check.
+            # makepkg -c removed src/ after a successful package build, making
+            # the check fail deterministically even though compilation succeeded.
+            makepkg -Cf --noconfirm 2>&1 | tee logs/makepkg.log
+            git -C src/archlinux-linux-charcoal diff --check | tee logs/git-diff-check.txt
             ccache --show-stats | tee logs/ccache-after.txt
           '
           # The container created logs as nobody; host-side post-processing
@@ -321,7 +322,7 @@ jobs:
           {
             echo "# Charcoal SteamOS kernel ${PKGVER}"
             echo
-            echo "Built from the latest stable SteamOS 6.16 tag: \`${KERNEL_TAG}\`."
+            echo "Built from the latest SteamOS 6.18 tag: \`${KERNEL_TAG}\`."
             echo
             echo "## Updates"
             python3 - <<'PY'
@@ -335,7 +336,7 @@ jobs:
               path = item.get("path", "unknown")
               commit = item.get("commit", "unknown")
               if origin == "local-port":
-                  detail = f"6.16.12 local port ({path})"
+                  detail = f"reviewed SteamOS 6.18 local port ({path})"
                   upstream = item.get("upstream")
                   if upstream:
                     detail += (
@@ -492,13 +493,24 @@ jobs:
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
+              --latest \
               --notes-file logs/release-notes.md
           else
             gh release create "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
+              --latest \
               --notes-file logs/release-notes.md \
               --verify-tag
+          fi
+
+          release_is_stable_latest="$(gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isPrerelease,isLatest \
+            --jq '.isPrerelease == false and .isLatest == true')"
+          if [[ "$release_is_stable_latest" != "true" ]]; then
+            echo "Release ${RELEASE_TAG} is not a stable GitHub latest release" >&2
+            exit 1
           fi
 
           gh release upload "$RELEASE_TAG" \

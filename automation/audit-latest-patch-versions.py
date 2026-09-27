@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Fail a build if a versioned patch family is not using its newest upstream release."""
+"""Audit every GitHub patch family against the newest upstream source.
+
+The resolver follows a two-stage policy: identify the newest upstream project
+release first, then choose its native SteamOS-kernel-series patch when one is
+published. A reviewed port is valid only when that newest release has no
+native candidate (or later, during source application, when that candidate
+fails a real apply check).
+"""
 from __future__ import annotations
 
 import importlib.util
-import hashlib
 import json
 import os
 import sys
@@ -18,23 +24,6 @@ if SPEC is None or SPEC.loader is None:
 resolver = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = resolver
 SPEC.loader.exec_module(resolver)
-
-TRACKED_VERSIONED = {
-    "lru_marie",
-    "zram_ir",
-    "adios",
-    "bore",
-    "poc_selector",
-    "nap",
-}
-TRACKED_LOCAL_BYTES = {
-    "lru_marie",
-    "zram_ir",
-    "adios",
-    "bore",
-    "bore_sched_ext_coexistence",
-    "nap",
-}
 
 
 def load_policy() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
@@ -57,16 +46,112 @@ def load_policy() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
         str(item["name"]): item
         for group_name in ("components", "auxiliary_components")
         for item in manifest.get(group_name, [])
+        if item.get("kind", "github_tree") == "github_tree"
     }
     return manifest, specs
 
 
+def upstream_record(item: dict[str, Any]) -> dict[str, Any]:
+    upstream = item.get("upstream") if item.get("origin") == "local-port" else item
+    return upstream if isinstance(upstream, dict) else {}
+
+
 def selected_project_version(item: dict[str, Any]) -> str | None:
-    if item.get("project_version"):
-        return str(item["project_version"])
-    upstream = item.get("upstream") or {}
-    value = upstream.get("project_version")
+    value = upstream_record(item).get("project_version")
     return str(value) if value else None
+
+
+def expected_port_selection(spec: dict[str, Any]) -> tuple[str, str] | None:
+    if spec.get("local_port"):
+        return "latest-release-port", "local-port"
+    if spec.get("adaptive_port"):
+        return "latest-release-adaptive-port", "adaptive-port"
+    return None
+
+
+def audit_component(
+    name: str,
+    spec: dict[str, Any],
+    record: dict[str, Any],
+    kernel_version: str,
+    token: str | None,
+) -> list[str]:
+    failures: list[str] = []
+    try:
+        candidates = resolver.upstream_candidates(spec, kernel_version, token)
+    except resolver.ResolveError as exc:
+        return [f"{name}: unable to inspect upstream candidates: {exc}"]
+    if not candidates:
+        return [f"{name}: upstream exposes no candidate patches"]
+
+    latest = resolver.latest_project_candidates(candidates)
+    upstream = upstream_record(record)
+    versioned = [candidate for candidate in latest if candidate.project_version]
+    if versioned:
+        latest_version = max(versioned, key=resolver.latest_key).project_version
+        selected_version = selected_project_version(record)
+        if resolver.project_version_key(selected_version) != resolver.project_version_key(
+            latest_version
+        ):
+            failures.append(
+                f"{name}: selected {selected_version or 'unknown'} but newest upstream "
+                f"release is {latest_version}"
+            )
+
+    native = resolver.native_series_candidates(latest)
+    if native:
+        expected = max(native, key=resolver.compatible_key)
+        if (
+            record.get("selection") != "latest-native-series"
+            or record.get("origin") != "upstream-native"
+        ):
+            failures.append(
+                f"{name}: newest release has native {kernel_version.rsplit('.', 1)[0]} "
+                "patches, but the lock does not select the native source first"
+            )
+        elif upstream.get("path") != expected.path or upstream.get("commit") != expected.sha:
+            failures.append(
+                f"{name}: native selection differs from newest compatible upstream "
+                f"candidate {expected.path}"
+            )
+        else:
+            print(f"{name}: newest release selected with native source {expected.path}")
+        return failures
+
+    if any(candidate.kernel_version for candidate in latest):
+        expected = resolver.nearest_candidate(latest, kernel_version)
+        policy = expected_port_selection(spec)
+        if expected is None or policy is None:
+            failures.append(
+                f"{name}: newest release has no native {kernel_version.rsplit('.', 1)[0]} "
+                "patch and no reviewed port policy"
+            )
+            return failures
+        selection, origin = policy
+        if record.get("selection") != selection or record.get("origin") != origin:
+            failures.append(f"{name}: newest non-native release must use its reviewed port")
+        elif upstream.get("path") != expected.path or upstream.get("commit") != expected.sha:
+            failures.append(
+                f"{name}: port does not track the newest upstream candidate {expected.path}"
+            )
+        else:
+            print(
+                f"{name}: newest release has no native patch; reviewed port tracks "
+                f"{expected.path}"
+            )
+        return failures
+
+    expected = max(latest, key=resolver.latest_key)
+    if (
+        record.get("selection") != "latest-kernel-agnostic"
+        or record.get("origin") != "upstream-kernel-agnostic"
+    ):
+        failures.append(f"{name}: kernel-agnostic source policy is not locked directly")
+    elif upstream.get("path") != expected.path or upstream.get("commit") != expected.sha:
+        failures.append(f"{name}: kernel-agnostic source differs from {expected.path}")
+    else:
+        print(f"{name}: current kernel-agnostic source selected: {expected.path}")
+    return failures
 
 
 def main() -> int:
@@ -81,78 +166,18 @@ def main() -> int:
     }
 
     failures: list[str] = []
-    versioned_names = {
-        name for name, spec in specs.items()
-        if spec.get("kind", "github_tree") == "github_tree"
-        and spec.get("project_version_regex")
-    }
-    for name in sorted(versioned_names):
-        spec = specs[name]
-        candidates = resolver.upstream_candidates(spec, kernel_version, token)
-        versioned = [item for item in candidates if item.project_version]
-        if not versioned:
-            failures.append(f"{name}: upstream exposes no versioned candidates")
-            continue
-        latest = max(versioned, key=resolver.latest_key)
-        latest_version = str(latest.project_version)
-        selected_version = selected_project_version(locked[name])
-        if resolver.project_version_key(selected_version) != resolver.project_version_key(latest_version):
-            failures.append(
-                f"{name}: selected {selected_version or 'unknown'} but upstream latest is "
-                f"{latest_version} ({latest.path})"
-            )
-        else:
-            print(
-                f"{name}: latest project version {latest_version} confirmed; "
-                f"selected={selected_version}; newest_path={latest.path}"
-            )
-
-    # Check every tree-backed family, not only the six named projects. This
-    # also detects same-version upstream edits and current native path drift.
     for name, spec in sorted(specs.items()):
-        if spec.get("kind", "github_tree") != "github_tree":
+        record = locked.get(name)
+        if not isinstance(record, dict):
+            failures.append(f"{name}: lock record is missing")
             continue
-        fresh = resolver.resolve_component(spec, kernel_version, token, ROOT)
-        expected = locked[name]
-        data = fresh.get("content_bytes")
-        if data is None:
-            data = resolver.request_bytes(fresh["url"], token)
-        digest = hashlib.sha256(data).hexdigest()
-        current_source = fresh.get("upstream", fresh)
-        locked_source = expected.get("upstream", expected)
-        for key in ("commit", "path", "url"):
-            if current_source.get(key) != locked_source.get(key):
-                failures.append(f"{name}: current upstream {key} differs from lock")
-        if digest != expected.get("sha256"):
-            failures.append(f"{name}: freshly resolved patch bytes differ from lock")
-        if fresh.get("upstream_sha256") != expected.get("upstream_sha256"):
-            failures.append(f"{name}: adapted source checksum differs from lock")
-        print(f"{name}: complete current upstream source and payload audited")
-
-    for name in sorted(TRACKED_LOCAL_BYTES):
-        item = locked[name]
-        if item.get("origin") != "local-port":
-            continue
-        spec = specs[name]
-        expected = spec.get("local_port_upstream_sha256")
-        actual = (item.get("upstream") or {}).get("sha256")
-        if not expected:
-            failures.append(
-                f"{name}: local port must pin local_port_upstream_sha256 to detect "
-                "same-version upstream changes"
-            )
-        elif actual != expected:
-            failures.append(
-                f"{name}: local port tracks upstream {expected}, current lock uses {actual}"
-            )
-        else:
-            print(f"{name}: local port upstream SHA-256 confirmed: {actual}")
+        failures.extend(audit_component(name, spec, record, kernel_version, token))
 
     if failures:
         for failure in failures:
             print(f"latest-patch policy error: {failure}", file=sys.stderr)
         return 2
-    print("All versioned patch families use their latest upstream project release")
+    print("Every GitHub patch family follows newest-release then native-6.18-first policy")
     return 0
 
 

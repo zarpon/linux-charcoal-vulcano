@@ -1,2 +1,2 @@
-build-trigger=2026-08-06T23:16:00Z
-reason=validate-concurrency-fix-b239bfe
+build-trigger=2026-08-23T22:38:00Z
+reason=validate-618pre-full-build-and-prerelease

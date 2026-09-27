@@ -113,8 +113,10 @@ run_bootloader_update_case() {
 
 make_fixture() {
   local build_dir="$fixture_dir/build"
-  local kernel_package="linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst"
-  local headers_package="linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst"
+  local kernel_package="linux-charcoal-618-9.9.9-1-x86_64.pkg.tar.zst"
+  local headers_package="linux-charcoal-618-headers-9.9.9-1-x86_64.pkg.tar.zst"
+  local release_tag="charcoal-6.18.50.valve1.cc1-r12"
+  local archive_name="linux-charcoal-6.18.50.valve1.cc1-r12.zip"
 
   mkdir -p "$build_dir" "$bin_dir"
   printf 'kernel fixture\n' > "$build_dir/$kernel_package"
@@ -122,11 +124,11 @@ make_fixture() {
   (
     cd "$build_dir"
     sha256sum "$kernel_package" "$headers_package" > SHA256SUMS
-    zip -q "$fixture_dir/linux-charcoal-test.zip" SHA256SUMS "$kernel_package" "$headers_package"
+    zip -q "$fixture_dir/$archive_name" SHA256SUMS "$kernel_package" "$headers_package"
   )
   (
     cd "$fixture_dir"
-    sha256sum linux-charcoal-test.zip > RELEASE-ZIP-SHA256SUM
+    sha256sum "$archive_name" > RELEASE-ZIP-SHA256SUM
   )
 
   mkdir -p "$fixture_dir/bad-package"
@@ -139,10 +141,12 @@ make_fixture() {
   )
   (
     cd "$fixture_dir"
-    sha256sum bad-package.zip | sed 's/bad-package\.zip/linux-charcoal-test.zip/' > BAD-PACKAGE-RELEASE-ZIP-SHA256SUM
+    sha256sum bad-package.zip | sed "s/bad-package\\.zip/$archive_name/" > BAD-PACKAGE-RELEASE-ZIP-SHA256SUM
   )
 
-  printf '%s\n' '{"tag_name":"charcoal-test","draft":false,"prerelease":false,"assets":[{"name":"linux-charcoal-test.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM"}]}' > "$fixture_dir/release.json"
+  printf '%s\n' '{"tag_name":"charcoal-6.18.50.valve1.cc1-r12","draft":false,"prerelease":false,"published_at":"2026-08-21T00:00:00Z","assets":[{"name":"linux-charcoal-6.18.50.valve1.cc1-r12.zip","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.50.valve1.cc1-r12/linux-charcoal-6.18.50.valve1.cc1-r12.zip"},{"name":"RELEASE-ZIP-SHA256SUM","browser_download_url":"https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.50.valve1.cc1-r12/RELEASE-ZIP-SHA256SUM"}]}' > "$fixture_dir/latest-stable.json"
+  printf '%s\n' '{"tag_name":"charcoal-6.18.50.valve1.cc1-pre-r13","draft":false,"prerelease":true,"published_at":"2026-08-22T00:00:00Z","assets":[]}' > "$fixture_dir/latest-prerelease.json"
+  printf '%s\n' '{"tag_name":"charcoal-6.16.12.valve28.cc1-r913","draft":false,"prerelease":false,"published_at":"2026-08-23T00:00:00Z","assets":[]}' > "$fixture_dir/latest-wrong-series.json"
 }
 
 write_fake_commands() {
@@ -160,16 +164,20 @@ write_fake_commands() {
     '[[ -n "$output" ]] || exit 2' \
     'case "$url" in' \
     '  https://api.github.com/repos/zarpon/linux-charcoal-vulcano/releases/latest)' \
-    '    cp "$CHARCOAL_TEST_FIXTURE/release.json" "$output" ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/linux-charcoal-test.zip)' \
+    '    case "${CHARCOAL_TEST_SCENARIO:-normal}" in' \
+    '      prerelease-only) cp "$CHARCOAL_TEST_FIXTURE/latest-prerelease.json" "$output" ;;' \
+    '      wrong-series) cp "$CHARCOAL_TEST_FIXTURE/latest-wrong-series.json" "$output" ;;' \
+    '      *) cp "$CHARCOAL_TEST_FIXTURE/latest-stable.json" "$output" ;;' \
+    '    esac ;;' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.50.valve1.cc1-r12/linux-charcoal-6.18.50.valve1.cc1-r12.zip)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
     '      cp "$CHARCOAL_TEST_FIXTURE/bad-package.zip" "$output"' \
     '    else' \
-    '      cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-test.zip" "$output"' \
+    '      cp "$CHARCOAL_TEST_FIXTURE/linux-charcoal-6.18.50.valve1.cc1-r12.zip" "$output"' \
     '    fi ;;' \
-    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-test/RELEASE-ZIP-SHA256SUM)' \
+    '  https://github.com/zarpon/linux-charcoal-vulcano/releases/download/charcoal-6.18.50.valve1.cc1-r12/RELEASE-ZIP-SHA256SUM)' \
     '    if [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-checksum" ]]; then' \
-    '      printf "%064d  linux-charcoal-test.zip\\n" 0 > "$output"' \
+    '      printf "%064d  linux-charcoal-6.18.50.valve1.cc1-r12.zip\\n" 0 > "$output"' \
     '    elif [[ "${CHARCOAL_TEST_SCENARIO:-normal}" == "bad-package-checksum" ]]; then' \
     '      cp "$CHARCOAL_TEST_FIXTURE/BAD-PACKAGE-RELEASE-ZIP-SHA256SUM" "$output"' \
     '    else' \
@@ -231,14 +239,30 @@ assert_contains 'steamos-readonly disable'
 assert_contains 'steamos-devmode enable --no-prompt'
 assert_contains 'pacman -U '
 assert_not_contains 'pacman -U --needed'
-assert_contains 'linux-charcoal-616-9.9.9-1-x86_64.pkg.tar.zst'
-assert_contains 'linux-charcoal-616-headers-9.9.9-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-618-9.9.9-1-x86_64.pkg.tar.zst'
+assert_contains 'linux-charcoal-618-headers-9.9.9-1-x86_64.pkg.tar.zst'
 assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
 assert_precedes 'steamos-readonly disable' 'steamos-devmode enable --no-prompt'
 assert_precedes 'steamos-devmode enable --no-prompt' 'pacman -U '
 assert_precedes 'pacman -U ' 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_precedes 'grub-mkconfig -o /boot/grub/grub.cfg' 'steamos-readonly enable'
+
+: > "$log_file"
+if run_installer prerelease-only >/dev/null 2>&1; then
+  fail 'installer accepted a pre-release from GitHub latest'
+fi
+assert_not_contains 'steamos-readonly'
+assert_not_contains 'steamos-devmode'
+assert_not_contains 'pacman'
+
+: > "$log_file"
+if run_installer wrong-series >/dev/null 2>&1; then
+  fail 'installer fell back when GitHub latest was from a different kernel series'
+fi
+assert_not_contains 'steamos-readonly'
+assert_not_contains 'steamos-devmode'
+assert_not_contains 'pacman'
 
 : > "$log_file"
 if run_installer bad-checksum >/dev/null 2>&1; then

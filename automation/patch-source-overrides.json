@@ -1,56 +1,120 @@
 {
+  "schema": 1,
   "components": {
+    "zram_ir": {
+      "port_for_kernel": "6.18",
+      "local_port": "6.18.46-zram-ir-1.2.port.patch",
+      "local_port_project_version": "1.3",
+      "local_port_upstream_sha256": "4427a13153ac19f9fdb5f1b3919780e57cf47ca6ce0401867ad418495b9f2a50"
+    },
+    "bore": {
+      "port_for_kernel": "6.18",
+      "local_port": null,
+      "local_port_project_version": null,
+      "local_port_upstream_sha256": null
+    },
+    "bore_sched_ext_coexistence": {
+      "port_for_kernel": "6.18",
+      "local_port": "6.18.45-bore-sched-ext-coexistence-fix.port.patch"
+    },
+    "poc_selector": {
+      "port_for_kernel": "6.18"
+    },
     "lru_marie": {
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?\\.patch$",
-      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?)\\.patch$",
-      "port_for_kernel": "6.16.12",
+      "port_for_kernel": "6.18",
       "port_when_incompatible": true,
-      "local_port": "6.16.12-lru-marie-0.11.1r2.port.patch",
+      "local_port": "6.18-lru_marie-0.11.1r2.port.patch",
       "local_port_project_version": "0.11.1r2",
       "local_port_upstream_sha256": "a28ff39ed30034290ae7e30ae42f0725b9fdb531e3a10a127f26f53b0c217551"
     },
-    "zram_ir": {
-      "local_port_overlays": [
-        "6.16.12-zram-ir-1.3-write-incompressible-call.patch"
-      ],
-      "local_port_project_version": "1.3",
-      "local_port_upstream_sha256": "4427a13153ac19f9fdb5f1b3919780e57cf47ca6ce0401867ad418495b9f2a50",
-      "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:\\.y|-rc[0-9]+)?-zram-ir-[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?\\.patch$",
-      "project_version_regex": "(?i)zram-ir-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?)\\.patch$"
-    },
     "adios": {
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-ADIOS-[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?\\.patch$",
-      "project_version_regex": "(?i)ADIOS-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?)\\.patch$",
-      "ref": "main",
-      "local_port": null,
-      "local_port_project_version": null,
-      "local_port_upstream_sha256": null,
-      "adaptive_port": "adios-valve-616"
-    },
-    "bore": {
-      "filename_regex": "(?i)^patches/(?:testing/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?|stable/linux-\\d+\\.\\d+-bore/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-bore-[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
-      "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
-      "local_port_overlays": [
-        "6.16.12-bore-6.8.0-final.patch",
-        "6.16.12-bore-7.0.0.patch"
-      ],
-      "local_port_project_version": "7.0.0",
-      "local_port_upstream_sha256": "529ac503052e2ea09d9c54cbf536ffaac842ba436ff368c4a595585f46e7b709"
-    },
-    "nap": {
-      "local_port_upstream_sha256": "509ffed2466ab434e22a7eb4662c6a2a4dd0c117c04e2fc5a0f9a2c5c0b0bbfe",
-      "project_version_regex": "(?i)nap-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?)\\.patch$"
-    },
-    "poc_selector": {
-      "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-(?:alpha|beta|pre|rc)[0-9]+)?(?:r[0-9]+)?)\\.patch$"
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18-adios-3.3.0r2.port.patch",
+      "local_port_project_version": "3.3.0r2",
+      "local_port_upstream_sha256": "4f186fa06bfb0e0e08320cb53a38afebe6d9eaa5c820396015c59f993bf8e1b6"
     }
   },
   "auxiliary_components": {
+    "amd_pstate_epp_boost_kernel_doc": {
+      "port_for_kernel": "6.18"
+    },
+    "amd_pstate_epp_boost_cache_order": {
+      "port_for_kernel": "6.18"
+    },
+    "amd_pstate_epp_boost_core": {
+      "port_for_kernel": "6.18"
+    },
+    "amd_pstate_epp_boost_documentation": {
+      "port_for_kernel": "6.18"
+    },
+    "clear": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-clear.port.patch",
+      "local_port_upstream_sha256": "2c9843a51e8dd4b41f7620dcc4bf3677c7867d922073202c095324fb1443cfa5"
+    },
+    "dkms_clang": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-dkms-clang.port.patch",
+      "local_port_upstream_sha256": "65b5745c2e07d93495a5aa1ff7269c89e7aef42acff0d018ab05663560bdf8f7"
+    },
+    "firmware_name": {
+      "path": "attachment.cgi?id=649432",
+      "commit": "6d5371c96444e87ef912f476ff0a34f961579f7adcacafa2aec151a951ad4e7e",
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-firmware-name.port.patch",
+      "local_port_upstream_sha256": "6d5371c96444e87ef912f476ff0a34f961579f7adcacafa2aec151a951ad4e7e"
+    },
+    "minstrel_downgrade": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-minstrel-downgrade.port.patch",
+      "local_port_upstream_sha256": "4929f7a8033f34715c2a19b606c45d0d711e7328452ed1b31a5bf52a0c1a7232"
+    },
+    "ath11k_remapped_ce": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-ath11k-remapped-ce.port.patch",
+      "local_port_upstream_sha256": "6a2290d4edd8852c43dbb0ebc5c6c95bdaa92dd5ca4dcd22ccbe4cd9d3d07819"
+    },
     "fsync": {
       "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync(?:1|_legacy)_via_futex_waitv\\.patch",
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
-      "project_version_regex": "0007-v(?P<version>\\d+\\.\\d+)-fsync(?:1|_legacy)_via_futex_waitv\\.patch$"
+      "project_version_regex": "0007-v(?P<version>\\d+\\.\\d+)-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
+      "local_port_project_version": "6.14"
+    },
+    "zen_03": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-03.port.patch",
+      "local_port_upstream_sha256": "f22c6983d496d9038fa0f4288ee6cbb5b46837fee5f644f4759e4c26dcdff262"
+    },
+    "zen_04": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-04.port.patch",
+      "local_port_upstream_sha256": "ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc"
+    },
+    "zen_05": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-05.port.patch",
+      "local_port_upstream_sha256": "8791520229802e19a4f50fcf70422e20bcff63656e1acf0920d3ec2c0f35107f"
+    },
+    "zen_06": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-06.port.patch",
+      "local_port_upstream_sha256": "281787a4aaed0cf098554964865892404ceb17bdd966db4dcaa5cddfce093c21"
+    },
+    "zen_07": {
+      "port_for_kernel": "6.18",
+      "port_when_incompatible": true,
+      "local_port": "6.18.45-zen-07.port.patch",
+      "local_port_upstream_sha256": "4efdfcea27b787f0c6d5fc46fb652b2bba7c994a3ab9a681184bca4fd10a234f"
     }
-  },
-  "schema": 1
+  }
 }

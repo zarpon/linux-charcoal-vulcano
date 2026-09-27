@@ -1,4 +1,4 @@
-name: Daily full kernel builds
+name: Daily full kernel build
 
 on:
   schedule:
@@ -11,10 +11,10 @@ permissions:
   contents: read
 
 jobs:
-  dispatch-full-builds:
+  dispatch-full-build:
     runs-on: ubuntu-24.04
     steps:
-      - name: Trigger master 6.16 full build and release
+      - name: Trigger full kernel package build and publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -23,22 +23,3 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref master \
             -f publish_release=true
-
-      - name: Trigger 618pre full build and prerelease
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          gh workflow run push.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref 618pre \
-            -f publish_release=true
-
-      - name: Trigger kernel-7.2 full build and Preview release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          gh workflow run build-kernel-7.2.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref kernel-7.2

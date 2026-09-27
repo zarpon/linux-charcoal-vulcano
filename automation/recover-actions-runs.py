@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Recover GitHub Actions runs stuck in non-terminal states.
 
-The script first requests a normal cancellation, then a force cancellation.
-For runs that remain non-terminal past the configured stale threshold, it
-finally attempts deletion. It never acts on its own workflow run.
+The script first ignores active runs younger than the configured stale
+threshold. For stale runs it requests a normal cancellation, then a force
+cancellation. If a stale run still remains non-terminal, it finally attempts
+deletion. It never acts on its own workflow run.
 """
 
 from __future__ import annotations
@@ -178,6 +179,18 @@ def recover_run(
             "result": "already-terminal",
             "status": run.get("status"),
             "conclusion": run.get("conclusion"),
+        }
+
+    # A recovery pass must never disrupt a healthy new build. The stale
+    # threshold gates cancellation itself, not merely the final deletion.
+    initial_age = age_minutes(run, now)
+    if initial_age < stale_minutes:
+        return {
+            "run_id": run_id,
+            "result": "not-stale",
+            "status": run.get("status"),
+            "age_minutes": round(initial_age, 1),
+            "stale": False,
         }
 
     actions: list[dict[str, Any]] = []

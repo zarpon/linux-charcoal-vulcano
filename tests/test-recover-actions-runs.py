@@ -82,6 +82,21 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(result["result"], "already-terminal")
         self.assertEqual([method for method, _ in opener.requests], ["GET"])
 
+    def test_fresh_active_run_is_not_cancelled(self):
+        active = {
+            "id": 4,
+            "status": "in_progress",
+            "created_at": "2026-08-06T18:30:00Z",
+        }
+        opener = SequenceOpener([(200, active)])
+        api = MODULE.GitHubAPI("o/r", "t", opener=opener, sleep=lambda _: None)
+        result = MODULE.recover_run(
+            api, 4, self_run_id=None, stale_minutes=60, now=self.now
+        )
+        self.assertEqual(result["result"], "not-stale")
+        self.assertFalse(result["stale"])
+        self.assertEqual([method for method, _ in opener.requests], ["GET"])
+
     def test_force_cancel_resolves_after_normal_cancel_stays_active(self):
         active = {
             "id": 2,

@@ -1,7 +1,7 @@
 # Kernel Charcoal para SteamOS - Edição Vulcano 
 Antes de instalar, por favor verifique se você está no canal estável de instalação do SteamOs 
 
-[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
+[![build](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml/badge.svg?branch=master)](https://github.com/zarpon/linux-charcoal-vulcano/actions)
 
 [English](README.md)
 
@@ -11,9 +11,16 @@ outros PCs portáteis AMD. Ele é construído a partir do
 Valve, com um conjunto de alterações de agendamento, memória, I/O, Wi-Fi e
 suporte específico para portáteis, todas registradas na origem da compilação.
 
-> **Alvo atual de compilação:** a tag mais recente da Valve que corresponde a
-> `6.16.12-valve*`. Cada release inclui a revisão exata do código-fonte e a
-> seleção de patches dinâmicos usada naquela compilação.
+> **Alvo atual de compilação:** a tag oficial mais recente do SteamOS da Valve
+> que corresponde a `6.18.*-valve*`. O
+> resolvedor procura uma tag 6.18 mais nova a cada compilação; cada release
+> registra a revisão exata do código-fonte e a seleção dinâmica de patches usada.
+>
+> **Canal estável da master:** o instalador consulta o endpoint
+> `/releases/latest` do GitHub e aceita somente uma release publicada, não draft
+> e não pré-release, com tag `charcoal-6.18.*-r<run>` e os nomes de arquivos
+> esperados. Se a release estável mais recente do GitHub for de outra série de
+> kernel, ele falha de modo seguro; não recua para uma release 6.18 mais antiga.
 
 ## Dispositivos suportados
 
@@ -35,17 +42,18 @@ patches usados.
 | --- | --- |
 | [LRU Marie](https://github.com/firelzrd/lru_marie) | Habilita o caminho de recuperação de memória LRU Marie (`CONFIG_LRU_MARIE=y`). |
 | [zram-ir](https://github.com/firelzrd/zram-ir) | Adiciona o controle de recompressão imediata do zram por meio de `vm.zram_recomp_immediate`. O porte Charcoal do kernel define esse controle como `1`, portanto a escrita tenta LZ4 primário e depois ZSTD na prioridade `1`. O porte incluído fixa a compressão ZSTD do ZRAM no equivalente a `zstd --fast=1` (`-1`); `algorithm_params` do espaço de usuário não pode substituí-lo. Um *drop-in* do `zram-generator` e o `ExecStartPre` de `systemd-zram-setup@` configuram os dois algoritmos antes de `disksize`. O helper udev reafirma o sysctl e fornece um fallback seguro; ele nunca redefine um dispositivo inicializado ou swap ativo e não cria um dispositivo zram adicional. |
-| [RFC AMD P-State: boost EPP por núcleo](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Porta os quatro patches para Valve 6.16.12: limpeza de kernel-doc, ordenação do cache de requisições CPPC, boost EPP por núcleo recentemente ocupado e documentação. O Charcoal ativa `amd_pstate.epp_boost=1` em sua linha de comando interna por padrão; ele só atua no modo ativo baseado em MSR e pode ser desativado explicitamente com `amd_pstate.epp_boost=0` nos argumentos do boot loader. |
+| [RFC AMD P-State: boost EPP por núcleo](https://lore.kernel.org/linux-pm/20260728073150.54964-2-void@manifault.com/t/#m22b425e7e2889c9656fe7422aa02d78d91a36431) | Aplica primeiro o payload canônico mais recente dos quatro patches RFC, com portas revisadas para Valve 6.18.45 como fallbacks estritos: limpeza de kernel-doc, ordenação do cache de requisições CPPC, boost EPP por núcleo recentemente ocupado e documentação. O Charcoal ativa `amd_pstate.epp_boost=1` em sua linha de comando interna por padrão; ele só atua no modo ativo baseado em MSR e pode ser desativado explicitamente com `amd_pstate.epp_boost=0` nos argumentos do boot loader. |
 | [ADIOS](https://github.com/firelzrd/adios) | Adiciona o escalonador Adaptive Deadline I/O Scheduler e o torna o escalonador MQ de I/O padrão. A regra udev instalada também seleciona `adios` para dispositivos de bloco compatíveis, exceto dispositivos loop e zram. |
-| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Habilita o escalonador de CPU Burst-Oriented Response Enhancer (`CONFIG_SCHED_BORE=y`) por meio do porte revisado para o Valve 6.16.12 do patch BORE 6.18 oficial mais recente. |
+| [BORE Scheduler 6.8.0](https://github.com/firelzrd/bore-scheduler/tree/main/patches/testing) | Habilita o escalonador de CPU Burst-Oriented Response Enhancer (`CONFIG_SCHED_BORE=y`) por meio do porte revisado para Valve 6.18.45 do patch oficial mais recente do BORE 6.8.0. |
 | [Correção de coexistência BORE sched_ext](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Aplica o upstream `0002-sched-ext-coexistence-fix.patch` após o BORE. O porte local do Valve preserva o helper e acrescenta o protótipo interno exigido pela compilação estrita, sem usar fuzz. |
-| [POC Selector](https://github.com/firelzrd/poc-selector) | Habilita a seleção de CPU ociosa por bitmap (`CONFIG_SCHED_POC_SELECTOR=y`) no caminho de ativação de tarefas. Seu adaptador restrito para Valve/BORE consome o patch oficial compatível ou mais próximo atual e rejeita mudanças inesperadas de hunk antes do empacotamento. |
+| [POC Selector](https://github.com/firelzrd/poc-selector) | Habilita a seleção de CPU ociosa por bitmap (`CONFIG_SCHED_POC_SELECTOR=y`) no caminho de ativação de tarefas. Usa o patch nativo 6.18 mais recente quando disponível; caso contrário, seu adaptador restrito para Valve/BORE porta a release oficial mais nova e rejeita mudanças inesperadas de hunk antes do empacotamento. |
 | [Nap](https://github.com/firelzrd/nap) | Habilita o governador Neural Adaptive Predictor de CPU idle. O fragmento de configuração do Charcoal desabilita ladder, menu e teo e habilita o NAP. |
 
-Para componentes que possuem patch oficial compatível com 6.16, o resolvedor
-busca o patch upstream correspondente mais recente. Quando é necessário um
-porte aprovado para 6.16.12, a compilação usa o porte local do repositório e
-registra em `patch-lock.json` a fonte upstream mais nova que ele acompanha. O
+Para cada componente versionado, o resolvedor começa pela release upstream mais
+recente e prioriza o patch nativo para Linux 6.18. Quando não há patch 6.18
+nativo, ele tenta primeiro os bytes canônicos upstream mais novos e usa um
+porte local 6.18 revisado somente como fallback estrito após falha de aplicação.
+O `patch-lock.json` registra a fonte selecionada e qualquer fallback. O
 BORE é acompanhado a partir dos diretórios de teste e estável Linux 6.18 de
 `firelzrd/bore-scheduler`, e a adição de coexistência com `sched_ext` é
 acompanhada no mesmo repositório. O resolvedor registra a fonte oficial atual
@@ -102,12 +110,19 @@ Execute no modo Desktop do SteamOS:
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
-O instalador sempre obtém a [última release
-publicada](https://github.com/zarpon/linux-charcoal-vulcano/releases/latest). Antes
-de chamar o `pacman`, ele verifica o SHA-256 do ZIP da release e o SHA-256 de
-cada pacote interno. Em seguida, ativa o modo de desenvolvedor do SteamOS sem
-interação para inicializar o `pacman`, instala os pacotes do kernel e dos
-headers Charcoal e atualiza a configuração do bootloader. A ordem de
+O instalador da `master` consulta o endpoint estável `/releases/latest` do
+GitHub em toda execução. Ele aceita somente uma release Charcoal publicada, que
+não seja draft nem pré-release, cuja tag corresponda a
+`charcoal-6.18.*-r<run>` e cujo arquivo seja exatamente `linux-${tag}.zip`.
+Releases de outras séries de kernel são rejeitadas, sem procurar versões mais
+antigas como alternativa. Até a release estável mais recente do Charcoal ser da
+série 6.18, o instalador para antes de alterar o sistema. Depois da publicação
+de uma release compatível, executar novamente o comando instala essa versão
+estável mais recente.
+Antes de chamar o `pacman`, o instalador verifica o SHA-256 do ZIP da release e
+o SHA-256 de cada pacote interno. Em seguida, ativa o modo de desenvolvedor do
+SteamOS sem interação para inicializar o `pacman`, instala os pacotes do kernel
+e dos headers Charcoal e atualiza a configuração do bootloader. A ordem de
 preferência é `grub-mkconfig`, `steamos-update-grub` e `update-grub`; se nenhum
 estiver disponível, o instalador não informa sucesso. Ele reinstala os pacotes
 verificados quando necessário, pois revisões de release do Charcoal podem mudar
@@ -192,9 +207,9 @@ resolução e validação de checksums antes de empacotar uma release.
 Para gerar uma compilação nova a partir do conjunto atual de patches, sem
 alterar o repositório, abra [Build latest SteamOS Charcoal kernel](https://github.com/zarpon/linux-charcoal-vulcano/actions/workflows/push.yml), clique em **Run workflow** e selecione `master`.
 
-- Mantenha **Publish the compiled packages as a GitHub release** ativado para
-  publicar uma release normal para download depois que todas as validações
-  passarem.
+- Mantenha **Publish the compiled packages as the latest stable GitHub release**
+  ativado para publicar os pacotes verificados como a release estável mais
+  recente depois que todas as validações passarem.
 - Desative essa opção para apenas validar a compilação. Os pacotes e o lock de
   patches ficarão disponíveis como artefatos do workflow por 14 dias; nenhuma
   release será criada.

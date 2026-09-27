@@ -1,0 +1,37 @@
+From: Sultan Alsawaf <sultan@kerneltoast.com>
+Date: Sat, 28 Mar 2020 20:06:28 +0000
+Subject: [PATCH] ZEN: INTERACTIVE: mm: Disable watermark boosting by default
+
+Reviewed port for Valve SteamOS 6.18.45.
+Upstream: zen-kernel/zen-kernel 92850f57d0d3dd0c55a6556f4c4a9afd38da7f8a
+Upstream SHA-256: 281787a4aaed0cf098554964865892404ceb17bdd966db4dcaa5cddfce093c21
+
+Preserve the upstream Zen INTERACTIVE watermark boost default while rebasing
+the help context onto the reduced Zen patch series used by this branch.
+---
+
+diff --git a/init/Kconfig b/init/Kconfig
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -10,6 +10,7 @@ config ZEN_INTERACTIVE
+ 
+ 	    Background-reclaim hugepages...:   no   ->   yes
+ 	    Compact unevictable............:   yes  ->   no
++	    Watermark boost factor.........:   1.5  ->   0
+ 
+ config BROKEN
+ 	bool
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -4,6 +4,10 @@ const char * const migratetype_names[MIGRATE_TYPES] = {
+ 
+ int min_free_kbytes = 1024;
+ int user_min_free_kbytes = -1;
++#ifdef CONFIG_ZEN_INTERACTIVE
++static int watermark_boost_factor __read_mostly;
++#else
+ static int watermark_boost_factor __read_mostly = 15000;
++#endif
+ static int watermark_scale_factor = 10;
+ int defrag_mode;

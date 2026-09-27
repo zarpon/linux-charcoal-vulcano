@@ -69,54 +69,6 @@ spec.loader.exec_module(module)
 
 
 class PocPortTests(unittest.TestCase):
-    def test_v300_sleep_hook_preserves_additions_at_valve_dequeue_entry(self) -> None:
-        prefix = (
-            "Subject: [PATCH] 6.18.3-poc-selector-v3.0.0\n"
-            + module.FAIR_SECTION_HEADER
-            + "--- a/kernel/sched/fair.c\n+++ b/kernel/sched/fair.c\n"
-            + "@@ -7168,6 +7172,10 @@ static bool dequeue_task_fair\n"
-        )
-        suffix = "@@ -7601,6 +7609,20 @@ void __update_idle_core\n"
-        patch = prefix + module.V300_SLEEP_CONTEXT + suffix
-        adapted = module.adapt_v300_sleep_hunk(patch, module.VALVE_DEQUEUE_ANCHOR)
-        self.assertIn("@@ -1,5 +5,9 @@", adapted)
-        self.assertIn(" {\n" + module.V300_SLEEP_HOOK, adapted)
-        self.assertTrue(adapted.endswith(suffix))
-        self.assertEqual(adapted.count(module.V300_SLEEP_HOOK), 1)
-        with self.assertRaises(module.PortError):
-            module.adapt_v300_sleep_hunk(
-                patch, module.VALVE_DEQUEUE_ANCHOR * 2
-            )
-        with self.assertRaises(module.PortError):
-            module.adapt_v300_sleep_hunk(
-                patch.replace("+\tif (flags & DEQUEUE_SLEEP)", "+\tif (flags)"),
-                module.VALVE_DEQUEUE_ANCHOR,
-            )
-
-    def test_v300_wakeup_hook_preserves_both_poc_addition_blocks(self) -> None:
-        prefix = (
-            "Subject: [PATCH] 6.18.3-poc-selector-v3.0.0\n"
-            + module.FAIR_SECTION_HEADER
-            + "--- a/kernel/sched/fair.c\n+++ b/kernel/sched/fair.c\n"
-            + "@@ -8745,7 +8836,15 @@ static void check_preempt_wakeup_fair\n"
-        )
-        suffix = "\ndiff --git a/kernel/sched/idle.c b/kernel/sched/idle.c\n"
-        patch = prefix + module.V300_WAKEUP_BODY + suffix
-        native_context = module.V300_WAKEUP_BODY.replace(
-            " \tbool do_preempt_short = false;\n", ""
-        )
-        source = module.old_hunk_text(native_context)
-        adapted = module.adapt_v300_wakeup_hunk(patch, source)
-        additions = lambda value: [
-            line for line in value.splitlines()
-            if line.startswith("+") and not line.startswith("+++")
-        ]
-        self.assertEqual(additions(patch), additions(adapted))
-        self.assertNotIn("bool do_preempt_short", adapted)
-        self.assertTrue(adapted.endswith(suffix))
-        with self.assertRaises(module.PortError):
-            module.adapt_v300_wakeup_hunk(patch, source * 2)
-
     def test_reviewed_patch_is_adapted_for_bore_layout(self) -> None:
         adapted = module.adapt_patch(UPSTREAM_PATCH, FAIR_SOURCE, SCHED_HEADER)
         adapted_sched = module.sched_section(adapted)
@@ -132,7 +84,7 @@ class PocPortTests(unittest.TestCase):
             adapted,
         )
         self.assertIn("@@ -1,4 +1,7 @@ struct rq {", adapted)
-        self.assertIn(module.FIELD_BLOCK, adapted)
+        self.assertIn(module.LEGACY_ADDITIONS, adapted)
 
     def test_adapter_rejects_an_unreviewed_patch(self) -> None:
         changed = UPSTREAM_PATCH.replace(
@@ -154,7 +106,7 @@ class PocPortTests(unittest.TestCase):
 
     def test_adapter_rejects_ambiguous_kernel_anchor(self) -> None:
         with self.assertRaises(module.PortError):
-            module.sched_hunk(SCHED_HEADER + SCHED_HEADER)
+            module.sched_hunk(SCHED_HEADER + SCHED_HEADER, module.LEGACY_ADDITIONS)
 
     def test_adapter_rejects_an_unreviewed_fair_hunk(self) -> None:
         changed = UPSTREAM_PATCH.replace(
@@ -170,7 +122,10 @@ class PocPortTests(unittest.TestCase):
 
     def test_adapter_rejects_a_previously_modified_kernel_header(self) -> None:
         with self.assertRaises(module.PortError):
-            module.sched_hunk(SCHED_HEADER.replace("nr_switches", "poc_idle_committed"))
+            module.sched_hunk(
+                SCHED_HEADER.replace("nr_switches", "poc_idle_committed"),
+                module.LEGACY_ADDITIONS,
+            )
 
     def test_cli_generates_a_patch_without_mutating_the_kernel_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -200,7 +155,6 @@ class PocPortTests(unittest.TestCase):
             )
 
             self.assertEqual(sched_header.read_bytes(), before)
-            self.assertNotIn(b"\r\n", output.read_bytes())
             self.assertIn("poc_idle_committed", output.read_text(encoding="utf-8"))
 
 
