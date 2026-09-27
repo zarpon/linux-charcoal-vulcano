@@ -4,7 +4,7 @@ Subject: [PATCH] ZEN: INTERACTIVE: Enable background reclaim of hugepages
 
 Reviewed port for Valve SteamOS 6.18.50 after the Zen INTERACTIVE base patch.
 Upstream: zen-kernel/zen-kernel 21dd0495958b7c1bd34f2d83537a4f3af5b804c3
-Upstream SHA-256: 7693d3ea136510ab9d32e6cbf7b5d098ad2590e7942cb5c3893281a921764116
+Upstream SHA-256: ad78cbbb686baf426f83368db3f7bd4e86051d373652868208e8ba5d18ce68dc
 
 Preserve the upstream Zen INTERACTIVE semantics while rebasing the Kconfig
 help text and transparent hugepage default onto Valve's 6.18.50 layout.
