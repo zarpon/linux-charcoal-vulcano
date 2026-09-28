@@ -75,7 +75,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py tests/test_patch_fsync_port.py tests/test_patch_cpu_optimizations_port.py
+          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py tests/test_patch_fsync_port.py tests/test_patch_cpu_optimizations_port.py tests/test_release_latest_verification.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
           python3 automation/audit-latest-patch-versions.py | tee logs/latest-patch-audit.log
@@ -83,6 +83,7 @@ jobs:
           python3 tests/test-bore-overlay.py
           python3 tests/test_patch_fsync_port.py
           python3 tests/test_patch_cpu_optimizations_port.py
+          python3 tests/test_release_latest_verification.py
           bash -n PKGBUILD
           grep -Fq '"version": "6.18.' logs/patch-lock.json
           grep -Fq 'latest-adios.patch' PKGBUILD
@@ -504,12 +505,13 @@ jobs:
               --verify-tag
           fi
 
-          release_is_stable_latest="$(gh release view "$RELEASE_TAG" \
+          release_is_stable="$(gh release view "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --json isPrerelease,isLatest \
-            --jq '.isPrerelease == false and .isLatest == true')"
-          if [[ "$release_is_stable_latest" != "true" ]]; then
-            echo "Release ${RELEASE_TAG} is not a stable GitHub latest release" >&2
+            --json isDraft,isPrerelease \
+            --jq '.isDraft == false and .isPrerelease == false')"
+          latest_release_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ "$release_is_stable" != "true" || "$latest_release_tag" != "$RELEASE_TAG" ]]; then
+            echo "Release ${RELEASE_TAG} is not a published stable GitHub latest release (latest tag: ${latest_release_tag})" >&2
             exit 1
           fi
 
