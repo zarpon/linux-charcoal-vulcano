@@ -1,8 +1,8 @@
 # Charcoal SteamOS Kernel — SteamOS 7.2 Preview
 
-This branch is the experimental Charcoal line for **SteamOS 7.2**. It is intentionally isolated from the stable `master`/6.16 line and from the other kernel branches.
+This branch is the experimental Charcoal line for **SteamOS 7.2**. It is intentionally isolated from the stable `master`/6.18 line and from the other kernel branches.
 
-> **Important:** builds produced from `kernel-7.2` use their own **Charcoal 7.2 Preview** GitHub release channel. These releases are published releases, but they are explicitly **not** marked as GitHub prereleases and **not** marked as `Latest`, so they do not take ownership of the repository's normal latest/stable release channel.
+> **Important:** builds produced from `kernel-7.2` use their own **Charcoal 7.2 Preview** GitHub release channel. Every successful build on this branch is published as a GitHub **prerelease**, never as `Latest`, so it does not take ownership of the repository's stable release channel.
 
 ## Source policy
 
@@ -20,7 +20,7 @@ Run this from SteamOS Desktop Mode:
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/kernel-7.2/install-charcoal.sh -o install-charcoal-7.2.sh && bash install-charcoal-7.2.sh
 ```
 
-The installer is pinned exclusively to the 7.2 Preview line. It scans GitHub Releases for the newest published release whose tag starts with `charcoal-7.2-preview-`, rejects drafts and GitHub prereleases, and accepts only a `linux-charcoal-72-*.zip` bundle plus `RELEASE-ZIP-SHA256SUM`.
+The installer is pinned exclusively to the 7.2 Preview line. It scans GitHub Releases for the newest published **prerelease** whose tag starts with `charcoal-7.2-preview-`, rejects drafts and ordinary releases, and accepts only a `linux-charcoal-72-*.zip` bundle plus `RELEASE-ZIP-SHA256SUM`.
 
 It does **not** use `releases/latest`, so installing the 7.2 Preview kernel never depends on which release another branch currently owns as the repository's Latest release.
 
@@ -51,12 +51,12 @@ Every successful kernel build triggered from `kernel-7.2` is packaged into a ded
 
 - release title: **Charcoal 7.2 Preview**;
 - exclusive tag prefix: `charcoal-7.2-preview-`;
-- `prerelease = false`;
+- `prerelease = true`;
 - `latest = false`.
 
-A successful 7.2 build therefore remains a normal downloadable GitHub release while being isolated from the `Latest` release selected for other branches.
+A successful 7.2 build therefore appears in GitHub's prerelease channel while remaining isolated from the `Latest` stable release selected for other branches.
 
-The installer selects this channel by its exclusive tag prefix and never relies on the repository-wide latest-release endpoint.
+The installer requires both the exclusive tag prefix and GitHub's prerelease flag; it never relies on the repository-wide latest-release endpoint.
 
 ## Current 7.2 kernel configuration
 

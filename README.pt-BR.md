@@ -1,8 +1,8 @@
 # Kernel Charcoal SteamOS — SteamOS 7.2 Preview
 
-Esta branch é a linha experimental do Charcoal para o **SteamOS 7.2**. Ela fica isolada da linha estável `master`/6.16 e das demais linhas de kernel do repositório.
+Esta branch é a linha experimental do Charcoal para o **SteamOS 7.2**. Ela fica isolada da linha estável `master`/6.18 e das demais linhas de kernel do repositório.
 
-> **Importante:** os builds produzidos pela `kernel-7.2` usam um canal próprio de releases chamado **Charcoal 7.2 Preview**. Esses releases são publicações normais do GitHub, porém são explicitamente configurados com `prerelease = false` e `latest = false`, para não assumir o canal `Latest` nem conflitar com releases produzidos por outras branches.
+> **Importante:** os builds produzidos pela `kernel-7.2` usam um canal próprio de releases chamado **Charcoal 7.2 Preview**. Todo build concluído com sucesso nessa branch é publicado como **pré-release** do GitHub e nunca como `Latest`, sem assumir o canal de release estável do repositório.
 
 ## Política de fonte
 
@@ -24,7 +24,7 @@ Execute no Modo Desktop do SteamOS:
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/kernel-7.2/install-charcoal.sh -o install-charcoal-7.2.sh && bash install-charcoal-7.2.sh
 ```
 
-O instalador fica preso exclusivamente ao canal 7.2 Preview. Ele consulta a lista de Releases do GitHub e seleciona a publicação mais recente cuja tag comece com `charcoal-7.2-preview-`, rejeitando drafts e releases marcados como GitHub prerelease.
+O instalador fica preso exclusivamente ao canal 7.2 Preview. Ele consulta a lista de Releases do GitHub e seleciona o pré-release publicado mais recente cuja tag comece com `charcoal-7.2-preview-`, rejeitando drafts e releases comuns.
 
 O instalador **não usa `releases/latest`**. Portanto, a instalação do 7.2 Preview não depende de qual release de outra branch esteja marcado como `Latest` no repositório.
 
@@ -57,12 +57,12 @@ Todo build de kernel concluído com sucesso na branch `kernel-7.2` é empacotado
 
 - título: **Charcoal 7.2 Preview**;
 - prefixo exclusivo de tag: `charcoal-7.2-preview-`;
-- `prerelease = false`;
+- `prerelease = true`;
 - `latest = false`.
 
-Assim, o kernel 7.2 continua disponível como release normal para instalação e download sem disputar o `Latest` usado pelas outras linhas do repositório.
+Assim, o kernel 7.2 fica no canal de pré-releases para teste sem disputar o `Latest` estável usado pelas outras linhas do repositório.
 
-A branch temporária de validação pode executar testes, resolver fontes, aplicar patches, compilar e gerar artifacts, mas **não publica releases**. A publicação só é permitida quando o mesmo código validado está na branch definitiva `kernel-7.2` e a compilação completa termina com sucesso.
+A branch temporária de validação pode executar testes, resolver fontes, aplicar patches, compilar e gerar artifacts, mas **não publica releases**. A publicação do pré-release só ocorre quando o código está na branch definitiva `kernel-7.2` e a compilação completa termina com sucesso.
 
 ## Configuração atual do kernel 7.2
 
@@ -76,7 +76,7 @@ O workflow dedicado é:
 
 A compilação executa a resolução dinâmica da fonte oficial do SteamOS 7.2, auditoria das versões upstream dos patches, validação do `patch-lock`, preflight/aplicação no código-fonte real e compilação do kernel. Somente depois de todas essas etapas concluídas com sucesso a branch definitiva `kernel-7.2` pode publicar o **Charcoal 7.2 Preview**.
 
-O próprio workflow verifica após a publicação que o release não é draft, não é prerelease e não está marcado como `Latest`. Uma falha de publicação ou de validação faz o workflow falhar.
+O próprio workflow verifica após a publicação que o release não é draft, é prerelease e não está marcado como `Latest`. Uma falha de publicação ou de validação faz o workflow falhar.
 
 ## Aviso
 

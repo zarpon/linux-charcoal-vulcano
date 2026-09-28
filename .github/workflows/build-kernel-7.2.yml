@@ -61,14 +61,19 @@ jobs:
             tests/test-prepare-steamos-7.2.py \
             tests/test-prepare-pkgbuild-7.2.py \
             tests/test-resolve-latest-patches-7.2.py \
-            tests/test-normalize-diff-whitespace.py
+            tests/test-normalize-diff-whitespace.py \
+            tests/test-install-release-policy-7.2.py \
+            tests/test-unused-6.16-patches-7.2.py
           python3 tests/test-prepare-steamos-7.2.py -v
           python3 tests/test-prepare-pkgbuild-7.2.py -v
           python3 tests/test-resolve-latest-patches-7.2.py -v
           python3 tests/test-resolve-latest-patches.py -v
           python3 tests/test-normalize-diff-whitespace.py -v
+          python3 tests/test-install-release-policy-7.2.py -v
+          python3 tests/test-unused-6.16-patches-7.2.py -v
           bash -n install-charcoal.sh
           bash tests/test-install-charcoal.sh
+          bash tests/test-runtime-tuning.sh
 
       - name: Resolve official SteamOS 7.2 source and Arch config
         run: |
@@ -300,8 +305,8 @@ jobs:
             echo "- Workflow run: \`${GITHUB_RUN_NUMBER}\`"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo
-            echo "This is a normal published GitHub release, but it is explicitly not a prerelease and not the repository Latest release."
-            echo "The SteamOS 7.2 installer discovers it only through the dedicated \`charcoal-7.2-preview-\` tag prefix."
+            echo "This is a published GitHub prerelease and is explicitly not the repository Latest release."
+            echo "The SteamOS 7.2 installer discovers it only through the dedicated \`charcoal-7.2-preview-\` tag prefix and requires the prerelease flag."
           } > logs/release-notes.md
 
       - name: Publish Charcoal 7.2 Preview release
@@ -325,7 +330,7 @@ jobs:
               --title "Charcoal 7.2 Preview" \
               --notes-file logs/release-notes.md \
               --draft=false \
-              --prerelease=false \
+              --prerelease \
               --latest=false
           else
             gh release create "$RELEASE_TAG" "${assets[@]}" \
@@ -333,6 +338,7 @@ jobs:
               --target "$GITHUB_SHA" \
               --title "Charcoal 7.2 Preview" \
               --notes-file logs/release-notes.md \
+              --prerelease \
               --latest=false
           fi
 
@@ -351,7 +357,7 @@ jobs:
           assert record['tagName'].startswith('charcoal-7.2-preview-'), record
           assert record['name'] == 'Charcoal 7.2 Preview', record
           assert record['isDraft'] is False, record
-          assert record['isPrerelease'] is False, record
+          assert record['isPrerelease'] is True, record
           assert record['isLatest'] is False, record
           PY
 

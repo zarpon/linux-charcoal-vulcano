@@ -107,13 +107,13 @@ for release in releases:
     if not isinstance(release, dict):
         continue
     tag = release.get("tag_name")
-    if release.get("draft") or release.get("prerelease"):
+    if release.get("draft") is not False or release.get("prerelease") is not True:
         continue
     if isinstance(tag, str) and tag.startswith(tag_prefix):
         selected = release
         break
 if selected is None:
-    raise SystemExit("No published Charcoal SteamOS 7.2 Preview release was found")
+    raise SystemExit("No published Charcoal SteamOS 7.2 Preview prerelease was found")
 
 tag = text(selected.get("tag_name"), "release tag")
 assets = selected.get("assets")

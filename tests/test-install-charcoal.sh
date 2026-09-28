@@ -72,7 +72,7 @@ install_line="$(grep -n -F 'run_privileged pacman -U --noconfirm "${packages[@]}
 
 grep -Fq 'RELEASE_TAG_PREFIX="charcoal-7.2-preview-"' "$INSTALLER" \
   || fail "installer is not pinned to the 7.2 Preview release channel"
-grep -Fq 'release.get("prerelease")' "$INSTALLER" \
-  || fail "installer must reject GitHub prereleases"
+grep -Fq 'release.get("prerelease") is not True' "$INSTALLER" \
+  || fail "installer must require GitHub prereleases"
 
 printf 'install-charcoal SteamOS 7.2 stock-removal tests passed\n'
