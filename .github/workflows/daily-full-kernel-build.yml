@@ -2,8 +2,8 @@ name: Daily full kernel build
 
 on:
   schedule:
-    # GitHub Actions cron uses UTC. 03:00 UTC = 00:00 America/Sao_Paulo (Brasilia).
-    - cron: '0 3 * * *'
+    # GitHub Actions cron uses UTC. 03:05 UTC = 00:05 America/Sao_Paulo (Brasilia).
+    - cron: '5 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -11,10 +11,11 @@ permissions:
   contents: read
 
 jobs:
-  dispatch-full-build:
+  dispatch-master:
+    name: Dispatch full SteamOS 6.18 master build
     runs-on: ubuntu-24.04
     steps:
-      - name: Trigger full kernel package build and publish release
+      - name: Trigger full master build and stable release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -23,3 +24,16 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref master \
             -f publish_release=true
+
+  dispatch-kernel-7-2:
+    name: Dispatch full SteamOS 7.2 Preview build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Trigger full kernel-7.2 build and prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          gh workflow run build-kernel-7.2.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref kernel-7.2
