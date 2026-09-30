@@ -1,4 +1,4 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-09-29T05:49:00-03:00
-Source: recovery after missing 2026-09-29 scheduled full build before daily scheduler was corrected to 00:05 America/Sao_Paulo
+Last requested build: 2026-09-30T05:23:00-03:00
+Source: monitor recovery after no recorded 2026-09-30 scheduled dispatcher/full kernel-7.2 build by 08:23 UTC
