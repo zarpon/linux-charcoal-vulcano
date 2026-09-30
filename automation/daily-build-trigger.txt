@@ -1,4 +1,4 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-08-27T02:14:00-03:00
-Source: daily monitor recovery after no recorded 2026-08-27 scheduled full build on 618pre
+Last requested build: 2026-09-30T19:51:00-03:00
+Source: recovery after SteamOS 6.18.53 official mirror tag became available; rebuild master on newest official source
