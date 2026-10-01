@@ -1,0 +1,26 @@
+Subject: [PATCH] ZEN: cpufreq: Remove schedutil dependency on Intel/AMD P-State drivers
+
+Reviewed port for Valve SteamOS 6.18.53.
+Upstream: zen-kernel/zen-kernel cab7ea1a4ef6685a133ae121ca27098b9dd31287
+Upstream SHA-256: 5059762e54c8dbe4262d48eafb8d486a54244eec71da5d7b61fc0f5f1c5c2ea7
+
+Preserve the upstream Zen semantics while rebasing the AMD P-State Kconfig
+context onto the 6.18 series, where the dependency line is now `depends on ACPI`.
+---
+
+diff --git a/drivers/cpufreq/Kconfig.x86 b/drivers/cpufreq/Kconfig.x86
+--- a/drivers/cpufreq/Kconfig.x86
++++ b/drivers/cpufreq/Kconfig.x86
+@@ -6,5 +6,4 @@ config X86_INTEL_PSTATE
+ 	select ACPI_PROCESSOR if ACPI
+ 	select ACPI_CPPC_LIB if X86_64 && ACPI && SCHED_MC_PRIO
+ 	select CPU_FREQ_GOV_PERFORMANCE
+-	select CPU_FREQ_GOV_SCHEDUTIL if SMP
+ 	help
+@@ -37,6 +36,5 @@ config X86_AMD_PSTATE
+ 	depends on ACPI
+ 	select ACPI_PROCESSOR
+ 	select ACPI_CPPC_LIB if X86_64
+-	select CPU_FREQ_GOV_SCHEDUTIL if SMP
+ 	select ACPI_PLATFORM_PROFILE
+ 	select POWER_SUPPLY
