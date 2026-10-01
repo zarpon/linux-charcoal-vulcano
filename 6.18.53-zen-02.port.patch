@@ -1,3 +1,4 @@
+From: zen-kernel upstream
 Subject: [PATCH] ZEN: cpufreq: Remove schedutil dependency on Intel/AMD P-State drivers
 
 Reviewed port for Valve SteamOS 6.18.53.
