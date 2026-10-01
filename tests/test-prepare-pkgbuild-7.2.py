@@ -43,6 +43,7 @@ source=(
   latest-zen-02.patch
   latest-zen-07.patch
   latest-poc-selector.patch
+  iommu-perfopt-consolidado-v3.patch
 )
 prepare() {
   if [[ $src == latest-poc-selector.patch ]]; then :; fi
@@ -123,6 +124,7 @@ class TransformTests(unittest.TestCase):
         result = MODULE.transform(SAMPLE)
         MODULE.validate(result)
         self.assertIn("pkgbase=linux-charcoal-72", result)
+        self.assertEqual(result.count("iommu-perfopt-consolidado-v3.patch"), 1)
         positions = [result.index(name) for name in MODULE.PATCH_ORDER]
         self.assertEqual(positions, sorted(positions))
 

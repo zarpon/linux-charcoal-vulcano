@@ -1,0 +1,171 @@
+From: Mario Limonciello <mario.limonciello@amd.com>
+Subject: [PATCH] iommu/amd: consolidated PerfOpt support with compulsory v3
+
+Consolidated diff of the upstream PerfOpt implementation and its amdgpu
+integration, followed by the complete published compulsory-policy v3.
+No functional changes were added during consolidation.
+
+Base repository: https://github.com/joergroedel/linux-iommu
+Base commit: 108657f24706d2209c5ecc5bae933fab3975481e
+Included upstream commits:
+  6e87850d1a8f32c1d91cce32c0d92b20f86689ed
+  e74db71a3530740bb783e3a01420f6af245630b4
+V3 message: https://lore.kernel.org/linux-iommu/20260930162401.273907-1-superm1@kernel.org/
+
+Validated: all eight source files fetched at the exact base; v3 applies
+without conflicts; the consolidated diff applies and reproduces the same
+final contents. Kernel compilation and hardware testing were not performed.
+
+Packaging port: only hunk contexts and the PerfOpt log placement were adjusted
+against SteamOS 6.18.53; PerfOpt behavior is unchanged. This diff was checked
+against SteamOS 6.18.53 and 7.2.7 and upstream v7.3-rc5.
+
+---
+diff --git a/drivers/iommu/amd/amd_iommu_types.h b/drivers/iommu/amd/amd_iommu_types.h
+index dee077b..b8503c4 100644
+--- a/drivers/iommu/amd/amd_iommu_types.h
++++ b/drivers/iommu/amd/amd_iommu_types.h
+@@ -66,6 +66,7 @@
+ #define MMIO_MSI_ADDR_LO_OFFSET	0x015C
+ #define MMIO_MSI_ADDR_HI_OFFSET	0x0160
+ #define MMIO_MSI_DATA_OFFSET	0x0164
++#define MMIO_PERF_OPT_OFFSET	0x016C
+ #define MMIO_INTCAPXT_EVT_OFFSET	0x0170
+ #define MMIO_INTCAPXT_PPR_OFFSET	0x0178
+ #define MMIO_INTCAPXT_GALOG_OFFSET	0x0180
+@@ -100,6 +101,8 @@
+ #define FEATURE_GLX		GENMASK_ULL(15, 14)
+ #define FEATURE_GAM_VAPIC	BIT_ULL(21)
+ #define FEATURE_PASMAX		GENMASK_ULL(36, 32)
++#define FEATURE_PERF_OPT	BIT_ULL(45)
++#define PERF_OPT_EN		BIT(13)
+ #define FEATURE_GIOSUP		BIT_ULL(48)
+ #define FEATURE_HASUP		BIT_ULL(49)
+ #define FEATURE_EPHSUP		BIT_ULL(50)
+@@ -877,6 +880,7 @@ struct iommu_dev_data {
+ 	u8 ppr          :1;		  /* Enable device PPR support */
+ 	bool use_vapic;			  /* Enable device to use vapic mode */
+ 	bool defer_attach;
++	bool perfopt;
+ 
+ 	struct ratelimit_state rs;        /* Ratelimit IOPF messages */
+ };
+diff --git a/drivers/iommu/amd/init.c b/drivers/iommu/amd/init.c
+index c07c3a0..bd90a74 100644
+--- a/drivers/iommu/amd/init.c
++++ b/drivers/iommu/amd/init.c
+@@ -446,6 +446,37 @@ static void iommu_enable(struct amd_iommu *iommu)
+ 	iommu_feature_enable(iommu, CONTROL_IOMMU_EN);
+ }
+ 
++/*
++ * Program or clear the per-IOMMU PerfOpt enable bit.
++ * Gate on this IOMMU's own EFR, not the global AND-mask.
++ */
++static int amd_iommu_perfopt_set(struct amd_iommu *iommu, bool enable)
++{
++	u32 old, val, readback;
++
++	if (!(iommu->features & FEATURE_PERF_OPT))
++		return enable ? -ENODEV : 0;
++
++	old = readl(iommu->mmio_base + MMIO_PERF_OPT_OFFSET);
++	if (old == U32_MAX)
++		goto fail;
++
++	val = enable ? old | PERF_OPT_EN : old & ~PERF_OPT_EN;
++	if (val != old)
++		writel(val, iommu->mmio_base + MMIO_PERF_OPT_OFFSET);
++	readback = readl(iommu->mmio_base + MMIO_PERF_OPT_OFFSET);
++	if (readback == U32_MAX ||
++	    (readback & PERF_OPT_EN) != (val & PERF_OPT_EN)) {
++		goto fail;
++	}
++
++	return 0;
++fail:
++	iommu->features &= ~FEATURE_PERF_OPT;
++	pr_err("Failed to set PerfOpt to %d\n", enable);
++	return -EIO;
++}
++
+ static void iommu_disable(struct amd_iommu *iommu)
+ {
+ 	if (!iommu->mmio_base)
+@@ -471,6 +502,9 @@ static void iommu_disable(struct amd_iommu *iommu)
+ 
+ 	/* Clear IRTE cache disabling bit */
+ 	iommu_feature_disable(iommu, CONTROL_IRTCACHEDIS);
++
++	/* Clear PerfOpt feature */
++	amd_iommu_perfopt_set(iommu, FALSE);
+ }
+ 
+ /*
+@@ -2296,6 +2330,9 @@ static void print_iommu_info(void)
+ 				pr_cont(" %s", feat_str[i]);
+ 		}
+ 
++		if (check_feature(FEATURE_PERF_OPT))
++			pr_cont(" PerfOpt");
++
+ 		if (check_feature(FEATURE_GAM_VAPIC))
+ 			pr_cont(" GA_vAPIC");
+ 
+@@ -2910,6 +2947,7 @@ static void early_enable_iommu(struct amd_iommu *iommu)
+ 	iommu_enable_xt(iommu);
+ 	iommu_enable_irtcachedis(iommu);
+ 	iommu_enable_2k_int(iommu);
++	amd_iommu_perfopt_set(iommu, TRUE);
+ 	iommu_enable(iommu);
+ 	amd_iommu_flush_all_caches(iommu);
+ }
+diff --git a/drivers/iommu/amd/iommu.c b/drivers/iommu/amd/iommu.c
+index 1230264..c98689d 100644
+--- a/drivers/iommu/amd/iommu.c
++++ b/drivers/iommu/amd/iommu.c
+@@ -2305,6 +2305,9 @@ static int attach_device(struct device *dev,
+ 	if (ret)
+ 		goto out;
+ 
++	if (dev_data->perfopt && pdom_is_in_pt_mode(domain))
++		goto skip_caps;
++
+ 	/* Setup GCR3 table */
+ 	if (pdom_is_sva_capable(domain)) {
+ 		ret = init_gcr3_table(dev_data, domain);
+@@ -2329,6 +2332,7 @@ static int attach_device(struct device *dev,
+ 		pdev_enable_cap_ats(pdev);
+ 	}
+ 
++skip_caps:
+ 	/* Update data structures */
+ 	dev_data->domain = domain;
+ 	spin_lock_irqsave(&domain->lock, flags);
+@@ -3042,6 +3046,9 @@ static int amd_iommu_def_domain_type(struct device *dev)
+ 	if (pdev_pasid_supported(dev_data) &&
+ 	    !cc_platform_has(CC_ATTR_MEM_ENCRYPT) &&
+ 	    !amd_iommu_snp_en) {
++		dev_data->perfopt = get_amd_iommu_from_dev_data(dev_data)->features &
++				    FEATURE_PERF_OPT;
++
+ 		return IOMMU_DOMAIN_IDENTITY;
+ 	}
+ 
+diff --git a/include/linux/amd-iommu.h b/include/linux/amd-iommu.h
+index 8cced63..5fd0e5f 100644
+--- a/include/linux/amd-iommu.h
++++ b/include/linux/amd-iommu.h
+@@ -11,11 +11,11 @@
+ #include <linux/types.h>
+ 
+ struct amd_iommu;
++struct pci_dev;
+ 
+ #ifdef CONFIG_AMD_IOMMU
+ 
+ struct task_struct;
+-struct pci_dev;
+ 
+ extern void amd_iommu_detect(void);
+ 

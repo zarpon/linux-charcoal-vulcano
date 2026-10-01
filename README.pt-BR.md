@@ -19,6 +19,8 @@ O pacote-fonte exato da Valve, tag, commit, origem de cada patch, versão upstre
 ## Instalar o Charcoal 7.2 Preview
 
 Execute no Modo Desktop do SteamOS:
+> **Requisito de BIOS no Steam Deck:** antes de instalar, confirme que a opção
+> IOMMU está ativa na BIOS. Salve a configuração e reinicie.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/kernel-7.2/install-charcoal.sh -o install-charcoal-7.2.sh && bash install-charcoal-7.2.sh
@@ -67,6 +69,16 @@ A branch temporária de validação pode executar testes, resolver fontes, aplic
 ## Configuração atual do kernel 7.2
 
 A branch 7.2 mantém as configurações de jogos e memória do Charcoal, incluindo o porte específico do zram-ir para 7.2. A política esperada de ZRAM continua sendo LZ4 como compressor primário e ZSTD como recompressor de prioridade 1, com o nível equivalente a `zstd --fast=1` definido no próprio porte do kernel.
+
+### AMD IOMMU PerfOpt
+
+Em IOMMU AMD compatível, o PerfOpt é habilitado automaticamente para GPUs
+integradas elegíveis usando um domínio DMA identity. O caminho otimizado do IOMMU
+pode reduzir a latência de DMA. A configuração de ATS, PRI, PASID
+e SVA/GCR3 é ignorada para esse dispositivo enquanto o PerfOpt está ativo,
+reduzindo o isolamento de DMA do IOMMU nesse caminho. O efeito depende do hardware
+e da carga; não há percentual de ganho garantido. Não há opção
+amdgpu.iommu_perfopt para desativá-lo em tempo de execução.
 
 ## Workflow de build
 
