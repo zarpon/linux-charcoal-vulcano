@@ -120,6 +120,7 @@ source=(
   "git+https://github.com/atar-axis/xpadneo.git#tag=v$_xpadneo_version"
    latest-poc-selector.patch
   latest-nap.patch
+  iommu-perfopt-consolidado-v3.patch
 )
 sha256sums=(
   'SKIP'
@@ -178,6 +179,7 @@ sha256sums=(
   'SKIP'
   'SKIP'
   'SKIP'
+  '52ee747b6888f6e59df2cc6a4b6d6ccbc104c932bc8cb11b1ff0035cde47425a'
 )
 export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase

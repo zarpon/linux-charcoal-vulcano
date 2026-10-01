@@ -27,6 +27,7 @@ spec.loader.exec_module(resolver)
 LOCAL_ONLY_PATCHES = {
     "vangogh_allow_higher_cpu_freq.patch",
     "vangogh_higher_max_power_limit.patch",
+    "iommu-perfopt-consolidado-v3.patch",
 }
 
 

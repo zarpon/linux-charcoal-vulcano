@@ -47,6 +47,7 @@ SHA-256 values.
 | [BORE sched_ext coexistence fix](https://github.com/firelzrd/bore-scheduler/tree/main/patches/additions) | Applies the upstream `0002-sched-ext-coexistence-fix.patch` after BORE. The local Valve port keeps the same helper and adds its required internal prototype, so strict builds compile without fuzz. |
 | [POC Selector](https://github.com/firelzrd/poc-selector) | Enables bitmap-based idle-CPU selection (`CONFIG_SCHED_POC_SELECTOR=y`) for the task wake-up path. It uses the newest native 6.18 patch when available; otherwise its constrained Valve/BORE adapter ports the newest official release and rejects unexpected hunk changes before packaging. |
 | [Nap](https://github.com/firelzrd/nap) | Enables the Neural Adaptive Predictor CPU-idle governor. The Charcoal fragment disables the ladder, menu, and teo governors and enables NAP. |
+| **AMD IOMMU PerfOpt** | On supported AMD IOMMUs, automatically enables PerfOpt for eligible integrated GPUs using an identity DMA domain; the optimized IOMMU path may reduce DMA latency. ATS/PRI/PASID/SVA are not configured, which reduces IOMMU DMA containment on that path; results depend on hardware and workload, with no guaranteed percentage. No runtime amdgpu.iommu_perfopt opt-out is provided. |
 
 For every versioned component, the resolver starts from the newest upstream
 release, then prioritizes its native Linux 6.18 patch. When no native 6.18
@@ -101,6 +102,8 @@ installation is required:
 ## Install
 
 Run this in SteamOS Desktop Mode:
+> **Steam Deck BIOS requirement:** Before installing on a Steam Deck, make sure
+> IOMMU is enabled in BIOS. Save the setting and reboot.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
