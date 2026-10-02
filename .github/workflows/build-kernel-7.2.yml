@@ -75,6 +75,14 @@ jobs:
           bash tests/test-install-charcoal.sh
           bash tests/test-runtime-tuning.sh
 
+      - name: Resolve latest controller drivers
+        run: |
+          set -Eeuo pipefail
+          python3 tests/test-controller-driver-resolution.py -v
+          python3 automation/resolve-controller-drivers.py --write | tee controller-driver-resolution.log
+          mv controller-driver-resolution.log logs/controller-driver-resolution.log
+          bash -n PKGBUILD
+
       - name: Resolve official SteamOS 7.2 source and Arch config
         run: |
           set -Eeuo pipefail
@@ -373,3 +381,4 @@ jobs:
             logs
           if-no-files-found: warn
           retention-days: 14
+
