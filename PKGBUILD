@@ -60,7 +60,9 @@ _make_llvm() {
     "$@"
 }
 _srcname=archlinux-linux-charcoal
-_xpadneo_version=0.10.2
+# Refreshed before every CI build; for local builds run:
+# python3 automation/resolve-controller-drivers.py --write
+_xpadneo_version=0.10.4
 source=(
   "$_srcname::git+https://github.com/evlaV/linux-integration.git#tag=$_tag"
   config          # Upstream Arch Linux kernel configuration file, DO NOT EDIT!!!
@@ -113,9 +115,9 @@ source=(
   latest-zen-06.patch
   latest-zen-07.patch
   "git+https://github.com/amkillam/ryzen_smu.git#commit=9f9569f889935f7c7294cc32c1467e5a4081701a"
-  "git+https://github.com/dlundqvist/xone.git#tag=v0.5.8"
-  "git+https://github.com/forkymcforkface/xpad-noone.git#commit=8e903676dd9514c07ce5e06e43c5f7d8cc51cb7d"
-  "git+https://github.com/atar-axis/xpadneo.git#tag=v$_xpadneo_version"
+  "git+https://github.com/dlundqvist/xone.git#commit=f2aa9fe01103d7600553b505b298ff0bd47ff280"
+  "git+https://github.com/forkymcforkface/xpad-noone.git#commit=a52e32cf182435d608e66bef9a6c89ebac891999"
+  "git+https://github.com/atar-axis/xpadneo.git#commit=4d1a8e1fd12dec838e774629826732f744310e98"
    latest-poc-selector.patch
   latest-nap.patch
   iommu-perfopt-consolidado-v3.patch
@@ -450,3 +452,4 @@ for _p in "${pkgname[@]}"; do
 done
 
 # vim:set ts=8 sts=2 sw=2 et:
+
