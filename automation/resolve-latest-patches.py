@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import html
 import hashlib
+import http.client
 import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -39,6 +41,30 @@ class Candidate:
 _TREE_CACHE: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
 
 
+def read_response(request: urllib.request.Request, timeout: int) -> bytes:
+    """Retry transient transport failures while keeping the exact pinned URL."""
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except (urllib.error.URLError, ConnectionError, TimeoutError,
+                http.client.IncompleteRead, http.client.RemoteDisconnected) as exc:
+            if isinstance(exc, urllib.error.HTTPError) and exc.code not in {
+                408, 429, 500, 502, 503, 504,
+            }:
+                raise
+            if attempt == 3:
+                raise
+            delay = 2 ** attempt
+            print(
+                f"retrying {request.full_url} in {delay}s "
+                f"after a transient network failure (attempt {attempt + 2}/4)",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+    raise AssertionError("unreachable")
+
+
 def request_json(url: str, token: str | None = None) -> Any:
     headers = {"Accept": "application/vnd.github+json", "User-Agent": UA}
     if token:
@@ -47,11 +73,9 @@ def request_json(url: str, token: str | None = None) -> Any:
             "X-GitHub-Api-Version": "2022-11-28",
         }
     try:
-        with urllib.request.urlopen(
-            urllib.request.Request(url, headers=headers), timeout=45
-        ) as response:
-            return json.load(response)
-    except (urllib.error.URLError, json.JSONDecodeError) as exc:
+        return json.loads(read_response(urllib.request.Request(url, headers=headers), 45))
+    except (urllib.error.URLError, ConnectionError, TimeoutError,
+            http.client.IncompleteRead, json.JSONDecodeError) as exc:
         raise ResolveError(f"unable to read {url}: {exc}") from exc
 
 
@@ -60,11 +84,9 @@ def request_bytes(url: str, token: str | None = None) -> bytes:
     if token and url.startswith(API):
         headers["Authorization"] = f"Bearer {token}"
     try:
-        with urllib.request.urlopen(
-            urllib.request.Request(url, headers=headers), timeout=90
-        ) as response:
-            return response.read()
-    except urllib.error.URLError as exc:
+        return read_response(urllib.request.Request(url, headers=headers), 90)
+    except (urllib.error.URLError, ConnectionError, TimeoutError,
+            http.client.IncompleteRead) as exc:
         raise ResolveError(f"unable to download {url}: {exc}") from exc
 
 

@@ -58,6 +58,76 @@ DECODED_MBOX_PATCH = (
 )
 
 
+class NetworkRetryTests(unittest.TestCase):
+    @staticmethod
+    def response(payload):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = payload
+        return response
+
+    def test_connection_reset_retries_the_same_pinned_patch(self):
+        url = "https://raw.githubusercontent.com/example/patches/abcdef/demo.patch"
+        with (
+            mock.patch.object(MODULE.urllib.request, "urlopen", side_effect=[
+                MODULE.urllib.error.URLError(ConnectionResetError(104, "Connection reset by peer")),
+                self.response(PATCH),
+            ]) as open_url,
+            mock.patch.object(MODULE.time, "sleep") as sleep,
+        ):
+            self.assertEqual(MODULE.request_bytes(url), PATCH)
+        self.assertEqual(open_url.call_count, 2)
+        self.assertEqual([call.args[0].full_url for call in open_url.call_args_list], [url, url])
+        sleep.assert_called_once_with(1)
+
+    def test_server_error_retries_json_and_preserves_authorization(self):
+        url = MODULE.API + "/repos/example/patches/tags"
+        with (
+            mock.patch.object(MODULE.urllib.request, "urlopen", side_effect=[
+                MODULE.urllib.error.HTTPError(url, 503, "Unavailable", {}, None),
+                self.response(b'[{"name":"v1"}]'),
+            ]) as open_url,
+            mock.patch.object(MODULE.time, "sleep"),
+        ):
+            self.assertEqual(MODULE.request_json(url, "test-token"), [{"name": "v1"}])
+        for call in open_url.call_args_list:
+            self.assertEqual(call.args[0].get_header("Authorization"), "Bearer test-token")
+
+    def test_incomplete_download_is_discarded_before_retry(self):
+        incomplete = self.response(b"")
+        incomplete.read.side_effect = MODULE.http.client.IncompleteRead(b"partial", 100)
+        with (
+            mock.patch.object(MODULE.urllib.request, "urlopen", side_effect=[incomplete, self.response(PATCH)]),
+            mock.patch.object(MODULE.time, "sleep"),
+        ):
+            self.assertEqual(MODULE.request_bytes("https://example.invalid/demo.patch"), PATCH)
+        incomplete.__exit__.assert_called_once()
+
+    def test_persistent_network_failure_still_aborts_after_four_attempts(self):
+        with (
+            mock.patch.object(MODULE.urllib.request, "urlopen", side_effect=TimeoutError("timed out")) as open_url,
+            mock.patch.object(MODULE.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(MODULE.ResolveError, "unable to download"):
+                MODULE.request_bytes("https://example.invalid/demo.patch")
+        self.assertEqual(open_url.call_count, 4)
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2), mock.call(4)])
+
+    def test_permanent_http_errors_are_not_retried(self):
+        url = "https://example.invalid/demo.patch"
+        for status in (401, 403, 404):
+            with (
+                self.subTest(status=status),
+                mock.patch.object(MODULE.urllib.request, "urlopen", side_effect=
+                    MODULE.urllib.error.HTTPError(url, status, "Denied", {}, None)) as open_url,
+                mock.patch.object(MODULE.time, "sleep") as sleep,
+            ):
+                with self.assertRaises(MODULE.ResolveError):
+                    MODULE.request_bytes(url)
+                open_url.assert_called_once()
+                sleep.assert_not_called()
+
+
 class LocalPortTrackingTests(unittest.TestCase):
     def candidate(
         self,
