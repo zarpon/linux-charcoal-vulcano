@@ -49,14 +49,10 @@ class PatchSourcePolicyTests(unittest.TestCase):
         self.assertNotIn("ath11k_disable_key", {item["name"] for item in components()})
         self.assertNotIn("latest-ath11k-disable-key.patch", source_lines(PKGBUILD))
         self.assertNotIn("git.codelinaro.org", json.dumps(MANIFEST))
-        # Keep the other ath11k fixes, in their established order.
-        lines = source_lines(PKGBUILD)
-        self.assertLess(
-            lines.index("latest-ath11k-remapped-ce.patch"),
-            lines.index("latest-ath11k-upstream.patch"),
-        )
+        self.assertIn("latest-ath11k-remapped-ce.patch", source_lines(PKGBUILD))
         names = {item["name"] for item in components()}
-        self.assertTrue({"ath11k_remapped_ce", "ath11k_upstream"} <= names)
+        self.assertIn("ath11k_remapped_ce", names)
+        self.assertFalse({"c23_libbpf", "ath11k_upstream", "bt_ssp", "fsync"} & names)
 
     def test_source_and_checksum_arrays_remain_aligned(self) -> None:
         start, end = resolver.find_array_bounds(PKGBUILD, "sha256sums")

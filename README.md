@@ -86,3 +86,28 @@ It runs only for the `kernel-7.2` branch or a manual dispatch on that branch. So
 SteamOS 7.2 support in this branch is experimental. Do not use the 7.2 installer on a device unless you intend to test this Preview kernel line and understand how to recover the stock SteamOS kernel if needed.
 
 For the stable Charcoal kernel, use the `master` branch instead.
+
+## Compilation and swap profile
+
+The kernel uses O3. ZRAM is the default swap, with primary LZ4 and zstd
+recompression. Zswap remains compiled in but is disabled by default.
+To switch at the next boot, append to the kernel command line:
+
+```text
+systemd.zram=0 zswap.enabled=1
+```
+
+`systemd.zram=0` disables devices created by zram-generator. Zswap requires
+a configured, active disk/file swap backend; it does not create one.
+Remove those arguments to restore the default, or use
+`systemd.zram=1 zswap.enabled=0`.
+
+Runtime tuning uses `vm.vfs_cache_pressure=100`,
+`vm.dirty_background_ratio=2` and `vm.dirty_ratio=10`. LRU Marie's own defaults
+are preserved.
+
+`CONFIG_ZEN_INTERACTIVE` controls only the two existing Zen patches: evdev
+asynchronous RCU reclamation and removal of forced P-State schedutil selects.
+No additional Zen memory or scheduler defaults are imported.
+The legacy fsync opcode-31 patch and already-upstream C23/libbpf, Bluetooth
+SSP and Qualcomm ath11k patches are not fetched or applied.

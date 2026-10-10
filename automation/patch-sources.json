@@ -104,16 +104,6 @@
   ],
   "auxiliary_components": [
     {
-      "name": "c23_libbpf",
-      "kind": "http_patch",
-      "target": "latest-c23-libbpf.patch",
-      "source_regex": "c23\\.patch::https://git\\.kernel\\.org/.+d70f79fef65810faf64dbae1f3a1b5623cdb2345",
-      "urls": [
-        "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/patch/?id=d70f79fef65810faf64dbae1f3a1b5623cdb2345",
-        "https://github.com/torvalds/linux/commit/d70f79fef65810faf64dbae1f3a1b5623cdb2345.patch"
-      ]
-    },
-    {
       "name": "amd_pstate_epp_boost_kernel_doc",
       "kind": "http_patch",
       "repository": "lore.kernel.org/linux-pm",
@@ -193,20 +183,6 @@
       "always_latest": false
     },
     {
-      "name": "fsync",
-      "kind": "github_tree",
-      "repository": "Frogging-Family/linux-tkg",
-      "ref": "master",
-      "target": "latest-fsync-futex-waitv.patch",
-      "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync1_via_futex_waitv\\.patch",
-      "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync1_via_futex_waitv\\.patch$",
-      "kernel_version_regex": "linux-tkg-patches/(?P<kernel>\\d+\\.\\d+)/",
-      "port_for_kernel": "6.18",
-      "port_when_incompatible": true,
-      "local_port": "6.18.45-fsync-futex-waitv.port.patch",
-      "local_port_upstream_sha256": "9df628fd530950e37d31da854cb314d536f33c83935adf5c47e71266a55f7004"
-    },
-    {
       "name": "o3",
       "kind": "github_tree",
       "repository": "Frogging-Family/linux-tkg",
@@ -215,15 +191,6 @@
       "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0013-optimize_harder_O3\\.patch",
       "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0013-optimize_harder_O3\\.patch$",
       "kernel_version_regex": "linux-tkg-patches/(?P<kernel>\\d+\\.\\d+)/"
-    },
-    {
-      "name": "bt_ssp",
-      "kind": "http_patch",
-      "target": "latest-bt-ssp-key-size.patch",
-      "source_regex": "https://dev\\.gentoo\\.org/~alicef/genpatches/trunk/[^/]+/2000_BT-Check-key-sizes-only-if-Secure-Simple-Pairing-enabled\\.patch",
-      "urls": [
-        "https://lore.kernel.org/linux-bluetooth/20190522070540.48895-1-marcel@holtmann.org/raw"
-      ]
     },
     {
       "name": "libbpf_uninitialized",
@@ -318,15 +285,6 @@
       "source_regex": "910-ath11k-fix-remapped-ce-accessing-issue-on-64bit-OS\\.patch::https://git\\.openwrt\\.org/.+",
       "filename_regex": "^package/kernel/mac80211/patches/ath11k/910-ath11k-fix-remapped-ce-accessing-issue-on-64bit-OS\\.patch$",
       "always_latest": true
-    },
-    {
-      "name": "ath11k_upstream",
-      "kind": "http_patch",
-      "target": "latest-ath11k-upstream.patch",
-      "source_regex": "ath11k-upstream\\.patch::https://lore\\.kernel\\.org/all/20260319065608\\.2408179-1-reshma\\.rajkumar@oss\\.qualcomm\\.com/raw",
-      "urls": [
-        "https://lore.kernel.org/all/20260319065608.2408179-1-reshma.rajkumar@oss.qualcomm.com/raw"
-      ]
     },
     {
       "name": "adios_default",

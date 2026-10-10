@@ -25,6 +25,12 @@ CONFIG_CMDLINE="amd_pstate.epp_boost=1"
 # Enable lru_marie 
 CONFIG_LRU_MARIE=y
 
+# ZRAM is the default; keep zswap available for zswap.enabled=1.
+CONFIG_ZSWAP=y
+# CONFIG_ZSWAP_DEFAULT_ON is not set
+
+CONFIG_ZRAM=m
+
 # ZRAM-IR: LZ4 is the primary SteamOS swap compressor. The packaged udev
 # helper configures ZSTD as the priority-1 recompressor before zram is sized;
 # the local kernel port fixes it to the equivalent of `zstd --fast=1`.
@@ -45,6 +51,11 @@ CONFIG_ATH11K_TRACING=n
 # Enable NTSYNC
 CONFIG_NTSYNC=y
 
+# Compile the kernel with O3, overriding the Valve O2 choice.
+# CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE is not set
+# CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
+CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y
+
 # Enable LTO
 CONFIG_LTO_CLANG_FULL=y
 
@@ -59,7 +70,7 @@ CONFIG_CPU_IDLE_GOV_NAP=y
 CONFIG_SCHED_POC_SELECTOR=y
 CONFIG_SCHED_BORE=y
 
-# Enable Zen kernel tuning
+# Enable only the existing evdev RCU and P-State dependency patches.
 CONFIG_ZEN_INTERACTIVE=y
 
 # Disable in favour of xpad-noone
