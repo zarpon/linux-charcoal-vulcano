@@ -281,5 +281,6 @@ print(
 PY
 
 python3 "$root/tests/test_gaming_swap.py"
+python3 "$root/tests/test_kernel_config_validation.py"
 
 echo "runtime tuning validation passed"
