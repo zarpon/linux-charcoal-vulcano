@@ -23,9 +23,9 @@
     "lru_marie": {
       "port_for_kernel": "6.18",
       "port_when_incompatible": true,
-      "local_port": "6.18-lru_marie-0.11.1r2.port.patch",
-      "local_port_project_version": "0.11.1r2",
-      "local_port_upstream_sha256": "a28ff39ed30034290ae7e30ae42f0725b9fdb531e3a10a127f26f53b0c217551"
+      "local_port": null,
+      "local_port_project_version": null,
+      "local_port_upstream_sha256": null
     },
     "adios": {
       "port_for_kernel": "6.18",
