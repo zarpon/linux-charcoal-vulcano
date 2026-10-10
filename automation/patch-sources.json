@@ -361,66 +361,6 @@
       "urls": [
         "https://github.com/zen-kernel/zen-kernel/commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287.patch"
       ]
-    },
-    {
-      "name": "zen_03",
-      "kind": "http_patch",
-      "target": "latest-zen-03.patch",
-      "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54\\.patch",
-      "repository": "zen-kernel/zen-kernel",
-      "commit": "fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54",
-      "path": "commit/fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54",
-      "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/fb5c79d96cc87e4778ac0f2a53bc7c0c23078c54.patch"
-      ]
-    },
-    {
-      "name": "zen_04",
-      "kind": "http_patch",
-      "target": "latest-zen-04.patch",
-      "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/21dd0495958b7c1bd34f2d83537a4f3af5b804c3\\.patch",
-      "repository": "zen-kernel/zen-kernel",
-      "commit": "21dd0495958b7c1bd34f2d83537a4f3af5b804c3",
-      "path": "commit/21dd0495958b7c1bd34f2d83537a4f3af5b804c3",
-      "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/21dd0495958b7c1bd34f2d83537a4f3af5b804c3.patch"
-      ]
-    },
-    {
-      "name": "zen_05",
-      "kind": "http_patch",
-      "target": "latest-zen-05.patch",
-      "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/b418708702f7927a7922b90871ab1cdf1df9bb94\\.patch",
-      "repository": "zen-kernel/zen-kernel",
-      "commit": "b418708702f7927a7922b90871ab1cdf1df9bb94",
-      "path": "commit/b418708702f7927a7922b90871ab1cdf1df9bb94",
-      "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/b418708702f7927a7922b90871ab1cdf1df9bb94.patch"
-      ]
-    },
-    {
-      "name": "zen_06",
-      "kind": "http_patch",
-      "target": "latest-zen-06.patch",
-      "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/92850f57d0d3dd0c55a6556f4c4a9afd38da7f8a\\.patch",
-      "repository": "zen-kernel/zen-kernel",
-      "commit": "92850f57d0d3dd0c55a6556f4c4a9afd38da7f8a",
-      "path": "commit/92850f57d0d3dd0c55a6556f4c4a9afd38da7f8a",
-      "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/92850f57d0d3dd0c55a6556f4c4a9afd38da7f8a.patch"
-      ]
-    },
-    {
-      "name": "zen_07",
-      "kind": "http_patch",
-      "target": "latest-zen-07.patch",
-      "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/e3afdec765f5277bbd3b2196e0facb8b428fb9d2\\.patch",
-      "repository": "zen-kernel/zen-kernel",
-      "commit": "e3afdec765f5277bbd3b2196e0facb8b428fb9d2",
-      "path": "commit/e3afdec765f5277bbd3b2196e0facb8b428fb9d2",
-      "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/e3afdec765f5277bbd3b2196e0facb8b428fb9d2.patch"
-      ]
     }
   ]
 }

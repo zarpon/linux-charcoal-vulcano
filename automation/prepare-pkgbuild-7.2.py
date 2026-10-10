@@ -265,7 +265,6 @@ def transform(text: str) -> str:
     text = skip_upstreamed_72_patches(text)
     text = wire_adios_72_port(text)
     text = wire_zen_02_72_port(text)
-    text = wire_zen_07_72_port(text)
     return text
 
 
@@ -291,10 +290,6 @@ def validate(text: str) -> None:
         raise TransformError("unexpected Zen cpufreq reference count")
     if text.count("port-zen-cpufreq-7.2.py") != 1:
         raise TransformError("explicit Zen 7.2 cpufreq port is not wired exactly once")
-    if text.count("latest-zen-07.patch") != 2:
-        raise TransformError("unexpected Zen swap reference count")
-    if text.count("port-zen-swap-7.2.py") != 1:
-        raise TransformError("explicit Zen 7.2 swap port is not wired exactly once")
     for patch in UPSTREAMED_72_PATCHES:
         if patch not in text:
             raise TransformError(f"upstreamed 7.2 patch source disappeared: {patch}")

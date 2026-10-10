@@ -41,7 +41,6 @@ source=(
   latest-bore-sched-ext-coexistence-fix.patch
   latest-zen-01.patch
   latest-zen-02.patch
-  latest-zen-07.patch
   latest-poc-selector.patch
   iommu-perfopt-consolidado-v3.patch
 )
@@ -155,10 +154,10 @@ class TransformTests(unittest.TestCase):
         with self.assertRaisesRegex(ZEN.PortError, "exactly two"):
             ZEN.validate_patch(ZEN_PATCH.replace(REMOVED_LINE, "", 1))
 
-    def test_wires_explicit_zen_swap_port(self) -> None:
+    def test_redundant_zen_swap_patch_is_not_wired(self) -> None:
         result = MODULE.transform(SAMPLE)
-        self.assertEqual(result.count("latest-zen-07.patch"), 2)
-        self.assertEqual(result.count("port-zen-swap-7.2.py"), 1)
+        self.assertNotIn("latest-zen-07.patch", result)
+        self.assertNotIn("port-zen-swap-7.2.py", result)
 
     def test_zen_swap_adapter_preserves_valve_72_body(self) -> None:
         SWAP.validate_patch(ZEN_SWAP_PATCH)

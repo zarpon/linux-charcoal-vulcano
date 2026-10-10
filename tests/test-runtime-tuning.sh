@@ -61,6 +61,7 @@ PY
 
 require_line "$root/99-charcoal-sysctl.conf" "vm.min_free_kbytes=262144"
 require_line "$root/99-charcoal-sysctl.conf" "vm.compaction_proactiveness=15"
+require_line "$root/99-charcoal-sysctl.conf" "vm.compact_unevictable_allowed=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_expire_centisecs=3500"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_writeback_centisecs=500"
 require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_boost_factor=0"
