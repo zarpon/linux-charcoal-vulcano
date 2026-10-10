@@ -90,11 +90,8 @@ source=(
   latest-amd-pstate-epp-boost-04-docs.patch
   ryzen_smu.diff
   xpad-noone.diff
-  latest-c23-libbpf.patch
   latest-clear.patch
-  latest-fsync-futex-waitv.patch
   latest-o3.patch
-  latest-bt-ssp-key-size.patch
   latest-libbpf-uninitialized.patch
   latest-cpu-optimizations.patch
   latest-dkms-clang.patch
@@ -104,7 +101,6 @@ source=(
   latest-minstrel-fluctuation.patch
   latest-minstrel-downgrade.patch
   latest-ath11k-remapped-ce.patch
-  latest-ath11k-upstream.patch
   latest-adios.patch
   latest-adios-default.patch
   latest-bore.patch
@@ -121,20 +117,20 @@ source=(
 )
 sha256sums=(
   'SKIP'
-  '37452b4d09e5e42134ae24a61f2f656790837c327268074cf79d7dab3558b972'
-  'd88eaf0f94bae470040e4882f334c05b1bb2ab0a99e4b7299aa0b2337810ab8d'
-  'e1e94e879c9b3f26b8e4a157c79b5cddc3f4d9dd08672307d49bd88ea0fc8acb'
+  'e765199f6fbafbe57d013d40e0d2918cbab30fb2a090e01eb7821a515b6b1b8a'
+  'b91c3ed65067704c8fdb8289d44ed18aa62f98f52c3b6d91fb72bc5b1606ae79'
+  '732d428873116098642eae2304250d8aceaca0d7664ca1a8947ef7f23b9c5087'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
-  'fca4cded5938d941d41b7db887619aebff648d613336a269d05981b488750ac1'
-'1fe8c232816ca72f116cc0c6f5e51e0249433bc0fbd84ec050aa3a6984c0e135'
+  '31c6e67a38d5c64643c838533b7d22fe8b69d688e44c6374fa6d6663ec78b2f0'
+  '1fe8c232816ca72f116cc0c6f5e51e0249433bc0fbd84ec050aa3a6984c0e135'
   '6e71f4ef06f4e40053ac530d0000669bcf65db6e3992ccee54f0c61f8ba04ec6'
   '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
   '35fc7647671b1ab412804143a0585dde8d9880097c06feb520f90680780ac5e5'
   '3e200a7ad9661f59be2dfd442fd993fd130da8a6f5df7d8b4ec40d86351b1dcd'
-  'a2e63ecf61f7f91da8473658da4bde646c30915d443d7edec243862437f945a1'
+  '24c2a2af732122d8f10cc2690a9e1544f8a86c7cf000d580137cb56853259a5b'
   '07068c432fd7e80689f44a28346f1909de9ee77aa3e72dfaa6a4ea89d9921afd'
   '1f7df01db0bcd7c18230878003466ac3f651f8f21e74323b7e8178871d824f74'
-  '375c8e17daf9e60bc6c211dd73f0c67ec241bd40a83d812a08eeb42aab6128d9'
+  '0aafc11fe271f1c791d19ea77287f9a1f84d4f4ef0423b455dd03f13797889c1'
   '1c49146dc5878bfab32b331d11cb66d493670bbe590ff07c2050305911c281c3'
   'SKIP'
   'SKIP'
@@ -144,10 +140,6 @@ sha256sums=(
   'SKIP'
   '4bcf61814a6daac8f72c46a425b9ce88c07f6bd95f6a0ac287d73dfd4d5da60b'
   'ff3bbe78d6f072d57f567878e870956242ee78ccddd258b1ec2e4729621138fe'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
   'SKIP'
   'SKIP'
   'SKIP'
@@ -191,17 +183,7 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     echo "Applying patch $src..."
-    if [[ $src == latest-c23-libbpf.patch ]]; then
-      if patch --dry-run --batch -Np1 < "../$src" >/dev/null 2>&1; then
-        patch --batch -Np1 < "../$src"
-      elif patch --dry-run --batch -R -Np1 < "../$src" >/dev/null 2>&1; then
-        echo "Skipping patch $src: already present in Valve base $_tag."
-      else
-        echo "ERROR: patch $src neither applies nor is already present in Valve base $_tag." >&2
-        patch --dry-run --batch -Np1 < "../$src" || true
-        return 1
-      fi
-    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
+    if [[ $src == latest-libbpf-uninitialized.patch ]]; then
       python3 "$startdir/automation/apply-resolved-patch.py" \
         --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
       python3 "$startdir/automation/fix-libbpf-clang-warning.py" \
@@ -214,10 +196,16 @@ prepare() {
     fi
   done
 
+  python3 "$startdir/automation/configure-zen-interactive.py" "$PWD"
+
   echo "Setting config..."
   cp ../config .config
   scripts/kconfig/merge_config.sh -m ../config ../config-neptune ../config-charcoal # Charcoal: merge the extra fragment
   _make_llvm olddefconfig
+  grep -qx 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' .config
+  grep -qx 'CONFIG_ZEN_INTERACTIVE=y' .config
+  grep -qx 'CONFIG_ZSWAP=y' .config
+  grep -qx '# CONFIG_ZSWAP_DEFAULT_ON is not set' .config
   diff -u ../config .config || :
 
   _make_llvm -s kernelrelease > version

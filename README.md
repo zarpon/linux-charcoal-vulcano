@@ -74,7 +74,7 @@ rejected before package preparation rather than being applied blindly.
   and Zen 2 as the minimum CPU target.
 - **Static source patches:** selected Linux-TKG, Gentoo, CachyOS, OpenWrt,
   Qualcomm ath11k, and pinned Zen Kernel patches. They cover, among other
-  things, futex waitv/fsync support, compiler and DKMS compatibility, Wi-Fi
+  things, compiler and DKMS compatibility, Wi-Fi
   fixes, and build optimization.
 - **Kernel configuration:** sound-input validation, debugging overhead, and
   selected legacy or unused drivers and subsystems are disabled.
@@ -221,3 +221,28 @@ Report bugs and device-compatibility results in the
 [issue tracker](https://github.com/zarpon/linux-charcoal-vulcano/issues). Pull
 requests should target `master`. For a patch or configuration change, include
 the source, target-kernel compatibility, and validation result.
+
+## Compilation and swap profile
+
+The kernel uses O3. ZRAM is the default swap, with primary LZ4 and zstd
+recompression. Zswap remains compiled in but is disabled by default.
+To switch at the next boot, append to the kernel command line:
+
+```text
+systemd.zram=0 zswap.enabled=1
+```
+
+`systemd.zram=0` disables devices created by zram-generator. Zswap requires
+a configured, active disk/file swap backend; it does not create one.
+Remove those arguments to restore the default, or use
+`systemd.zram=1 zswap.enabled=0`.
+
+Runtime tuning uses `vm.vfs_cache_pressure=100`,
+`vm.dirty_background_ratio=2` and `vm.dirty_ratio=10`. LRU Marie's own defaults
+are preserved.
+
+`CONFIG_ZEN_INTERACTIVE` controls only the two existing Zen patches: evdev
+asynchronous RCU reclamation and removal of forced P-State schedutil selects.
+No additional Zen memory or scheduler defaults are imported.
+The legacy fsync opcode-31 patch and already-upstream C23/libbpf, Bluetooth
+SSP and Qualcomm ath11k patches are not fetched or applied.

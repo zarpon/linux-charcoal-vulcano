@@ -80,12 +80,6 @@
       "local_port": "6.18.45-ath11k-remapped-ce.port.patch",
       "local_port_upstream_sha256": "6a2290d4edd8852c43dbb0ebc5c6c95bdaa92dd5ca4dcd22ccbe4cd9d3d07819"
     },
-    "fsync": {
-      "source_regex": "https://raw\\.githubusercontent\\.com/Frogging-Family/linux-tkg/[0-9a-f]{40}/linux-tkg-patches/[^/]+/0007-v[^/]+-fsync(?:1|_legacy)_via_futex_waitv\\.patch",
-      "filename_regex": "^linux-tkg-patches/\\d+\\.\\d+/0007-v\\d+\\.\\d+-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
-      "project_version_regex": "0007-v(?P<version>\\d+\\.\\d+)-fsync(?:1|_legacy)_via_futex_waitv\\.patch$",
-      "local_port_project_version": "6.14"
-    },
     "zen_02": {
       "port_for_kernel": "6.18",
       "port_when_incompatible": true,

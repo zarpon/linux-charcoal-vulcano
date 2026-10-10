@@ -76,7 +76,7 @@ rejeitado antes da preparação do pacote, em vez de ser aplicado sem validaçã
   Zen 2 como arquitetura mínima de CPU.
 - **Patches estáticos:** patches selecionados de Linux-TKG, Gentoo, CachyOS,
   OpenWrt, Qualcomm ath11k e commits fixados do Zen Kernel. Eles incluem, entre
-  outros, suporte a futex waitv/fsync, compatibilidade de compilador e DKMS,
+  outros, compatibilidade de compilador e DKMS,
   correções de Wi-Fi e otimizações de compilação.
 - **Configuração do kernel:** validação de entrada de áudio, sobrecarga de
   depuração e drivers ou subsistemas legados/sem uso selecionados são
@@ -232,3 +232,27 @@ Relate bugs e resultados de compatibilidade de dispositivos no
 Pull requests devem ter como alvo `master`. Para uma mudança de patch ou de
 configuração, inclua a origem, a compatibilidade com o kernel-alvo e o
 resultado da validação.
+
+## Perfil de compilação e swap
+
+O kernel usa O3. ZRAM é o swap padrão, com LZ4 primário e zstd como
+recompressor. Zswap permanece compilado, mas desligado por padrão.
+Para trocar no próximo boot, acrescente à linha do kernel:
+
+```text
+systemd.zram=0 zswap.enabled=1
+```
+
+`systemd.zram=0` desativa os dispositivos criados pelo zram-generator.
+Zswap precisa de um swap em disco/arquivo configurado e ativo; ele não cria
+esse backend. Para voltar ao perfil padrão, retire esses argumentos, ou use
+`systemd.zram=1 zswap.enabled=0`.
+
+O tuning usa `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e
+`vm.dirty_ratio=10`. Os defaults próprios do LRU Marie são preservados.
+
+`CONFIG_ZEN_INTERACTIVE` controla apenas os dois patches Zen existentes:
+liberação assíncrona de clientes evdev por RCU e remoção dos selects obrigatórios
+de schedutil nos drivers P-State. Nenhum default adicional de memória ou scheduler
+Zen é importado. O fsync legado opcode 31 e os patches já upstream de C23/libbpf,
+Bluetooth SSP e Qualcomm ath11k não são baixados nem aplicados.
