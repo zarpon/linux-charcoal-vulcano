@@ -2,7 +2,6 @@
 """Exercise migration failures in a temporary root; never touch host swap."""
 import importlib.machinery
 import importlib.util
-import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -30,6 +29,7 @@ class FakeMigration(policy.Migration):
         self.unit_names = {"steamos-zram-swap.service", "systemd-zram-setup@zram0.service", "dev-zram0.swap", "home-swapfile.swap"}
         for directory in ("/proc", "/home", "/etc/default", "/sys/module/zswap/parameters"):
             self.path(directory).mkdir(parents=True, exist_ok=True)
+        self.refresh_swaps()
         self.path("/proc/meminfo").write_text("MemTotal:        8192 kB\n")
         self.make_swap("/home/swapfile", 1024**2)
         self.path("/etc/fstab").write_text("# user's mounts\nUUID=home /home ext4 defaults 0 2\n/home/swapfile none swap sw 0 0\n/dev/zram0 none swap defaults 0 0\n/dev/sda3 none swap defaults 0 0\n")
@@ -37,6 +37,14 @@ class FakeMigration(policy.Migration):
         for key, value in policy.PARAMETERS.items():
             if key != "zpool":
                 self.path("/sys/module/zswap/parameters/" + key).write_text(value)
+
+    def refresh_swaps(self):
+        def escape(name):
+            return "".join(f"\\{ord(char):03o}" if char in " \t\n\\" else char for char in name)
+        self.path("/proc/swaps").write_text(
+            "Filename\t\t\t\tType\t\tSize\tUsed\tPriority\n" +
+            "".join(f"{escape(name)}\t{kind}\t1024\t0\t-2\n" for name, kind in self.swaps.items())
+        )
 
     def make_swap(self, name, size):
         p = self.path(name)
@@ -56,12 +64,14 @@ class FakeMigration(policy.Migration):
             return subprocess.CompletedProcess(args, 1, "", "injected failure")
         output = ""
         status = 0
-        if args[:2] == ("swapon", "--show"):
-            output = json.dumps({"swapdevices": [{"name": k, "type": v} for k, v in self.swaps.items()]})
-        elif args[0] == "swapon":
+        if args[0] == "swapon":
+            if args[1].startswith("--"):
+                raise AssertionError("swapon is only used to activate swap, never to query it")
             self.swaps[self.logical(args[1])] = "file"
+            self.refresh_swaps()
         elif args[0] == "swapoff":
             self.swaps.pop(self.logical(args[1]), None)
+            self.refresh_swaps()
         elif args[0] == "blkid":
             with Path(args[-1]).open("rb") as f:
                 if f.read(4) == b"SWAP":
@@ -100,6 +110,43 @@ class MigrationTests(unittest.TestCase):
     def install(self):
         with patch.object(policy.shutil, "disk_usage", return_value=type("Disk", (), {"free": 10 * 1024**3})()):
             self.m.install()
+
+    def test_active_swaps_are_read_from_kernel_without_running_swapon(self):
+        self.m.path("/proc/swaps").write_text(
+            "Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n"
+            "/home/old\\040swap file 16777212 4096 -2\n"
+            "/home/a\\134b\\011c\\012d file 1024 0 -3\n"
+            "/dev/zram0 partition 8388604 2048 100\n"
+            "/dev/nvme0n1p3 partition 1048572 0 -4\n"
+        )
+        self.assertEqual(self.m.active(), {
+            "/home/old swap": "file", "/home/a\\b\tc\nd": "file",
+            "/dev/zram0": "partition", "/dev/nvme0n1p3": "partition",
+        })
+        self.assertEqual(self.m.calls, [])
+
+    def test_no_active_swap_is_a_valid_empty_kernel_table(self):
+        self.m.path("/proc/swaps").write_text("Filename Type Size Used Priority\n")
+        self.assertEqual(self.m.active(), {})
+
+    def test_invalid_swap_inventory_aborts_before_creating_or_removing_swap(self):
+        for table in ("", "wrong header\n", "Filename Type Size Used Priority\n/home/old file\n",
+                      "Filename Type Size Used Priority\n/dev/zram0 unknown 1024 0 100\n"):
+            with self.subTest(table=table):
+                self.m.path("/proc/swaps").write_text(table)
+                with self.assertRaises(policy.MigrationError):
+                    self.install()
+                self.assertEqual(self.m.calls, [])
+                self.assertTrue(self.m.path("/home/swapfile").exists())
+                self.assertFalse(self.m.path("/home/.gaming-swap").exists())
+
+    def test_active_swapfile_with_spaces_is_drained_and_removed(self):
+        self.m.make_swap("/home/old swap", 1024**2)
+        self.m.swaps["/home/old swap"] = "file"
+        self.m.refresh_swaps()
+        self.install()
+        self.assertIn(("swapoff", "/home/old swap"), self.m.calls)
+        self.assertFalse(self.m.path("/home/old swap").exists())
 
     def test_replacement_active_before_drain_and_persistent_after_boot(self):
         self.install()

@@ -6,7 +6,6 @@ replacement is activated before draining or deleting any previous swapfile.
 """
 import argparse
 import fcntl
-import json
 import os
 from pathlib import Path
 import re
@@ -119,8 +118,24 @@ class Migration:
                 os.unlink(temporary)
 
     def active(self):
-        result = self.run("swapon", "--show", "--json", "--output", "NAME,TYPE")
-        return {v["name"]: v["type"] for v in json.loads(result.stdout).get("swapdevices", [])}
+        # /proc/swaps is the kernel ABI, independent of util-linux versions.
+        # SteamOS swapon does not support --json. Paths here use octal escapes
+        # for spaces, tabs, newlines and backslashes.
+        lines = self.path("/proc/swaps").read_text().splitlines()
+        if not lines or lines[0].split() != ["Filename", "Type", "Size", "Used", "Priority"]:
+            raise MigrationError("Cannot read a valid /proc/swaps table; existing swap is preserved")
+        active = {}
+        for line in lines[1:]:
+            if not line.strip():
+                continue
+            fields = line.split()
+            if len(fields) != 5 or not fields[0].startswith("/") or fields[1] not in {"file", "partition"}:
+                raise MigrationError("Invalid entry in /proc/swaps; existing swap is preserved")
+            name = unescape(fields[0])
+            if name in active:
+                raise MigrationError("Duplicate entry in /proc/swaps; existing swap is preserved")
+            active[name] = fields[1]
+        return active
 
     def swapfile(self, name):
         path = self.path(name)
