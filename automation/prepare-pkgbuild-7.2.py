@@ -107,7 +107,7 @@ def wire_adios_72_port(text: str) -> str:
         )
 
     compact_pattern = re.compile(
-        r"(?m)^(?P<indent>\s*)elif \[\[ \$src == "
+        r"(?m)^(?P<indent>\s*)if \[\[ \$src == "
         r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
     )
     match = compact_pattern.search(text)
@@ -155,7 +155,7 @@ def wire_zen_02_72_port(text: str) -> str:
         )
 
     compact_pattern = re.compile(
-        r"(?m)^(?P<indent>\s*)elif \[\[ \$src == "
+        r"(?m)^(?P<indent>\s*)if \[\[ \$src == "
         r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
     )
     match = compact_pattern.search(text)

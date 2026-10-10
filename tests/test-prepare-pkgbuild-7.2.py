@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -170,6 +171,15 @@ class TransformTests(unittest.TestCase):
         once = MODULE.transform(SAMPLE)
         twice = MODULE.transform(once)
         self.assertEqual(once, twice)
+
+    def test_production_pkgbuild_remains_valid_and_idempotent(self) -> None:
+        original = (ROOT / "PKGBUILD").read_text(encoding="utf-8")
+        result = MODULE.transform(original)
+        MODULE.validate(result)
+        self.assertEqual(result, MODULE.transform(result))
+        subprocess.run(["bash", "-n"], input=result, text=True, check=True)
+        self.assertIn("automation/configure-zen-interactive.py", result)
+        self.assertIn("# CONFIG_ZSWAP_DEFAULT_ON is not set", result)
 
     def test_missing_patch_is_rejected(self) -> None:
         with self.assertRaisesRegex(MODULE.TransformError, "missing patch"):
