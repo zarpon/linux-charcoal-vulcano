@@ -179,7 +179,10 @@ class TransformTests(unittest.TestCase):
         self.assertEqual(result, MODULE.transform(result))
         subprocess.run(["bash", "-n"], input=result, text=True, check=True)
         self.assertIn("automation/configure-zen-interactive.py", result)
-        self.assertIn("# CONFIG_ZSWAP_DEFAULT_ON is not set", result)
+        self.assertIn("CONFIG_ZSWAP_DEFAULT_ON=y", result)
+        self.assertIn("CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y", result)
+        self.assertIn("CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y", result)
+        self.assertNotIn("# CONFIG_ZSWAP_DEFAULT_ON is not set", result)
 
     def test_missing_patch_is_rejected(self) -> None:
         with self.assertRaisesRegex(MODULE.TransformError, "missing patch"):
