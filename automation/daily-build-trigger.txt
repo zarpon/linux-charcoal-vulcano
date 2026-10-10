@@ -1,4 +1,4 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-10-02 recovery
-Source: permanent monitor recovery after no recorded 2026-10-02 scheduled dispatcher/full master build after normal delay window
+Last requested build: 2026-10-10T11:03:00-03:00
+Source: explicit user request to compile all monitored kernels
