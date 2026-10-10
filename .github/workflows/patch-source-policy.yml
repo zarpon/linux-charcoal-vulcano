@@ -15,6 +15,8 @@ on:
       - automation/fix-libbpf-clang-warning.py
       - automation/fix-gud-tv-mode-fortify.py
       - tests/test_patch_gud_fortify.py
+      - automation/fix-lru-marie-whitespace.py
+      - tests/test_lru_marie_whitespace.py
       - automation/configure-zen-interactive.py
       - tests/test_zen_interactive_profile.py
       - tests/test-resolve-latest-patches.py
@@ -43,6 +45,8 @@ on:
       - automation/fix-libbpf-clang-warning.py
       - automation/fix-gud-tv-mode-fortify.py
       - tests/test_patch_gud_fortify.py
+      - automation/fix-lru-marie-whitespace.py
+      - tests/test_lru_marie_whitespace.py
       - automation/configure-zen-interactive.py
       - tests/test_zen_interactive_profile.py
       - tests/test-resolve-latest-patches.py
@@ -83,6 +87,8 @@ jobs:
             automation/fix-libbpf-clang-warning.py \
             automation/fix-gud-tv-mode-fortify.py \
             tests/test_patch_gud_fortify.py \
+            automation/fix-lru-marie-whitespace.py \
+            tests/test_lru_marie_whitespace.py \
             tests/test-resolve-latest-patches.py \
             tests/test-apply-resolved-patch.py \
             tests/test-bore-overlay.py \
@@ -97,6 +103,8 @@ jobs:
             2>&1 | tee logs/resolver-tests.log
           python3 tests/test_zen_interactive_profile.py -v \
             2>&1 | tee logs/zen-profile-tests.log
+          python3 tests/test_lru_marie_whitespace.py -v \
+            2>&1 | tee logs/lru-marie-whitespace-tests.log
           python3 -m unittest discover -s tests -p 'test_patch*.py' -v \
             2>&1 | tee logs/patch-policy-tests.log
           python3 tests/test-apply-resolved-patch.py \
