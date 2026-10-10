@@ -111,11 +111,6 @@ source=(
   latest-bore-sched-ext-coexistence-fix.patch
   latest-zen-01.patch
   latest-zen-02.patch
-  latest-zen-03.patch
-  latest-zen-04.patch
-  latest-zen-05.patch
-  latest-zen-06.patch
-  latest-zen-07.patch
   "git+https://github.com/amkillam/ryzen_smu.git#commit=9f9569f889935f7c7294cc32c1467e5a4081701a"
   "git+https://github.com/dlundqvist/xone.git#commit=f2aa9fe01103d7600553b505b298ff0bd47ff280"
   "git+https://github.com/forkymcforkface/xpad-noone.git#commit=a52e32cf182435d608e66bef9a6c89ebac891999"
@@ -130,7 +125,7 @@ sha256sums=(
   'd88eaf0f94bae470040e4882f334c05b1bb2ab0a99e4b7299aa0b2337810ab8d'
   'e1e94e879c9b3f26b8e4a157c79b5cddc3f4d9dd08672307d49bd88ea0fc8acb'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
-  '2bac52e84f315232cf47b9383e21409253968fcbddc80ff7c4271128d404d1d9'
+  'fca4cded5938d941d41b7db887619aebff648d613336a269d05981b488750ac1'
 '1fe8c232816ca72f116cc0c6f5e51e0249433bc0fbd84ec050aa3a6984c0e135'
   '6e71f4ef06f4e40053ac530d0000669bcf65db6e3992ccee54f0c61f8ba04ec6'
   '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
@@ -149,11 +144,6 @@ sha256sums=(
   'SKIP'
   '4bcf61814a6daac8f72c46a425b9ce88c07f6bd95f6a0ac287d73dfd4d5da60b'
   'ff3bbe78d6f072d57f567878e870956242ee78ccddd258b1ec2e4729621138fe'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
   'SKIP'
   'SKIP'
   'SKIP'
