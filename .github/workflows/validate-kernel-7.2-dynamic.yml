@@ -33,6 +33,8 @@ jobs:
             automation/apply-resolved-patch.py \
             automation/port-poc-selector.py \
             automation/port-adios-7.2.py \
+            automation/fix-gud-tv-mode-fortify.py \
+            tests/test_patch_gud_fortify.py \
             automation/port-zen-cpufreq-7.2.py \
             automation/port-zen-swap-7.2.py
           python3 tests/test-prepare-steamos-7.2.py -v

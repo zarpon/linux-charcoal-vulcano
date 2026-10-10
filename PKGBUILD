@@ -196,6 +196,10 @@ prepare() {
     fi
   done
 
+  python3 "$startdir/automation/fix-gud-tv-mode-fortify.py" \
+    drivers/gpu/drm/gud/gud_connector.c
+  git diff --check -- drivers/gpu/drm/gud/gud_connector.c
+
   python3 "$startdir/automation/configure-zen-interactive.py" "$PWD"
 
   echo "Setting config..."
