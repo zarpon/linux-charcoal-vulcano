@@ -175,6 +175,25 @@ export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase
 export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 
+_validate_kernel_config() {
+  local expected
+  for expected in \
+    'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' \
+    'CONFIG_ZEN_INTERACTIVE=y' \
+    'CONFIG_ZSWAP=y' \
+    'CONFIG_ZSWAP_DEFAULT_ON=y' \
+    'CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y' \
+    'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y' \
+    'CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lz4"' \
+    'CONFIG_ZSMALLOC=y' \
+    'CONFIG_CRYPTO_LZ4=y'; do
+    if ! grep -qxF "$expected" .config; then
+      echo "ERROR: kernel configuration requires $expected after olddefconfig" >&2
+      return 1
+    fi
+  done
+}
+
 prepare() {
   cd $_srcname
 
@@ -212,10 +231,7 @@ prepare() {
   cp ../config .config
   scripts/kconfig/merge_config.sh -m ../config ../config-neptune ../config-charcoal # Charcoal: merge the extra fragment
   _make_llvm olddefconfig
-  grep -qx 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' .config
-  grep -qx 'CONFIG_ZEN_INTERACTIVE=y' .config
-  grep -qx 'CONFIG_ZSWAP=y' .config
-  grep -qx '# CONFIG_ZSWAP_DEFAULT_ON is not set' .config
+  _validate_kernel_config
   diff -u ../config .config || :
 
   _make_llvm -s kernelrelease > version
