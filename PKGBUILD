@@ -221,6 +221,9 @@ prepare() {
     fi
   done
 
+  python3 "$startdir/automation/fix-lru-marie-whitespace.py" mm/vmscan.c
+  git diff --check -- mm/vmscan.c
+
   python3 "$startdir/automation/fix-gud-tv-mode-fortify.py" \
     drivers/gpu/drm/gud/gud_connector.c
   git diff --check -- drivers/gpu/drm/gud/gud_connector.c
