@@ -113,6 +113,8 @@ fi
 grep -Fq 'lz4 > "$sys/comp_algorithm"' "$helper" || fail "lz4 primary setup is missing"
 
 for package_path in \
+  'usr/lib/gaming-swap/configure' \
+  'usr/lib/systemd/system/gaming-zswap.service' \
   'usr/lib/sysctl.d/99-charcoal.conf' \
   'usr/lib/tmpfiles.d/99-charcoal-memory.conf' \
   'usr/lib/environment.d/99-charcoal-gaming.conf' \
@@ -277,5 +279,7 @@ print(
     f"{proposed_swap_bytes // 1024} KiB"
 )
 PY
+
+python3 "$root/tests/test_gaming_swap.py"
 
 echo "runtime tuning validation passed"

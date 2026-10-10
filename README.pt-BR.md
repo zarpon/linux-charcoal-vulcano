@@ -68,7 +68,7 @@ A branch temporária de validação pode executar testes, resolver fontes, aplic
 
 ## Configuração atual do kernel 7.2
 
-A branch 7.2 mantém as configurações de jogos e memória do Charcoal, incluindo o porte específico do zram-ir para 7.2. A política esperada de ZRAM continua sendo LZ4 como compressor primário e ZSTD como recompressor de prioridade 1, com o nível equivalente a `zstd --fast=1` definido no próprio porte do kernel.
+A branch 7.2 mantém as configurações de jogos e memória do Charcoal, incluindo o porte específico do zram-ir para 7.2. O suporte ZRAM-IR permanece disponível, mas a instalação desativa zram e usa LZ4 zswap com um swapfile na partição home.
 
 ### AMD IOMMU PerfOpt
 
@@ -98,18 +98,10 @@ Para a linha estável do Charcoal, utilize a branch `master`.
 
 ## Perfil de compilação e swap
 
-O kernel usa O3. ZRAM é o swap padrão, com LZ4 primário e zstd como
-recompressor. Zswap permanece compilado, mas desligado por padrão.
-Para trocar no próximo boot, acrescente à linha do kernel:
-
-```text
-systemd.zram=0 zswap.enabled=1
-```
-
-`systemd.zram=0` desativa os dispositivos criados pelo zram-generator.
-Zswap precisa de um swap em disco/arquivo configurado e ativo; ele não cria
-esse backend. Para voltar ao perfil padrão, retire esses argumentos, ou use
-`systemd.zram=1 zswap.enabled=0`.
+O kernel usa O3. A instalação ativa LZ4 zswap com limite de pool de 50%,
+shrinker ativo e swapfile de 150% da RAM na partição de `/home`. ZRAM e
+os serviços que o ativam são desativados persistentemente. Consulte
+[SWAP.md](SWAP.md) para comportamento, requisitos e verificação.
 
 O tuning usa `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e
 `vm.dirty_ratio=10`. Os defaults próprios do LRU Marie são preservados.

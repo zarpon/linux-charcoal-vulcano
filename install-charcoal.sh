@@ -367,10 +367,13 @@ main() {
     die "SteamOS 7.2 installation failed after kernel removal; do not reboot until a working kernel is installed"
   fi
 
+  info "Ensuring persistent zswap and /home swapfile migration completed..."
+  run_privileged /usr/lib/gaming-swap/configure
+
   info "Updating the bootloader configuration..."
   _update_grub
   info "Charcoal SteamOS 7.2 Preview ${release_tag} installed successfully. Reboot, then verify with: uname -r"
-  info "ZRAM switches to LZ4 with ZSTD --fast=1 priority-1 recompression after booting Charcoal; active swap is not reset during installation."
+  info "ZRAM is disabled persistently; LZ4 zswap uses a swapfile on /home sized to 150% of MemTotal. Reboot to verify the settings."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

@@ -75,6 +75,9 @@ source=(
   65-adios.rules
   60-charcoal-zram-ir.rules
   configure-zram-ir
+  configure-gaming-swap
+  gaming-zswap.service
+  gaming-swap.install
   90-charcoal-zram.conf
   90-charcoal-zram-ir.conf
   99-charcoal.sh
@@ -117,7 +120,7 @@ sha256sums=(
   'SKIP'
   '37452b4d09e5e42134ae24a61f2f656790837c327268074cf79d7dab3558b972'
   'c9482d23e18ab37911847918eadfbc022c606f8eddab07acd43ef4d4f339037f'
-  'f96da3895fe0c1d7352a21fa3fd9e1382e89fc0f1c69f89f226af75f9ecc8020'
+  '7306cd44f764e7357f4b38df21d20310415ed8b4f8a082d2707d769c0e6785a0'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
   'a2eb7f71ebfc2a6545de19f38ad9a86b4520e661e035db5c51055acd57b0e38f'
   'f74713691121b2826220c519a6ceb088a11b757f6ddccfe61535490cee244a3c'
@@ -125,7 +128,10 @@ sha256sums=(
   '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
   '35fc7647671b1ab412804143a0585dde8d9880097c06feb520f90680780ac5e5'
   '3e200a7ad9661f59be2dfd442fd993fd130da8a6f5df7d8b4ec40d86351b1dcd'
-  '24c2a2af732122d8f10cc2690a9e1544f8a86c7cf000d580137cb56853259a5b'
+  'd75b880df1434805d1e153e0d04a7300715acc5df21a1f854ba648d889c5c6e3'
+  '1ea2406b537d45d3b0b5cb178c15c23cb3270f3d76a7509b8b0fbc77e95bd517'
+  'd1be225c979faa26a009bda43cd3b274b002350258da91dc6a5b4c81ca335632'
+  'b59543c9aac43412e8b90b050380f482214ab33c4703d621ff0ea91ea39c6761'
   '07068c432fd7e80689f44a28346f1909de9ee77aa3e72dfaa6a4ea89d9921afd'
   '1f7df01db0bcd7c18230878003466ac3f651f8f21e74323b7e8178871d824f74'
   '1a6f9d691612c4a729032273199d17756dd6666d85019655bd95ea24eff59cac'
@@ -237,11 +243,16 @@ build() {
 }
 
 _package() {
+  install=gaming-swap.install
   pkgdesc="The $pkgdesc kernel and modules"
   depends=(
     coreutils
     initramfs
     kmod
+    python
+    util-linux
+    systemd
+    btrfs-progs
   )
   optdepends=(
     'wireless-regdb: to set the correct wireless channels of your country'
@@ -306,6 +317,12 @@ _package() {
     "$pkgdir/usr/lib/systemd/zram-generator.conf.d/90-charcoal-zram.conf"
   install -D -m 0644 ../90-charcoal-zram-ir.conf \
     "$pkgdir/usr/lib/systemd/system/systemd-zram-setup@.service.d/90-charcoal-zram-ir.conf"
+
+  # Configure host swap after installation, never in the build environment.
+  install -D -m 0755 ../configure-gaming-swap \
+    "$pkgdir/usr/lib/gaming-swap/configure"
+  install -D -m 0644 ../gaming-zswap.service \
+    "$pkgdir/usr/lib/systemd/system/gaming-zswap.service"
 
   # Charcoal: Install bundles DKMS modules
   ZSTD_CLEVEL=19 _make_llvm M=../ryzen_smu INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install

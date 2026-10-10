@@ -1,0 +1,362 @@
+#!/usr/bin/python3
+"""Migrate swap to /home and persist the gaming zswap policy.
+
+Run only on the installed system, never while building a package. A working
+replacement is activated before draining or deleting any previous swapfile.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+PARAMETERS = {
+    "enabled": "1", "max_pool_percent": "50", "shrinker_enabled": "1",
+    "zpool": "zsmalloc", "compressor": "lz4",
+}
+CMDLINE = ["systemd.zram=0", *[f"zswap.{k}={v}" for k, v in PARAMETERS.items()]]
+BEGIN = "# BEGIN gaming-swap (managed)"
+END = "# END gaming-swap (managed)"
+SERVICE = "gaming-zswap.service"
+KNOWN_FILES = ("/home/swapfile", "/swapfile", "/swap.img", "/var/swapfile",
+               "/var/lib/swap/swapfile")
+ZRAM_UNITS = {"systemd-zram-setup@.service", "steamos-zram.service",
+              "steamos-zram-setup.service", "zram.service", "zramswap.service"}
+
+
+class MigrationError(RuntimeError):
+    pass
+
+
+def unescape(value):
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), value)
+
+
+def fstab_fields(line):
+    return [unescape(v) for v in line.split("#", 1)[0].split()]
+
+
+def filter_cmdline(text):
+    tokens = text.split()
+    keys = {"systemd.zram", *[f"zswap.{key}" for key in PARAMETERS]}
+    modules = []
+    kept = []
+    for token in tokens:
+        key, _, value = token.partition("=")
+        if key == "module_blacklist":
+            modules.extend(value.split(","))
+        elif key not in keys:
+            kept.append(token)
+    modules = list(dict.fromkeys([v for v in modules if v] + ["zram"]))
+    return " ".join([*kept, *CMDLINE, "module_blacklist=" + ",".join(modules)])
+
+
+def grub_policy(text):
+    # Works with both Valve's and Debian's grub-mkconfig: /etc/default/grub is
+    # always sourced; relying solely on grub.d is not portable between them.
+    text = re.sub(r"(?ms)^" + re.escape(BEGIN) + r"\n.*?^" + re.escape(END) + r"\n?", "", text)
+    script = """_gaming_swap_args=
+_gaming_swap_modules=
+_gaming_swap_filter() {
+  _gaming_swap_args=
+  for _gaming_swap_arg in $1; do
+    case "$_gaming_swap_arg" in
+      systemd.zram=*|zswap.enabled=*|zswap.max_pool_percent=*|zswap.shrinker_enabled=*|zswap.zpool=*|zswap.compressor=*) ;;
+      module_blacklist=*) _gaming_swap_modules="${_gaming_swap_modules:+$_gaming_swap_modules,}${_gaming_swap_arg#*=}" ;;
+      *) _gaming_swap_args="${_gaming_swap_args:+$_gaming_swap_args }$_gaming_swap_arg" ;;
+    esac
+  done
+}
+_gaming_swap_filter "${GRUB_CMDLINE_LINUX-}"
+GRUB_CMDLINE_LINUX=$_gaming_swap_args
+_gaming_swap_filter "${GRUB_CMDLINE_LINUX_DEFAULT-}"
+GRUB_CMDLINE_LINUX_DEFAULT=$_gaming_swap_args
+GRUB_CMDLINE_LINUX="${GRUB_CMDLINE_LINUX:+$GRUB_CMDLINE_LINUX }@CMDLINE@ module_blacklist=${_gaming_swap_modules:+$_gaming_swap_modules,}zram"
+unset -f _gaming_swap_filter
+unset _gaming_swap_arg _gaming_swap_args _gaming_swap_modules
+""".replace("@CMDLINE@", " ".join(CMDLINE))
+    return text.rstrip() + "\n\n" + BEGIN + "\n" + script + END + "\n"
+
+
+class Migration:
+    def __init__(self, root=Path("/")):
+        self.root = root
+
+    def path(self, name):
+        return self.root / name.lstrip("/")
+
+    def run(self, *args, check=True):
+        return subprocess.run(args, check=check, text=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
+
+    def write(self, name, text, mode=0o644):
+        path = self.path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Respect persistent SteamOS /etc symlinks; replace the destination.
+        path = path.resolve()
+        fd, temporary = tempfile.mkstemp(prefix=".gaming-swap-", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w") as stream:
+                stream.write(text)
+                stream.flush()
+                os.fsync(stream.fileno())
+                os.fchmod(stream.fileno(), mode)
+            os.replace(temporary, path)
+            directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def active(self):
+        result = self.run("swapon", "--show", "--json", "--output", "NAME,TYPE")
+        return {v["name"]: v["type"] for v in json.loads(result.stdout).get("swapdevices", [])}
+
+    def swapfile(self, name):
+        path = self.path(name)
+        if path.is_symlink():
+            raise MigrationError(f"Refusing a symbolic-link swapfile: {name}")
+        if not path.is_file():
+            return False
+        if path.stat().st_nlink != 1:
+            raise MigrationError(f"Refusing a hard-linked swapfile: {name}")
+        result = self.run("blkid", "-p", "-o", "value", "-s", "TYPE", str(path), check=False)
+        return result.returncode == 0 and result.stdout.strip() == "swap"
+
+    def units(self):
+        units = set()
+        for verb in ("list-unit-files", "list-units"):
+            result = self.run("systemctl", verb, "--all", "--no-legend", "--no-pager")
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                # list-units can prefix a failed unit with a bullet.
+                unit = next((v for v in fields[:2] if v.endswith((".service", ".swap"))), "")
+                if unit:
+                    units.add(unit)
+        return units
+
+    def old_files(self, active, units):
+        candidates = {name for name, kind in active.items() if kind == "file"}
+        fstab = self.path("/etc/fstab").read_text()
+        for line in fstab.splitlines():
+            fields = fstab_fields(line)
+            if len(fields) >= 3 and fields[2] == "swap" and fields[0].startswith("/"):
+                candidates.add(fields[0])
+        candidates.update(name for name in KNOWN_FILES if self.path(name).exists())
+        # Standalone swap units also need retiring; fstab is not the only source.
+        file_units = {}
+        for unit in sorted(units):
+            if unit.endswith(".swap") and "zram" not in unit:
+                result = self.run("systemctl", "show", "--value", "--property=What", unit)
+                name = result.stdout.strip()
+                if name.startswith("/") and self.path(name).is_file():
+                    candidates.add(name)
+                    file_units[unit] = name
+        directory = self.path("/home/.gaming-swap")
+        if directory.exists():
+            candidates.update("/home/.gaming-swap/" + p.name for p in directory.glob("swapfile*"))
+        files = set()
+        for name in sorted(candidates):
+            path = self.path(name)
+            if path.exists() and stat.S_ISBLK(path.stat().st_mode):
+                continue  # Never alter swap partitions.
+            if self.swapfile(name):
+                files.add(name)
+            elif path.exists():
+                raise MigrationError(f"Refusing to delete a file without a swap signature: {name}")
+        return files, file_units
+
+    def prepare(self, size):
+        directory = self.path("/home/.gaming-swap")
+        if directory.is_symlink():
+            raise MigrationError("/home/.gaming-swap must not be a symbolic link")
+        result = self.run("findmnt", "--noheadings", "--output", "FSTYPE", "--target", str(self.path("/home")))
+        filesystem = result.stdout.strip()
+        if filesystem not in {"ext4", "xfs", "btrfs"}:
+            raise MigrationError(f"Unsupported /home filesystem: {filesystem}")
+        if filesystem == "btrfs" and shutil.which("btrfs") is None:
+            raise MigrationError("Install btrfs-progs before creating swap on Btrfs")
+        if not directory.exists():
+            if filesystem == "btrfs":
+                self.run("btrfs", "subvolume", "create", str(directory))
+            else:
+                directory.mkdir(mode=0o700)
+        if directory.stat().st_uid != 0 and self.root == Path("/"):
+            raise MigrationError("/home/.gaming-swap must belong to root")
+        directory.chmod(0o700)
+        # Do not rename an active swapfile: Linux forbids that. On RAM upgrades,
+        # use a new final filename and activate it before draining the old one.
+        name = "/home/.gaming-swap/swapfile"
+        path = self.path(name)
+        if path.exists() and path.stat().st_size != size:
+            name += "-" + str(size)
+            path = self.path(name)
+        if path.exists():
+            if not self.swapfile(name) or path.stat().st_size != size:
+                raise MigrationError(f"Existing managed file is invalid: {name}")
+            path.chmod(0o600)
+            return name, False
+        if shutil.disk_usage(directory).free < size + 1024**3:
+            raise MigrationError("Not enough free space in /home for 150% RAM plus 1 GiB reserve; old swap is preserved")
+        try:
+            if filesystem == "btrfs":
+                # Separate subvolume avoids prohibiting snapshots of /home.
+                # mkswapfile handles NOCOW, no holes and the swap signature.
+                self.run("btrfs", "filesystem", "mkswapfile", "--size", str(size), str(path))
+                self.run("btrfs", "inspect-internal", "map-swapfile", str(path))
+            else:
+                # Full writes also work on reflink-enabled XFS: no sparse extents.
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                os.close(fd)
+                self.run("dd", "if=/dev/zero", "of=" + str(path), "bs=1M",
+                         "count=" + str(size), "iflag=count_bytes", "conv=fsync", "status=none")
+                self.run("mkswap", str(path))
+            path.chmod(0o600)
+            return name, True
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+
+    def runtime(self):
+        directory = self.path("/sys/module/zswap/parameters")
+        if not (directory / "enabled").exists():
+            raise MigrationError("The running kernel lacks zswap; settings will apply after booting the new kernel")
+        # Set the compressor before enabling new stores. Existing pools may
+        # finish draining naturally; never swapoff just to change a compressor.
+        for key in ("compressor", "zpool", "max_pool_percent", "shrinker_enabled", "enabled"):
+            path = directory / key
+            if key == "zpool" and not path.exists():
+                print("gaming-swap: this kernel uses zsmalloc directly (no zpool selector)")
+                continue
+            path.write_text(PARAMETERS[key] + "\n")
+            actual = path.read_text().strip()
+            expected = PARAMETERS[key]
+            if actual != expected and not (expected == "1" and actual.lower() in {"y", "yes", "true"}):
+                raise MigrationError(f"zswap.{key}: expected {expected}, got {actual}")
+
+    def persist(self, target, files, units, file_units):
+        fstab = self.path("/etc/fstab").read_text()
+        if not self.path("/etc/fstab.gaming-swap.bak").exists():
+            self.write("/etc/fstab.gaming-swap.bak", fstab, 0o600)
+        lines = []
+        for line in fstab.splitlines():
+            fields = fstab_fields(line)
+            if len(fields) >= 3 and fields[2] == "swap" and (fields[0] in files | {target} or fields[0].startswith("/dev/zram")):
+                continue
+            lines.append(line)
+        # Ordering without a hard dependency retains plain disk swap when a
+        # fallback kernel lacks zswap or a compressor cannot be initialized.
+        lines.append(f"{target} none swap defaults,nofail,x-systemd.after={SERVICE} 0 0")
+        self.write("/etc/fstab", "\n".join(lines) + "\n")
+        self.write("/etc/modprobe.d/99-gaming-swap.conf", "# Persistent zram disable\nblacklist zram\ninstall zram /bin/false\n")
+        self.write("/etc/systemd/zram-generator.conf", "# Disabled by gaming-swap\n")
+        self.write("/etc/systemd/zram-generator.conf.d/99-gaming-swap.conf", "[zram0]\nzram-size = 0\n")
+        self.write("/etc/default/zramswap", "ENABLED=false\n")
+        disabled = ZRAM_UNITS | {u for u in units if "zram" in u.lower()}
+        disabled |= {u for u, name in file_units.items() if name != target and name in files}
+        for unit in sorted(disabled):
+            # Stop only after all old swap has been drained successfully.
+            self.run("systemctl", "stop", unit, check=False)
+            self.run("systemctl", "disable", unit, check=False)
+            mask = self.path("/etc/systemd/system/" + unit)
+            mask.parent.mkdir(parents=True, exist_ok=True)
+            if mask.is_symlink() and os.readlink(mask) == "/dev/null":
+                continue
+            if mask.exists() or mask.is_symlink():
+                backup = mask.with_name(mask.name + ".gaming-swap.bak")
+                if backup.exists() or backup.is_symlink():
+                    raise MigrationError(f"Cannot replace {mask}: backup already exists")
+                mask.rename(backup)
+            mask.symlink_to("/dev/null")
+        grub = self.path("/etc/default/grub")
+        if grub.exists():
+            self.write("/etc/default/grub", grub_policy(grub.read_text()))
+        cmdline = self.path("/etc/kernel/cmdline")
+        # kernel-install users consume this on future image installations.
+        if cmdline.exists():
+            self.write("/etc/kernel/cmdline", filter_cmdline(cmdline.read_text()) + "\n")
+        self.run("systemctl", "daemon-reload")
+        self.run("systemctl", "enable", SERVICE)
+
+    def install(self):
+        for command in ("swapon", "swapoff", "blkid", "mkswap", "dd", "findmnt", "systemctl"):
+            if shutil.which(command) is None:
+                raise MigrationError(f"Required command missing: {command}")
+        if not self.path("/home").is_dir():
+            raise MigrationError("/home must be mounted before installing the kernel")
+        meminfo = self.path("/proc/meminfo").read_text()
+        match = re.search(r"(?m)^MemTotal:\s+(\d+)\s+kB", meminfo)
+        if not match:
+            raise MigrationError("Cannot read total RAM")
+        page = os.sysconf("SC_PAGE_SIZE")
+        size = ((int(match[1]) * 1024 * 3 + 2 * page - 1) // (2 * page)) * page
+        active = self.active()
+        units = self.units()
+        files, file_units = self.old_files(active, units)
+        target, created = self.prepare(size)
+        try:
+            if target not in active:
+                self.run("swapon", str(self.path(target)))
+        except Exception:
+            if created:
+                self.path(target).unlink(missing_ok=True)
+            raise
+        # A swapoff failure keeps that file untouched and the new backend active.
+        # Nothing is blacklisted, masked or deleted until every drain succeeds.
+        for name, kind in sorted(self.active().items()):
+            if name != target and (kind == "file" or name.startswith("/dev/zram")):
+                self.run("swapoff", name)
+        self.persist(target, files, units, file_units)
+        for name in sorted(files - {target}):
+            if name in self.active():
+                raise MigrationError(f"Swap reactivated during migration; preserving {name}")
+            self.path(name).unlink()
+        try:
+            self.runtime()
+        except (OSError, MigrationError) as exc:
+            print(f"gaming-swap: {exc}; reboot is required", file=sys.stderr)
+        # Keep the destination: update-grub is Debian, Valve uses grub-mkconfig.
+        if self.path("/efi/EFI/steamos").is_dir() and shutil.which("grub-mkconfig"):
+            self.run("grub-mkconfig", "-o", "/efi/EFI/steamos/grub.cfg")
+        elif shutil.which("steamos-update-grub"):
+            self.run("steamos-update-grub")
+        elif shutil.which("update-grub"):
+            self.run("update-grub")
+        elif shutil.which("grub-mkconfig") and self.path("/boot/grub").is_dir():
+            self.run("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
+        print(f"gaming-swap: {target}, {size} bytes (150% of MemTotal); zram disabled persistently. Reboot to verify zswap.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runtime", action="store_true", help="apply zswap settings only; never allocate/remove swap")
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error("must run as root")
+    Path("/run/lock").mkdir(exist_ok=True)
+    with open("/run/lock/gaming-swap.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        migration = Migration()
+        if args.runtime:
+            migration.runtime()
+        else:
+            migration.install()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (MigrationError, OSError, subprocess.CalledProcessError, ValueError) as exc:
+        detail = getattr(exc, "stderr", "") or ""
+        print(f"gaming-swap: migration failed: {exc}\n{detail}".rstrip(), file=sys.stderr)
+        sys.exit(1)
