@@ -224,14 +224,25 @@ run_installer() {
     CHARCOAL_TEST_FIXTURE="$fixture_dir" \
     CHARCOAL_TEST_LOG="$log_file" \
     CHARCOAL_TEST_SCENARIO="$scenario" \
-    bash "$INSTALLER"
+    bash -c '
+      source "$1"
+      run_privileged() {
+        if [[ "$1" == /usr/lib/gaming-swap/configure ]]; then
+          printf "gaming-swap migration\n" >> "$CHARCOAL_TEST_LOG"
+          [[ "$CHARCOAL_TEST_SCENARIO" != swap-migration-failure ]] || return 9
+        else
+          command "$@"
+        fi
+      }
+      main
+    ' bash "$INSTALLER"
 }
 
 make_fixture
 write_fake_commands
 
-grep -Fq 'ZRAM switches to LZ4 with ZSTD --fast=1 priority-1 recompression after booting Charcoal' "$INSTALLER" \
-  || fail 'installer does not explain that active zram is preserved until reboot'
+grep -Fq 'ZRAM is disabled persistently; LZ4 zswap uses a swapfile on /home' "$INSTALLER" \
+  || fail 'installer does not explain persistent zswap migration'
 
 : > "$log_file"
 run_installer normal
@@ -245,7 +256,8 @@ assert_contains 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_contains 'steamos-readonly enable'
 assert_precedes 'steamos-readonly disable' 'steamos-devmode enable --no-prompt'
 assert_precedes 'steamos-devmode enable --no-prompt' 'pacman -U '
-assert_precedes 'pacman -U ' 'grub-mkconfig -o /boot/grub/grub.cfg'
+assert_precedes 'pacman -U ' 'gaming-swap migration'
+assert_precedes 'gaming-swap migration' 'grub-mkconfig -o /boot/grub/grub.cfg'
 assert_precedes 'grub-mkconfig -o /boot/grub/grub.cfg' 'steamos-readonly enable'
 
 : > "$log_file"
@@ -330,5 +342,15 @@ assert_log_line 'update-grub'
 if run_bootloader_update_case "$test_root/missing-steamos-efi" >/dev/null 2>&1; then
   fail 'bootloader update reported success without a supported updater'
 fi
+
+# A pacman scriptlet error may not make pacman -U fail. The explicit
+# idempotent migration check must still prevent a false installer success.
+: > "$log_file"
+if run_installer swap-migration-failure >/dev/null 2>&1; then
+  fail 'installer ignored a failed swap migration'
+fi
+assert_contains 'gaming-swap migration'
+assert_contains 'steamos-readonly enable'
+assert_not_contains 'grub-mkconfig'
 
 printf 'install-charcoal tests passed\n'

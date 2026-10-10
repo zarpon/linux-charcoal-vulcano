@@ -1,0 +1,13 @@
+[Unit]
+Description=Persistent gaming zswap settings (LZ4, 50 percent RAM)
+DefaultDependencies=no
+After=systemd-modules-load.service
+Before=swap.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/gaming-swap/configure --runtime
+RemainAfterExit=yes
+
+[Install]
+WantedBy=swap.target

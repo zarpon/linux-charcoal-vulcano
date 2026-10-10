@@ -235,18 +235,10 @@ resultado da validação.
 
 ## Perfil de compilação e swap
 
-O kernel usa O3. ZRAM é o swap padrão, com LZ4 primário e zstd como
-recompressor. Zswap permanece compilado, mas desligado por padrão.
-Para trocar no próximo boot, acrescente à linha do kernel:
-
-```text
-systemd.zram=0 zswap.enabled=1
-```
-
-`systemd.zram=0` desativa os dispositivos criados pelo zram-generator.
-Zswap precisa de um swap em disco/arquivo configurado e ativo; ele não cria
-esse backend. Para voltar ao perfil padrão, retire esses argumentos, ou use
-`systemd.zram=1 zswap.enabled=0`.
+O kernel usa O3. A instalação ativa LZ4 zswap com limite de pool de 50%,
+shrinker ativo e swapfile de 150% da RAM na partição de `/home`. ZRAM e
+os serviços que o ativam são desativados persistentemente. Consulte
+[SWAP.md](SWAP.md) para comportamento, requisitos e verificação.
 
 O tuning usa `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e
 `vm.dirty_ratio=10`. Os defaults próprios do LRU Marie são preservados.

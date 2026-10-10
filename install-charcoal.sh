@@ -364,11 +364,14 @@ main() {
   # would skip a verified newer release whose package version is unchanged.
   run_privileged pacman -U "${packages[@]}"
 
+  info "Ensuring persistent zswap and /home swapfile migration completed..."
+  run_privileged /usr/lib/gaming-swap/configure
+
   info "Updating the bootloader configuration..."
   _update_grub
 
   info "Charcoal ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
-  info "ZRAM switches to LZ4 with ZSTD --fast=1 priority-1 recompression after booting Charcoal; the active swap is not reset during installation."
+  info "ZRAM is disabled persistently; LZ4 zswap uses a swapfile on /home sized to 150% of MemTotal. Reboot to verify the settings."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

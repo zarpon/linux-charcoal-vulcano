@@ -136,21 +136,11 @@ verify:
 uname -a  # should contain "charcoal"
 ```
 
-The installer intentionally does not reset the active zram swap, because the
-kernel does not permit changing its compressor after initialization. The LZ4
-primary compressor and ZSTD priority-`1` recompressor apply on the first boot
-into Charcoal. ZSTD is fixed in the kernel to the equivalent of
-`zstd --fast=1` (compression level `-1`). Verify them after that reboot:
-
-```bash
-cat /sys/block/zram0/comp_algorithm
-cat /sys/block/zram0/recomp_algorithm
-```
-
-`[lz4]` marks the selected primary compressor. In `recomp_algorithm`, ZSTD is
-shown in the priority-`1` row. Its `--fast=1` equivalent is fixed in the
-Charcoal ZRAM-IR kernel port and cannot be overridden by a userspace
-`algorithm_params` setting.
+Installation migrates existing swapfiles to `/home/.gaming-swap/swapfile`,
+sized to 150% of RAM, and disables zram persistently. LZ4 zswap uses
+`max_pool_percent=50` and `shrinker_enabled=1` with zsmalloc. The replacement
+is activated before old swapfiles are drained and removed. See
+[SWAP.md](SWAP.md) for requirements, persistence and post-reboot checks.
 
 You can also see the kernel version in Gaming Mode under
 **Settings → System**.
@@ -224,18 +214,10 @@ the source, target-kernel compatibility, and validation result.
 
 ## Compilation and swap profile
 
-The kernel uses O3. ZRAM is the default swap, with primary LZ4 and zstd
-recompression. Zswap remains compiled in but is disabled by default.
-To switch at the next boot, append to the kernel command line:
-
-```text
-systemd.zram=0 zswap.enabled=1
-```
-
-`systemd.zram=0` disables devices created by zram-generator. Zswap requires
-a configured, active disk/file swap backend; it does not create one.
-Remove those arguments to restore the default, or use
-`systemd.zram=1 zswap.enabled=0`.
+The kernel uses O3. Installation enables LZ4 zswap with a 50% RAM pool,
+shrinker enabled and a 150% RAM swapfile on the `/home` filesystem. ZRAM
+and its setup services are disabled persistently. See [SWAP.md](SWAP.md)
+for migration details and verification.
 
 Runtime tuning uses `vm.vfs_cache_pressure=100`,
 `vm.dirty_background_ratio=2` and `vm.dirty_ratio=10`. LRU Marie's own defaults
