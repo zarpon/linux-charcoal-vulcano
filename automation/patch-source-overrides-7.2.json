@@ -8,9 +8,9 @@
       "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:r[0-9]+)?)\\.patch$",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
-      "local_port": "7.2-lru_marie-0.11.1r2.port.patch",
-      "local_port_project_version": "0.11.1r2",
-      "local_port_upstream_sha256": "a28ff39ed30034290ae7e30ae42f0725b9fdb531e3a10a127f26f53b0c217551"
+      "local_port": null,
+      "local_port_project_version": null,
+      "local_port_upstream_sha256": null
     },
     "zram_ir": {
       "source_regex": "(?:latest-zram-ir\\.patch|0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch)",
