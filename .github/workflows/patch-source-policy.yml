@@ -13,6 +13,8 @@ on:
       - automation/apply-resolved-patch.py
       - automation/port-poc-selector.py
       - automation/fix-libbpf-clang-warning.py
+      - automation/fix-gud-tv-mode-fortify.py
+      - tests/test_patch_gud_fortify.py
       - automation/configure-zen-interactive.py
       - tests/test_zen_interactive_profile.py
       - tests/test-resolve-latest-patches.py
@@ -39,6 +41,8 @@ on:
       - automation/apply-resolved-patch.py
       - automation/port-poc-selector.py
       - automation/fix-libbpf-clang-warning.py
+      - automation/fix-gud-tv-mode-fortify.py
+      - tests/test_patch_gud_fortify.py
       - automation/configure-zen-interactive.py
       - tests/test_zen_interactive_profile.py
       - tests/test-resolve-latest-patches.py
@@ -77,6 +81,8 @@ jobs:
             automation/apply-resolved-patch.py \
             automation/port-poc-selector.py \
             automation/fix-libbpf-clang-warning.py \
+            automation/fix-gud-tv-mode-fortify.py \
+            tests/test_patch_gud_fortify.py \
             tests/test-resolve-latest-patches.py \
             tests/test-apply-resolved-patch.py \
             tests/test-bore-overlay.py \
