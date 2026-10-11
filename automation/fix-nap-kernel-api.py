@@ -53,6 +53,17 @@ def rewrite(path: Path) -> bool:
             changed = True
         elif old_count == 0 and new_count == expected:
             continue
+        elif (
+            label in {"APIC timer counter", "reschedule counter", "call-function counter"}
+            and old_count == expected
+            and new_count == expected
+            and "#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)" in text
+            and text.index(new) < text.index(old)
+            and re.search(r"(?m)^#else\\s*$", text[text.index(new):text.index(old)])
+        ):
+            # NAP 0.6.0 intentionally keeps pre-7.2 and 7.2+ IRQ branches.
+            # Do not rewrite the legacy branch or weaken the fail-closed checks.
+            continue
         else:
             raise SystemExit(
                 f"{label}: expected {expected} old or new anchors, "

@@ -64,5 +64,50 @@ class NapKernelApiTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
 
+    def test_preserves_version_guarded_upstream_060_irq_paths(self) -> None:
+        original = (
+            "        *loc = this_cpu_read(irq_stat.apic_timer_irqs);\\n"
+            "        *res = this_cpu_read(irq_stat.irq_resched_count);\\n"
+            "        *cal = this_cpu_read(irq_stat.irq_call_count);\\n"
+        ).replace("\\n", "\n")
+        guarded = (
+            "#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)\n"
+            "        *loc = this_cpu_read(irq_stat.counts[IRQ_COUNT_APIC_TIMER]);\n"
+            "#ifdef CONFIG_SMP\n"
+            "        *res = this_cpu_read(irq_stat.counts[IRQ_COUNT_RESCHEDULE]);\n"
+            "        *cal = this_cpu_read(irq_stat.counts[IRQ_COUNT_CALL_FUNCTION]);\n"
+            "#else\n"
+            "        *res = *cal = 0;\n"
+            "#endif\n"
+            "#else\n"
+            + original
+            + "#endif\n"
+        )
+        assert original in FIXTURE
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "nap.c"
+            source.write_text(FIXTURE.replace(original, guarded), encoding="utf-8")
+            subprocess.run([sys.executable, str(SCRIPT), str(source)], check=True)
+            first = source.read_text(encoding="utf-8")
+            subprocess.run([sys.executable, str(SCRIPT), str(source)], check=True)
+            self.assertEqual(first, source.read_text(encoding="utf-8"))
+            self.assertIn(guarded, first)
+            self.assertEqual(first.count("const struct bin_attribute *attr"), 2)
+
+    def test_dual_counters_without_version_guard_fail_closed(self) -> None:
+        duplicate = FIXTURE.replace(
+            "        *loc = this_cpu_read(irq_stat.apic_timer_irqs);",
+            "        *loc = this_cpu_read(irq_stat.counts[IRQ_COUNT_APIC_TIMER]);\\n"
+            "        *loc = this_cpu_read(irq_stat.apic_timer_irqs);".replace("\\n", "\n"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "nap.c"
+            source.write_text(duplicate, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), str(source)], capture_output=True
+            )
+        self.assertNotEqual(result.returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
