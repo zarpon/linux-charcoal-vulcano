@@ -41,6 +41,17 @@ REWRITES = (
 )
 
 
+def native_sysfs_const_contract(text: str) -> bool:
+    """Recognize upstream NAP 0.6.0's complete version-guarded sysfs API."""
+    return (
+        text.count("#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)") == 1
+        and text.count("#define NAP_BIN_ATTR_CONST const") == 1
+        and text.count("#define NAP_BIN_ATTR_CONST\n") == 1
+        and text.count("NAP_BIN_ATTR_CONST struct bin_attribute *attr,") == 2
+        and text.count("NAP_BIN_ATTR_CONST nap_bin_attrs[] = {") == 1
+    )
+
+
 def rewrite(path: Path) -> bool:
     text = path.read_text(encoding="utf-8")
     changed = False
@@ -63,6 +74,14 @@ def rewrite(path: Path) -> bool:
         ):
             # NAP 0.6.0 intentionally keeps pre-7.2 and 7.2+ IRQ branches.
             # Do not rewrite the legacy branch or weaken the fail-closed checks.
+            continue
+        elif (
+            label in {"binary-attribute callback constness", "binary-attribute group constness"}
+            and old_count == 0
+            and new_count == 0
+            and native_sysfs_const_contract(text)
+        ):
+            # Upstream NAP 0.6.0 already guards sysfs constness by kernel version.
             continue
         else:
             raise SystemExit(

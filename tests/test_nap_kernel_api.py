@@ -109,5 +109,39 @@ class NapKernelApiTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
 
+    def test_accepts_nap_060_version_guarded_sysfs_contract(self) -> None:
+        guarded = (
+            "#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)\n"
+            "#define NAP_BIN_ATTR_CONST const\n"
+            "#else\n"
+            "#define NAP_BIN_ATTR_CONST\n"
+            "#endif\n"
+            + FIXTURE.replace(
+                "struct bin_attribute *attr, char *buf,",
+                "NAP_BIN_ATTR_CONST struct bin_attribute *attr,\n                            char *buf,",
+            ).replace(
+                "static struct bin_attribute *nap_bin_attrs[] = {",
+                "static NAP_BIN_ATTR_CONST struct bin_attribute *\n"
+                "NAP_BIN_ATTR_CONST nap_bin_attrs[] = {",
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "nap.c"
+            source.write_text(guarded, encoding="utf-8")
+            subprocess.run([sys.executable, str(SCRIPT), str(source)], check=True)
+            first = source.read_text(encoding="utf-8")
+            subprocess.run([sys.executable, str(SCRIPT), str(source)], check=True)
+            self.assertEqual(first, source.read_text(encoding="utf-8"))
+            self.assertIn("NAP_BIN_ATTR_CONST nap_bin_attrs[] = {", first)
+            self.assertEqual(first.count("NAP_BIN_ATTR_CONST struct bin_attribute *attr,"), 2)
+            source.write_text(
+                guarded.replace("#define NAP_BIN_ATTR_CONST const", "#define NAP_BIN_ATTR_CONST invalid"),
+                encoding="utf-8",
+            )
+            result = subprocess.run([sys.executable, str(SCRIPT), str(source)], capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+
+
+
 if __name__ == "__main__":
     unittest.main()
