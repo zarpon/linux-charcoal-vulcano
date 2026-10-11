@@ -2,6 +2,7 @@
 """Exercise migration failures in a temporary root; never touch host swap."""
 import importlib.machinery
 import importlib.util
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -147,6 +148,40 @@ class MigrationTests(unittest.TestCase):
         self.install()
         self.assertIn(("swapoff", "/home/old swap"), self.m.calls)
         self.assertFalse(self.m.path("/home/old swap").exists())
+
+    @unittest.skipUnless(shutil.which("systemd-tmpfiles"), "systemd-tmpfiles is not installed")
+    def test_steamos_tmpfiles_cannot_disable_zswap_after_service_runs(self):
+        vendor = self.m.path("/usr/lib/tmpfiles.d/zswap-disable.conf")
+        vendor.parent.mkdir(parents=True)
+        vendor.write_text("w /sys/module/zswap/parameters/enabled - - - - 0\n")
+        # A regular empty file suffices as the mask destination in this fake
+        # root. All systemd-tmpfiles writes are restricted to the temporary root.
+        null = self.m.path("/dev/null")
+        null.parent.mkdir()
+        null.touch()
+        command = ["systemd-tmpfiles", "--root=" + str(self.m.root),
+                   "--create", "--prefix=/sys/module/zswap"]
+        self.m.runtime()
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        enabled = self.m.path("/sys/module/zswap/parameters/enabled")
+        self.assertEqual(enabled.read_text().strip(), "0")
+        self.install()
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertEqual(enabled.read_text().strip(), "1")
+        self.assertEqual(vendor.read_text(), "w /sys/module/zswap/parameters/enabled - - - - 0\n")
+
+    def test_existing_local_tmpfiles_rule_is_backed_up_and_mask_is_idempotent(self):
+        mask = self.m.path("/etc/tmpfiles.d/zswap-disable.conf")
+        mask.parent.mkdir(parents=True)
+        original = "w /sys/module/zswap/parameters/enabled - - - - 0\n"
+        mask.write_text(original)
+        self.install()
+        self.assertEqual(mask.readlink(), Path("/dev/null"))
+        backup = mask.with_name(mask.name + ".gaming-swap.bak")
+        self.assertEqual(backup.read_text(), original)
+        self.install()
+        self.assertEqual(mask.readlink(), Path("/dev/null"))
+        self.assertEqual(backup.read_text(), original)
 
     def test_replacement_active_before_drain_and_persistent_after_boot(self):
         self.install()

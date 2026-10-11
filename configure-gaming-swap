@@ -277,6 +277,18 @@ class Migration:
         self.write("/etc/systemd/zram-generator.conf", "# Disabled by gaming-swap\n")
         self.write("/etc/systemd/zram-generator.conf.d/99-gaming-swap.conf", "[zram0]\nzram-size = 0\n")
         self.write("/etc/default/zramswap", "ENABLED=false\n")
+        # SteamOS tmpfiles runs after this policy's early boot service and
+        # otherwise writes enabled=0 again. Mask only this dedicated rule.
+        tmpfiles_mask = self.path("/etc/tmpfiles.d/zswap-disable.conf")
+        tmpfiles_mask.parent.mkdir(parents=True, exist_ok=True)
+        if not (tmpfiles_mask.is_symlink() and os.readlink(tmpfiles_mask) == "/dev/null"):
+            if tmpfiles_mask.exists() or tmpfiles_mask.is_symlink():
+                backup = tmpfiles_mask.with_name(tmpfiles_mask.name + ".gaming-swap.bak")
+                if backup.exists() or backup.is_symlink():
+                    raise MigrationError(f"Cannot replace {tmpfiles_mask}: backup already exists")
+                tmpfiles_mask.rename(backup)
+            # Never use write() for /dev/null masks: it follows /etc symlinks.
+            tmpfiles_mask.symlink_to("/dev/null")
         disabled = ZRAM_UNITS | {u for u in units if "zram" in u.lower()}
         disabled |= {u for u, name in file_units.items() if name != target and name in files}
         for unit in sorted(disabled):
