@@ -23,6 +23,10 @@ correto; uma mudança na RAM cria outro nome dentro do mesmo diretório.
 A persistência usa `/etc/fstab`, parâmetros do GRUB, modprobe, desativação do
 zram-generator e máscaras dos serviços zram detectados, incluindo SteamOS.
 `gaming-zswap.service` reaplica os parâmetros por sysfs em cada boot.
+O arquivo `/etc/tmpfiles.d/zswap-disable.conf` aponta para `/dev/null`,
+neutralizando a regra SteamOS de mesmo nome que desativa zswap depois do
+serviço. Uma configuração local anterior é preservada como
+`zswap-disable.conf.gaming-swap.bak`.
 As configurações próprias do LRU Marie são preservadas. A migração ocorre
 no sistema instalado, nunca no ambiente de compilação do pacote.
 
