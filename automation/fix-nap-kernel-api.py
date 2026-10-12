@@ -52,6 +52,28 @@ def native_sysfs_const_contract(text: str) -> bool:
     )
 
 
+
+def native_nap_065_irq_contract(text: str) -> bool:
+    """Recognize the complete NAP 0.6.5 two-counter IRQ sampling contract."""
+    lines = "\n".join(line.strip() for line in text.splitlines())
+    guarded_timer = "\n".join((
+        "#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)",
+        "/* 7.2 folded the per-class irq_stat fields into counts[] */",
+        "*loc = this_cpu_read(irq_stat.counts[IRQ_COUNT_APIC_TIMER]);",
+        "#else",
+        "*loc = this_cpu_read(irq_stat.apic_timer_irqs);",
+        "#endif",
+    ))
+    return (
+        text.count("static void nap_irq_counts(u32 *dev, u32 *loc)") == 1
+        and text.count("*dev = (u32)this_cpu_read(kstat.irqs_sum);") == 1
+        and lines.count(guarded_timer) == 1
+        and "irq_stat.irq_resched_count" not in text
+        and "irq_stat.irq_call_count" not in text
+        and "IRQ_COUNT_RESCHEDULE" not in text
+        and "IRQ_COUNT_CALL_FUNCTION" not in text
+    )
+
 def rewrite(path: Path) -> bool:
     text = path.read_text(encoding="utf-8")
     changed = False
@@ -74,6 +96,14 @@ def rewrite(path: Path) -> bool:
         ):
             # NAP 0.6.0 intentionally keeps pre-7.2 and 7.2+ IRQ branches.
             # Do not rewrite the legacy branch or weaken the fail-closed checks.
+            continue
+        elif (
+            label in {"reschedule counter", "call-function counter"}
+            and old_count == 0
+            and new_count == 0
+            and native_nap_065_irq_contract(text)
+        ):
+            # NAP 0.6.5 intentionally samples only total and APIC timer IRQs.
             continue
         elif (
             label in {"binary-attribute callback constness", "binary-attribute group constness"}

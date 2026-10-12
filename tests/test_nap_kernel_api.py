@@ -143,5 +143,53 @@ class NapKernelApiTests(unittest.TestCase):
 
 
 
+    def test_accepts_nap_065_compact_irq_and_sysfs_contract(self) -> None:
+        upstream = (
+            '#define CPUIDLE_NAP_VERSION "0.6.5"\n'
+            "static void nap_irq_counts(u32 *dev, u32 *loc)\n"
+            "{\n"
+            "\t*dev = (u32)this_cpu_read(kstat.irqs_sum);\n"
+            "#ifdef CONFIG_X86\n"
+            "#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)\n"
+            "\t/* 7.2 folded the per-class irq_stat fields into counts[] */\n"
+            "\t*loc = this_cpu_read(irq_stat.counts[IRQ_COUNT_APIC_TIMER]);\n"
+            "#else\n"
+            "\t*loc = this_cpu_read(irq_stat.apic_timer_irqs);\n"
+            "#endif\n"
+            "#else\n\t*loc = 0;\n#endif\n}\n"
+            "#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)\n"
+            "#define NAP_BIN_ATTR_CONST const\n"
+            "#else\n#define NAP_BIN_ATTR_CONST\n#endif\n"
+            "static ssize_t weights_read(struct file *file, struct kobject *kobj,\n"
+            "\tNAP_BIN_ATTR_CONST struct bin_attribute *attr,\n"
+            "\tchar *buf) { }\n"
+            "static ssize_t weights_write(struct file *file, struct kobject *kobj,\n"
+            "\tNAP_BIN_ATTR_CONST struct bin_attribute *attr,\n"
+            "\tchar *buf) { }\n"
+            "static NAP_BIN_ATTR_CONST struct bin_attribute *\n"
+            "NAP_BIN_ATTR_CONST nap_bin_attrs[] = { NULL };\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "nap.c"
+            source.write_text(upstream, encoding="utf-8")
+            subprocess.run([sys.executable, str(SCRIPT), str(source)], check=True)
+            self.assertEqual(source.read_text(encoding="utf-8"), upstream)
+            subprocess.run([sys.executable, str(SCRIPT), str(source)], check=True)
+            self.assertEqual(source.read_text(encoding="utf-8"), upstream)
+            # A missing version guard must not silently pass as a native port.
+            source.write_text(
+                upstream.replace(
+                    "#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)",
+                    "#if 1",
+                ),
+                encoding="utf-8",
+            )
+            invalid = subprocess.run(
+                [sys.executable, str(SCRIPT), str(source)], capture_output=True
+            )
+            self.assertNotEqual(invalid.returncode, 0)
+
+
+
 if __name__ == "__main__":
     unittest.main()
