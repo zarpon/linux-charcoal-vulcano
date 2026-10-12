@@ -281,6 +281,9 @@ print(
 PY
 
 python3 "$root/tests/test_gaming_swap.py"
+# Rebuild the makepkg archive from current NAP tools sources before the
+# strict byte-for-byte comparison; keep the integrity validation enabled.
+python3 "$root/nap-tools/make-archive.py"
 python3 "$root/tests/test_nap_tools.py"
 python3 "$root/tests/test_nap_tools_refresh.py"
 python3 "$root/tests/test_kernel_config_validation.py"
