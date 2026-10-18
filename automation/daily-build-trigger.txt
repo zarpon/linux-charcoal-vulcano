@@ -1,5 +1,5 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-10-12 (explicit cache verification for kernel-7.2)
-Source: explicit user request to trigger builds now
-Previous branch HEAD: 5c813a9cf7e47bafeb3ac051c0b426c1b12e95fc
+Last requested build: 2026-10-18T01:27:44-03:00
+Source: scheduled-build recovery after no 00:05 dispatcher run appeared within the normal delay window
+Recovery contract: push to kernel-7.2 triggers build-kernel-7.2.yml and publishes Preview as prerelease only
