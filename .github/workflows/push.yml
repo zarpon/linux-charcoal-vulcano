@@ -83,7 +83,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p logs
-          python3 -m py_compile automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py automation/configure-zen-interactive.py tests/test_zen_interactive_profile.py tests/test_patch_cpu_optimizations_port.py tests/test_release_latest_verification.py automation/fix-gud-tv-mode-fortify.py tests/test_patch_gud_fortify.py automation/fix-lru-marie-whitespace.py tests/test_lru_marie_whitespace.py automation/fix-nap-compat.py tests/test_nap_compat.py
+          python3 -m py_compile automation/generate-release-notes.py automation/resolve-latest-patches.py automation/validate-patch-lock.py automation/audit-latest-patch-versions.py automation/apply-resolved-patch.py automation/finalize-pkgbuild-checksums.py automation/port-poc-selector.py automation/configure-zen-interactive.py tests/test_zen_interactive_profile.py tests/test_patch_cpu_optimizations_port.py tests/test_release_latest_verification.py automation/fix-gud-tv-mode-fortify.py tests/test_patch_gud_fortify.py automation/fix-lru-marie-whitespace.py tests/test_lru_marie_whitespace.py automation/fix-nap-compat.py tests/test_nap_compat.py
           python3 automation/resolve-latest-patches.py --write | tee logs/resolver.log
           python3 automation/validate-patch-lock.py | tee logs/patch-lock-validation.log
           python3 automation/audit-latest-patch-versions.py | tee logs/latest-patch-audit.log
@@ -325,56 +325,17 @@ jobs:
           path: .cache/ccache
           key: ${{ steps.ccache-key.outputs.save_key }}
 
-      - name: Generate release description
+      - name: Generate release description from validated build lock
         run: |
           set -Eeuo pipefail
-          previous=""
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            previous="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || true)"
-          fi
-          {
-            echo "# Charcoal SteamOS kernel ${PKGVER}"
-            echo
-            echo "Built from the latest SteamOS 6.18 tag: \`${KERNEL_TAG}\`."
-            echo
-            echo "## Updates"
-            python3 - <<'PY'
-          import json
-
-          with open("logs/patch-lock.json", encoding="utf-8") as handle:
-              lock = json.load(handle)
-
-          for name, item in lock["components"].items():
-              origin = item.get("origin", "unknown")
-              path = item.get("path", "unknown")
-              commit = item.get("commit", "unknown")
-              if origin == "local-port":
-                  detail = f"reviewed SteamOS 6.18 local port ({path})"
-                  upstream = item.get("upstream")
-                  if upstream:
-                    detail += (
-                        f" following {upstream.get('repository')}"
-                        f"/{upstream.get('path')}@{upstream.get('commit')}"
-                    )
-              else:
-                  detail = f"latest compatible upstream patch ({path})"
-              print(f"- **{name}**: {detail}; source commit `{commit}`.")
-          PY
-            echo
-            echo "## Artifacts"
-            echo "- Kernel package ZIP: \`${RELEASE_ZIP}\`"
-            echo "- Kernel source: \`${KERNEL_TAG}\`"
-            echo
-            echo "## Changes in the repository"
-            if [[ -n "$previous" ]] && git rev-parse --verify --quiet "${previous}^{commit}" >/dev/null; then
-              git log --pretty='- %s (%h)' "${previous}..HEAD"
-            else
-              if [[ -n "$previous" ]]; then
-                echo "- Previous release ref \`${previous}\` is not present in this checkout; showing recent commits."
-              fi
-              git log -20 --pretty='- %s (%h)'
-            fi
-          } > logs/release-notes.md
+          python3 automation/generate-release-notes.py \
+            --mode stable \
+            --lock logs/patch-lock.json \
+            --pkgver "$PKGVER" \
+            --kernel-tag "$KERNEL_TAG" \
+            --release-tag "$RELEASE_TAG" \
+            --release-zip "$RELEASE_ZIP" \
+            --output logs/release-notes.md
 
       - name: Assemble kernel release ZIP
         run: |

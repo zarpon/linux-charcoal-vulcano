@@ -48,6 +48,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 -m py_compile \
+            automation/generate-release-notes.py \
             automation/prepare-steamos-7.2.py \
             automation/prepare-pkgbuild-7.2.py \
             automation/resolve-latest-patches-7.2.py \
@@ -309,19 +310,14 @@ jobs:
               f"{digest}  {archive.name}\n", encoding='utf-8'
           )
           PY
-          {
-            echo "# Charcoal 7.2 Preview"
-            echo
-            echo "Experimental SteamOS 7.2 build from the dedicated \`kernel-7.2\` line."
-            echo
-            echo "- Valve kernel tag: \`${KERNEL_TAG}\`"
-            echo "- Package version: \`${PKGVER}\`"
-            echo "- Workflow run: \`${GITHUB_RUN_NUMBER}\`"
-            echo "- Commit: \`${GITHUB_SHA}\`"
-            echo
-            echo "This is a published GitHub prerelease and is explicitly not the repository Latest release."
-            echo "The SteamOS 7.2 installer discovers it only through the dedicated \`charcoal-7.2-preview-\` tag prefix and requires the prerelease flag."
-          } > logs/release-notes.md
+          python3 automation/generate-release-notes.py \
+            --mode preview \
+            --lock logs/patch-lock.json \
+            --pkgver "$PKGVER" \
+            --kernel-tag "$KERNEL_TAG" \
+            --release-tag "$RELEASE_TAG" \
+            --release-zip "$RELEASE_ZIP" \
+            --output logs/release-notes.md
 
       - name: Publish Charcoal 7.2 Preview release
         if: github.ref == 'refs/heads/kernel-7.2'
