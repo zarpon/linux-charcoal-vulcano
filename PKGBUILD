@@ -183,8 +183,8 @@ _validate_kernel_config() {
     'CONFIG_ZSWAP=y' \
     'CONFIG_ZSWAP_DEFAULT_ON=y' \
     'CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y' \
-    'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y' \
-    'CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lz4"' \
+    'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y' \
+    'CONFIG_ZSWAP_COMPRESSOR_DEFAULT="zstd"' \
     'CONFIG_ZSMALLOC=y' \
     'CONFIG_CRYPTO_LZ4=y'; do
     if ! grep -qxF "$expected" .config; then

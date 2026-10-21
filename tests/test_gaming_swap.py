@@ -207,6 +207,9 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(old.exists())
         self.assertIn("/home/.gaming-swap/swapfile", self.m.swaps)
 
+    def test_swap_policy_is_executable(self):
+        self.assertTrue(SCRIPT.stat().st_mode & 0o111)
+
     def test_branch_zswap_policy(self):
         self.assertEqual(policy.PARAMETERS["max_pool_percent"], "35")
         self.assertEqual(policy.PARAMETERS["compressor"], "zstd")
