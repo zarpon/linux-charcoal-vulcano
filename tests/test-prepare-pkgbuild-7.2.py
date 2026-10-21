@@ -181,7 +181,9 @@ class TransformTests(unittest.TestCase):
         self.assertIn("automation/configure-zen-interactive.py", result)
         self.assertIn("CONFIG_ZSWAP_DEFAULT_ON=y", result)
         self.assertIn("CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y", result)
-        self.assertIn("CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y", result)
+        self.assertIn("CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y", result)
+        self.assertIn('CONFIG_ZSWAP_COMPRESSOR_DEFAULT="zstd"', result)
+        self.assertNotIn("CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y", result)
         self.assertNotIn("# CONFIG_ZSWAP_DEFAULT_ON is not set", result)
 
     def test_missing_patch_is_rejected(self) -> None:
