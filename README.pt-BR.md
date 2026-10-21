@@ -236,7 +236,7 @@ resultado da validação.
 ## Perfil de compilação e swap
 
 O kernel usa O3. A instalação ativa LZ4 zswap com limite de pool de 50%,
-shrinker ativo e swapfile de 150% da RAM na partição de `/home`. ZRAM e
+shrinker ativo e swapfile de 75% da RAM na partição de `/home`. ZRAM e
 os serviços que o ativam são desativados persistentemente. Consulte
 [SWAP.md](SWAP.md) para comportamento, requisitos e verificação.
 

@@ -371,7 +371,7 @@ main() {
   _update_grub
 
   info "Charcoal ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
-  info "ZRAM is disabled persistently; LZ4 zswap uses a swapfile on /home sized to 150% of MemTotal. Reboot to verify the settings."
+  info "ZRAM is disabled persistently; LZ4 zswap uses a swapfile on /home sized to 75% of MemTotal. Reboot to verify the settings."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

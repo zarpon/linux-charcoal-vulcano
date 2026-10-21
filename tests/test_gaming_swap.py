@@ -166,6 +166,51 @@ class MigrationTests(unittest.TestCase):
         self.assertIn(("swapoff", "/home/old swap"), self.m.calls)
         self.assertFalse(self.m.path("/home/old swap").exists())
 
+    def test_inactive_legacy_swapfiles_are_physically_removed(self):
+        # These files are not active, referenced by fstab or linked to units.
+        # Discovery must verify their signatures and remove them, not swapoff.
+        old_user = "/home/deck/.swapfile"
+        old_root = "/swap/swapfile"
+        decoy = "/home/deck/swapfile.img"
+        self.m.make_swap(old_user, 1024**2)
+        self.m.make_swap(old_root, 1024**2)
+        self.m.path(decoy).write_text("ordinary user data")
+        self.install()
+        self.assertFalse(self.m.path(old_user).exists())
+        self.assertFalse(self.m.path(old_root).exists())
+        self.assertEqual(self.m.path(decoy).read_text(), "ordinary user data")
+        self.assertFalse(any(c == ("swapoff", old_user) for c in self.m.calls))
+        self.assertFalse(any(c == ("swapoff", old_root) for c in self.m.calls))
+
+    def test_obsolete_managed_150_percent_swapfile_is_replaced_and_deleted(self):
+        old = "/home/.gaming-swap/swapfile"
+        self.m.make_swap(old, 8192 * 1024 * 3 // 2)
+        self.install()
+        new = next(n for n, kind in self.m.swaps.items()
+                   if kind == "file" and n.startswith("/home/.gaming-swap/"))
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.m.path(new).stat().st_size, 8192 * 1024 * 3 // 4)
+        self.assertFalse(self.m.path(old).exists())
+
+    def test_failed_physical_deletion_is_fatal(self):
+        old = self.m.path("/home/swapfile")
+        original_unlink = Path.unlink
+
+        def deny_unlink(path, *args, **kwargs):
+            if path == old:
+                raise PermissionError("physical deletion denied")
+            return original_unlink(path, *args, **kwargs)
+
+        with patch.object(Path, "unlink", deny_unlink):
+            with self.assertRaisesRegex(PermissionError, "physical deletion denied"):
+                self.install()
+        self.assertTrue(old.exists())
+        self.assertIn("/home/.gaming-swap/swapfile", self.m.swaps)
+
+    def test_branch_zswap_policy(self):
+        self.assertEqual(policy.PARAMETERS["max_pool_percent"], "50")
+        self.assertEqual(policy.PARAMETERS["compressor"], "lz4")
+
     @unittest.skipUnless(shutil.which("systemd-tmpfiles"), "systemd-tmpfiles is not installed")
     def test_steamos_tmpfiles_cannot_disable_zswap_after_service_runs(self):
         vendor = self.m.path("/usr/lib/tmpfiles.d/zswap-disable.conf")
@@ -203,7 +248,7 @@ class MigrationTests(unittest.TestCase):
     def test_replacement_active_before_drain_and_persistent_after_boot(self):
         self.install()
         target = "/home/.gaming-swap/swapfile"
-        self.assertEqual(self.m.path(target).stat().st_size, 8192 * 1024 * 3 // 2)
+        self.assertEqual(self.m.path(target).stat().st_size, 8192 * 1024 * 3 // 4)
         self.assertEqual(self.m.path(target).stat().st_mode & 0o777, 0o600)
         self.assertEqual(self.m.path("/home/.gaming-swap").stat().st_mode & 0o777, 0o700)
         calls = self.m.calls
