@@ -68,7 +68,7 @@ A branch temporária de validação pode executar testes, resolver fontes, aplic
 
 ## Configuração atual do kernel 7.2
 
-A branch 7.2 mantém as configurações de jogos e memória do Charcoal, incluindo o porte específico do zram-ir para 7.2. O suporte ZRAM-IR permanece disponível, mas a instalação desativa zram e usa LZ4 zswap com um swapfile na partição home.
+A branch 7.2 mantém as configurações de jogos e memória do Charcoal, incluindo o porte específico do zram-ir para 7.2. O suporte ZRAM-IR permanece disponível, mas a instalação desativa zram e usa ZSTD zswap com um swapfile na partição home.
 
 ### AMD IOMMU PerfOpt
 
@@ -98,8 +98,8 @@ Para a linha estável do Charcoal, utilize a branch `master`.
 
 ## Perfil de compilação e swap
 
-O kernel usa O3. A instalação ativa LZ4 zswap com limite de pool de 50%,
-shrinker ativo e swapfile de 150% da RAM na partição de `/home`. ZRAM e
+O kernel usa O3. A instalação ativa ZSTD zswap com limite de pool de 35%,
+shrinker ativo e swapfile de 75% da RAM na partição de `/home`. ZRAM e
 os serviços que o ativam são desativados persistentemente. Consulte
 [SWAP.md](SWAP.md) para comportamento, requisitos e verificação.
 

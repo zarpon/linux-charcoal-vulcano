@@ -62,7 +62,7 @@ The installer requires both the exclusive tag prefix and GitHub's prerelease fla
 
 ## Current 7.2 kernel configuration
 
-The 7.2 branch keeps the Charcoal gaming/memory configuration, including the dedicated 7.2 zram-ir port. ZRAM-IR remains available, but installation disables zram and uses LZ4 zswap backed by a swapfile on the home filesystem.
+The 7.2 branch keeps the Charcoal gaming/memory configuration, including the dedicated 7.2 zram-ir port. ZRAM-IR remains available, but installation disables zram and uses ZSTD zswap backed by a swapfile on the home filesystem.
 
 ### AMD IOMMU PerfOpt
 
@@ -89,8 +89,8 @@ For the stable Charcoal kernel, use the `master` branch instead.
 
 ## Compilation and swap profile
 
-The kernel uses O3. Installation enables LZ4 zswap with a 50% RAM pool,
-shrinker enabled and a 150% RAM swapfile on the `/home` filesystem. ZRAM
+The kernel uses O3. Installation enables ZSTD zswap with a 35% RAM pool,
+shrinker enabled and a 75% RAM swapfile on the `/home` filesystem. ZRAM
 and its setup services are disabled persistently. See [SWAP.md](SWAP.md)
 for migration details and verification.
 
