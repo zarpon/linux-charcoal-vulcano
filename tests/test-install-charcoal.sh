@@ -21,6 +21,9 @@ fail() {
   exit 1
 }
 
+[[ -x "$INSTALLER" ]] || { printf "installer must be executable: %s\n" "$INSTALLER" >&2; exit 1; }
+[[ -x "$REPO_ROOT/configure-gaming-swap" ]] || { printf "swap configurator must be executable\n" >&2; exit 1; }
+
 assert_contains() {
   local expected=$1
   grep -F -- "$expected" "$log_file" >/dev/null || fail "expected log entry: $expected"
