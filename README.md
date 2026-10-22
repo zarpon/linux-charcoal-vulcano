@@ -95,7 +95,7 @@ and its setup services are disabled persistently. See [SWAP.md](SWAP.md)
 for migration details and verification.
 
 Runtime tuning uses `vm.vfs_cache_pressure=100`,
-`vm.dirty_background_ratio=2` and `vm.dirty_ratio=10`. LRU Marie's own defaults
+`vm.dirty_background_ratio=2` and `vm.dirty_ratio=5`. LRU Marie's own defaults
 are preserved.
 
 `CONFIG_ZEN_INTERACTIVE` controls only the two existing Zen patches: evdev
