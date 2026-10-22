@@ -1,5 +1,5 @@
 [Unit]
-Description=Persistent gaming zswap settings (LZ4, 50 percent RAM)
+Description=Persistent gaming zswap settings (ZSTD, 35 percent RAM)
 DefaultDependencies=no
 After=systemd-modules-load.service
 Before=swap.target

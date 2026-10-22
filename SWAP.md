@@ -1,7 +1,7 @@
 # Zswap e swapfile na partição home
 
-A instalação usa `zswap.enabled=1`, `zswap.max_pool_percent=50`,
-`zswap.shrinker_enabled=1`, `zswap.compressor=lz4` e allocator `zsmalloc`.
+A instalação usa `zswap.enabled=1`, `zswap.max_pool_percent=35`,
+`zswap.shrinker_enabled=1`, `zswap.compressor=zstd` e allocator `zsmalloc`.
 O argumento `zswap.zpool=zsmalloc` é preservado para kernels antigos; os
 atuais já usam zsmalloc diretamente e não oferecem esse seletor por sysfs.
 
@@ -46,7 +46,7 @@ systemctl status gaming-zswap.service
 ```
 
 `swapon --show` deve listar o arquivo em `/home/.gaming-swap` e não listar
-`/dev/zram*`. Os parâmetros devem mostrar `Y`, `50`, `Y` e `lz4`.
+`/dev/zram*`. Os parâmetros devem mostrar `Y`, `35`, `Y` e `zstd`.
 Se a instalação falhar, corrija o erro indicado e execute novamente:
 
 ```bash

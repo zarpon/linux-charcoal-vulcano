@@ -17,8 +17,8 @@ import tempfile
 
 
 PARAMETERS = {
-    "enabled": "1", "max_pool_percent": "50", "shrinker_enabled": "1",
-    "zpool": "zsmalloc", "compressor": "lz4",
+    "enabled": "1", "max_pool_percent": "35", "shrinker_enabled": "1",
+    "zpool": "zsmalloc", "compressor": "zstd",
 }
 CMDLINE = ["systemd.zram=0", *[f"zswap.{k}={v}" for k, v in PARAMETERS.items()]]
 BEGIN = "# BEGIN gaming-swap (managed)"

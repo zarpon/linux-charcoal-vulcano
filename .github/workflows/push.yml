@@ -71,6 +71,13 @@ jobs:
           set -Eeuo pipefail
           bash tests/test-runtime-tuning.sh
 
+      - name: Validate ZSTD zswap and gaming swap regression tests
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile configure-gaming-swap tests/test_gaming_swap.py tests/test_kernel_config_validation.py
+          python3 tests/test_gaming_swap.py -v
+          python3 tests/test_kernel_config_validation.py -v
+
       - name: Resolve latest controller drivers
         run: |
           set -Eeuo pipefail

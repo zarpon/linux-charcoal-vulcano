@@ -137,8 +137,8 @@ uname -a  # should contain "charcoal"
 ```
 
 Installation migrates existing swapfiles to `/home/.gaming-swap/swapfile`,
-sized to 75% of RAM, and disables zram persistently. LZ4 zswap uses
-`max_pool_percent=50` and `shrinker_enabled=1` with zsmalloc. The replacement
+sized to 75% of RAM, and disables zram persistently. ZSTD zswap uses
+`max_pool_percent=35` and `shrinker_enabled=1` with zsmalloc. The replacement
 is activated before old swapfiles are drained and removed. See
 [SWAP.md](SWAP.md) for requirements, persistence and post-reboot checks.
 
@@ -214,7 +214,7 @@ the source, target-kernel compatibility, and validation result.
 
 ## Compilation and swap profile
 
-The kernel uses O3. Installation enables LZ4 zswap with a 50% RAM pool,
+The kernel uses O3. Installation enables ZSTD zswap with a 35% RAM pool,
 shrinker enabled and a 75% RAM swapfile on the `/home` filesystem. ZRAM
 and its setup services are disabled persistently. See [SWAP.md](SWAP.md)
 for migration details and verification.

@@ -244,7 +244,7 @@ run_installer() {
 make_fixture
 write_fake_commands
 
-grep -Fq 'ZRAM is disabled persistently; LZ4 zswap uses a swapfile on /home' "$INSTALLER" \
+grep -Fq 'ZRAM is disabled persistently; ZSTD zswap (35% pool) uses a swapfile on /home' "$INSTALLER" \
   || fail 'installer does not explain persistent zswap migration'
 
 : > "$log_file"
