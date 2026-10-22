@@ -59,16 +59,16 @@ assert zram0["swap-priority"] == "100"
 assert zram0["fs-type"] == "swap"
 PY
 
-require_line "$root/99-charcoal-sysctl.conf" "vm.min_free_kbytes=262144"
-require_line "$root/99-charcoal-sysctl.conf" "vm.compaction_proactiveness=10"
+require_line "$root/99-charcoal-sysctl.conf" "vm.min_free_kbytes=131072"
+require_line "$root/99-charcoal-sysctl.conf" "vm.compaction_proactiveness=15"
 require_line "$root/99-charcoal-sysctl.conf" "vm.compact_unevictable_allowed=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_expire_centisecs=1500"
-require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_writeback_centisecs=1500"
+require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_writeback_centisecs=500"
 require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_boost_factor=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.watermark_scale_factor=125"
 require_line "$root/99-charcoal-sysctl.conf" "kernel.split_lock_mitigate=0"
 require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_background_ratio=2"
-require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_ratio=10"
+require_line "$root/99-charcoal-sysctl.conf" "vm.dirty_ratio=5"
 require_line "$root/99-charcoal-sysctl.conf" "vm.vfs_cache_pressure=100"
 require_line "$root/99-charcoal-sysctl.conf" "-vm.zram_recomp_immediate=1"
 if grep -Fxq -- "vm.dirty_background_bytes=209715200" "$root/99-charcoal-sysctl.conf" || \
@@ -82,11 +82,11 @@ require_line "$root/99-charcoal.sh" "export MESA_SHADER_CACHE_MAX_SIZE=10G"
 require_line "$root/99-charcoal.sh" "export MESA_DISK_CACHE_DATABASE=1"
 
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/enabled - - - - madvise"
-require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/defrag - - - - defer+madvise"
+require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/defrag - - - - defer"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/shmem_enabled - - - - advise"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/defrag - - - - 0"
-require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none - - - - 409"
-require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap - - - - 0"
+require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none - - - - 128"
+require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap - - - - 8"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/ksm/run - - - - 0"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/enabled - - - - 7"
 require_line "$root/99-charcoal-memory.conf" "w! /sys/kernel/mm/lru_gen/min_ttl_ms - - - - 0"
@@ -214,11 +214,11 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
 EOF
   systemd-tmpfiles --create --boot --root="$rootfs"
   require_value "$rootfs/sys/kernel/mm/transparent_hugepage/enabled" "madvise"
-  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/defrag" "defer+madvise"
+  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/defrag" "defer"
   require_value "$rootfs/sys/kernel/mm/transparent_hugepage/shmem_enabled" "advise"
   require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/defrag" "0"
-  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none" "409"
-  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap" "0"
+  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none" "128"
+  require_value "$rootfs/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap" "8"
   require_value "$rootfs/sys/kernel/mm/ksm/run" "0"
   require_value "$rootfs/sys/kernel/mm/lru_gen/enabled" "7"
   require_value "$rootfs/sys/kernel/mm/lru_gen/min_ttl_ms" "0"
@@ -226,7 +226,7 @@ fi
 
 # Deterministic admission-control simulation for one 2 MiB x86 THP. This is
 # not a hardware FPS benchmark: it proves that the shipped limits accept the
-# configured 409-hole/0-swapped candidate while retaining explicit bounds
+# configured 128-hole/8-swapped candidate while retaining explicit bounds
 # against candidates that exceed the configured khugepaged limits.
 python3 - "$root/99-charcoal-memory.conf" <<'PY'
 from dataclasses import dataclass
@@ -259,29 +259,29 @@ def eligible(policy: Policy, *, none: int, swap: int) -> bool:
 
 
 values = tmpfiles_values(Path(sys.argv[1]))
-assert values["/sys/kernel/mm/transparent_hugepage/defrag"] == "defer+madvise"
+assert values["/sys/kernel/mm/transparent_hugepage/defrag"] == "defer"
 proposed = Policy(
     max_none=int(values["/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none"]),
     max_swap=int(values["/sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_swap"]),
 )
-assert proposed == Policy(max_none=409, max_swap=0)
+assert proposed == Policy(max_none=128, max_swap=8)
 
 legacy = Policy(max_none=64, max_swap=0)
 assert eligible(legacy, none=64, swap=0)
-assert eligible(proposed, none=409, swap=0)
-assert not eligible(legacy, none=409, swap=0)
-assert eligible(proposed, none=408, swap=0)
+assert eligible(proposed, none=128, swap=8)
+assert not eligible(legacy, none=128, swap=0)
+assert eligible(proposed, none=127, swap=0)
 assert not eligible(legacy, none=0, swap=16)
-assert eligible(proposed, none=0, swap=0)
-assert not eligible(proposed, none=410, swap=0)
-assert not eligible(proposed, none=0, swap=1)
+assert eligible(proposed, none=0, swap=8)
+assert not eligible(proposed, none=129, swap=0)
+assert not eligible(proposed, none=0, swap=9)
 
 legacy_zero_fill = legacy.max_none * PAGE_SIZE
 proposed_zero_fill = proposed.max_none * PAGE_SIZE
 legacy_swap_bytes = legacy.max_swap * PAGE_SIZE
 proposed_swap_bytes = proposed.max_swap * PAGE_SIZE
-assert proposed_zero_fill - legacy_zero_fill == 1_413_120
-assert proposed_swap_bytes - legacy_swap_bytes == 0
+assert proposed_zero_fill - legacy_zero_fill == 262_144
+assert proposed_swap_bytes - legacy_swap_bytes == 32_768
 
 print(
     "THP admission simulation passed: zero-fill cap "
