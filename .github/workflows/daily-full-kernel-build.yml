@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   dispatch-master:
-    name: Dispatch full SteamOS 6.18 master build
+    name: Dispatch full SteamOS stable master build
     runs-on: ubuntu-24.04
     steps:
       - name: Trigger full master build and stable release
@@ -24,16 +24,3 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref master \
             -f publish_release=true
-
-  dispatch-kernel-7-2:
-    name: Dispatch full SteamOS 7.2 Preview build
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Trigger full kernel-7.2 build and prerelease
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          gh workflow run build-kernel-7.2.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref kernel-7.2

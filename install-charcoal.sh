@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Install the newest verified stable Charcoal 6.18 SteamOS release from master.
+# Install the latest stable Charcoal kernel for SteamOS with Linux 7.2.
 
 set -Eeuo pipefail
 
 readonly REPOSITORY="zarpon/linux-charcoal-vulcano"
-readonly LATEST_RELEASE_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+readonly RELEASES_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
 readonly RELEASE_DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
-readonly KERNEL_SERIES="6.18"
-readonly PACKAGE_PREFIX="linux-charcoal-618"
-readonly USER_AGENT="charcoal-kernel-installer"
+readonly RELEASE_TAG_PREFIX="charcoal-"
+readonly RELEASE_ZIP_PREFIX="linux-charcoal-"
+readonly USER_AGENT="charcoal-stable-installer"
 
 WORKDIR=""
 MADE_ROOT_WRITABLE=0
+ROLLBACK_READY=0
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -36,7 +37,6 @@ run_privileged() {
 
 _update_grub() {
   local steamos_efi_dir=${1:-/efi/EFI/steamos}
-
   if command -v grub-mkconfig >/dev/null 2>&1; then
     if [[ -d "$steamos_efi_dir" ]]; then
       run_privileged grub-mkconfig -o "$steamos_efi_dir/grub.cfg"
@@ -55,7 +55,6 @@ _update_grub() {
 cleanup() {
   local exit_status=$?
   trap - EXIT
-
   if (( MADE_ROOT_WRITABLE )); then
     info "Restoring SteamOS read-only mode..."
     if ! run_privileged steamos-readonly enable; then
@@ -63,315 +62,327 @@ cleanup() {
       exit_status=1
     fi
   fi
-
   if [[ -n "$WORKDIR" && -d "$WORKDIR" ]]; then
     rm -rf -- "$WORKDIR"
   fi
-
   exit "$exit_status"
 }
 
 download_file() {
-  local url=$1
-  local destination=$2
-
-  curl \
-    --fail \
-    --silent \
-    --show-error \
-    --location \
-    --proto '=https' \
-    --proto-redir '=https' \
-    --retry 3 \
-    --connect-timeout 15 \
-    --output "$destination" \
-    "$url"
+  local url=$1 destination=$2
+  curl --fail --silent --show-error --location \
+    --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 15 \
+    --output "$destination" "$url"
 }
 
 parse_release_metadata() {
-  local release_json=$1
-
-  python3 - "$release_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" "$KERNEL_SERIES" <<'PY'
+  local releases_json=$1
+  python3 - "$releases_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" "$RELEASE_TAG_PREFIX" "$RELEASE_ZIP_PREFIX" <<'PY'
 import json
 import re
 import sys
 from pathlib import PurePosixPath
 
-release_json, repository, download_prefix, kernel_series = sys.argv[1:]
-tag_pattern = re.compile(
-    rf"^charcoal-{re.escape(kernel_series)}\.[0-9A-Za-z][0-9A-Za-z._-]*-r[1-9][0-9]*$"
-)
-
-try:
-    with open(release_json, encoding="utf-8") as handle:
-        releases = json.load(handle)
-except (OSError, json.JSONDecodeError) as exc:
-    raise SystemExit(f"Could not parse the GitHub release response: {exc}")
-
+releases_json, repository, download_prefix, tag_prefix, zip_prefix = sys.argv[1:]
+with open(releases_json, encoding="utf-8") as handle:
+    releases = json.load(handle)
 if not isinstance(releases, dict):
-    raise SystemExit("GitHub did not return a release object")
+    raise SystemExit("GitHub did not return the Latest stable release")
+releases = [releases]
 
 def text(value, label):
-    if not isinstance(value, str) or not value or any(char in value for char in "\x00\r\n"):
-        raise SystemExit(f"Invalid {label} in the GitHub release response")
+    if not isinstance(value, str) or not value or any(c in value for c in "\x00\r\n"):
+        raise SystemExit(f"Invalid {label} in GitHub release response")
     return value
 
-def asset_url(asset, expected_name, tag_name):
+def checked_asset(asset, expected, tag):
     name = text(asset.get("name"), "asset name")
     url = text(asset.get("browser_download_url"), "asset URL")
-    if name != expected_name:
+    if name != expected:
         raise SystemExit(f"Unexpected asset name: {name}")
-    expected_prefix = f"{download_prefix}{tag_name}/"
-    if not url.startswith(expected_prefix):
-        raise SystemExit(f"Refusing asset outside release {tag_name} in {repository}: {url}")
-    return name, url
+    if not url.startswith(f"{download_prefix}{tag}/"):
+        raise SystemExit(f"Refusing asset outside {repository} release {tag}: {url}")
+    return url
 
-if releases.get("draft") is not False or releases.get("prerelease") is not False:
-    raise SystemExit("GitHub latest release is not a published stable release")
-if not isinstance(releases.get("published_at"), str) or not releases["published_at"]:
-    raise SystemExit("GitHub latest release has no publication timestamp")
+selected = None
+for release in releases:
+    if not isinstance(release, dict):
+        continue
+    tag = release.get("tag_name")
+    if release.get("draft") is not False or release.get("prerelease") is not False:
+        continue
+    if isinstance(tag, str) and re.fullmatch(re.escape(tag_prefix) + r"[0-9]+\.[0-9]+\.[0-9]+\.valve[0-9.]+\.cc[0-9]+-r[0-9]+", tag):
+        if tuple(map(int, tag[len(tag_prefix):].split('.')[:2])) < (7, 2):
+            continue
+        selected = release
+        break
+if selected is None:
+    raise SystemExit("No published Charcoal SteamOS stable release was found")
 
-tag_name = text(releases.get("tag_name"), "release tag")
-if not tag_pattern.fullmatch(tag_name):
-    raise SystemExit(
-        f"GitHub latest stable release is not a Charcoal {kernel_series} release: {tag_name}"
-    )
-
-assets = releases.get("assets")
+tag = text(selected.get("tag_name"), "release tag")
+assets = selected.get("assets")
 if not isinstance(assets, list):
-    raise SystemExit("GitHub latest release did not return an asset list")
-
-expected_archive_name = f"linux-{tag_name}.zip"
-archives = [
-    asset for asset in assets
-    if isinstance(asset, dict) and asset.get("name") == expected_archive_name
-]
-checksums = [
-    asset for asset in assets
-    if isinstance(asset, dict) and asset.get("name") == "RELEASE-ZIP-SHA256SUM"
-]
+    raise SystemExit("GitHub stable release has no assets")
+archives = [a for a in assets if isinstance(a, dict) and str(a.get("name", "")).startswith(zip_prefix) and str(a.get("name", "")).endswith(".zip")]
+checksums = [a for a in assets if isinstance(a, dict) and a.get("name") == "RELEASE-ZIP-SHA256SUM"]
 if len(archives) != 1 or len(checksums) != 1:
-    raise SystemExit("GitHub latest release is missing unique verified archive assets")
-archive, checksum = archives[0], checksums[0]
-
-archive_name, archive_url = asset_url(archive, expected_archive_name, tag_name)
-checksum_name, checksum_url = asset_url(checksum, "RELEASE-ZIP-SHA256SUM", tag_name)
-
+    raise SystemExit("stable release assets are incomplete or ambiguous")
+archive_name = text(archives[0].get("name"), "archive name")
 if PurePosixPath(archive_name).name != archive_name:
     raise SystemExit("Invalid release ZIP filename")
-
-print(tag_name)
+print(tag)
 print(archive_name)
-print(archive_url)
-print(checksum_name)
-print(checksum_url)
+print(checked_asset(archives[0], archive_name, tag))
+print("RELEASE-ZIP-SHA256SUM")
+print(checked_asset(checksums[0], "RELEASE-ZIP-SHA256SUM", tag))
 PY
 }
 
 verify_release_archive() {
-  local archive=$1
-  local checksum_file=$2
-  local archive_name=$3
-
+  local archive=$1 checksum_file=$2 archive_name=$3
   python3 - "$archive" "$checksum_file" "$archive_name" <<'PY'
-import hashlib
-import re
-import sys
-
+import hashlib, re, sys
 archive, checksum_file, archive_name = sys.argv[1:]
-
-try:
-    lines = open(checksum_file, encoding="utf-8").read().splitlines()
-except OSError as exc:
-    raise SystemExit(f"Could not read release checksum: {exc}")
-
+lines = open(checksum_file, encoding="utf-8").read().splitlines()
 entries = []
 for line in lines:
-    match = re.fullmatch(r"([0-9a-fA-F]{64}) [ *](.+)", line)
-    if not match:
+    m = re.fullmatch(r"([0-9a-fA-F]{64}) [ *](.+)", line)
+    if not m:
         raise SystemExit("Invalid RELEASE-ZIP-SHA256SUM format")
-    entries.append((match.group(1).lower(), match.group(2)))
-
+    entries.append((m.group(1).lower(), m.group(2)))
 if len(entries) != 1 or entries[0][1] != archive_name:
-    raise SystemExit("Release checksum does not match the selected ZIP")
-
-digest = hashlib.sha256()
-with open(archive, "rb") as handle:
-    for block in iter(lambda: handle.read(1024 * 1024), b""):
-        digest.update(block)
-
-if digest.hexdigest() != entries[0][0]:
+    raise SystemExit("Release checksum does not match selected ZIP")
+h = hashlib.sha256()
+with open(archive, "rb") as f:
+    for block in iter(lambda: f.read(1024 * 1024), b""):
+        h.update(block)
+if h.hexdigest() != entries[0][0]:
     raise SystemExit("Release ZIP SHA-256 verification failed")
 PY
 }
 
 extract_and_verify_packages() {
-  local archive=$1
-  local destination=$2
-  local package_prefix=$3
-
-  python3 - "$archive" "$destination" "$package_prefix" <<'PY'
-import hashlib
-import re
-import stat
-import sys
-import zipfile
+  local archive=$1 destination=$2
+  python3 - "$archive" "$destination" <<'PY'
+import hashlib, re, stat, sys, zipfile
 from pathlib import Path, PurePosixPath
-
-archive = Path(sys.argv[1])
-destination = Path(sys.argv[2])
-package_prefix = sys.argv[3]
-package_pattern = re.compile(rf"^{re.escape(package_prefix)}-[^/\\\x00\r\n]+\.pkg\.tar\.zst$")
-checksum_pattern = re.compile(rf"([0-9a-fA-F]{{64}}) [ *]({re.escape(package_prefix)}-[^/\\\x00\r\n]+\.pkg\.tar\.zst)")
-
-try:
-    with zipfile.ZipFile(archive) as handle:
-        infos = handle.infolist()
-        names = [info.filename for info in infos]
-        if len(names) != len(set(names)):
-            raise ValueError("release ZIP contains duplicate entries")
-
-        if "SHA256SUMS" not in names:
-            raise ValueError("release ZIP is missing SHA256SUMS")
-
-        package_infos = [info for info in infos if package_pattern.fullmatch(info.filename)]
-        package_names = {info.filename for info in package_infos}
-        if not package_infos:
-            raise ValueError("release ZIP contains no Charcoal packages")
-        if not any("-headers-" not in name for name in package_names):
-            raise ValueError("release ZIP is missing the kernel package")
-        if not any("-headers-" in name for name in package_names):
-            raise ValueError("release ZIP is missing the headers package")
-
-        for info in [next(info for info in infos if info.filename == "SHA256SUMS"), *package_infos]:
-            if PurePosixPath(info.filename).name != info.filename:
-                raise ValueError(f"unsafe path in release ZIP: {info.filename}")
-            if stat.S_ISLNK(info.external_attr >> 16):
-                raise ValueError(f"symbolic link in release ZIP: {info.filename}")
-
-        manifest = handle.read("SHA256SUMS").decode("utf-8")
-        checksums = {}
-        for line in manifest.splitlines():
-            match = checksum_pattern.fullmatch(line)
-            if not match:
-                raise ValueError("invalid package SHA256SUMS format")
-            digest, name = match.groups()
-            if name in checksums:
-                raise ValueError(f"duplicate checksum entry: {name}")
-            checksums[name] = digest.lower()
-
-        if set(checksums) != package_names:
-            raise ValueError("package list does not exactly match SHA256SUMS")
-
-        destination.mkdir(mode=0o700)
-        checksum_target = destination / "SHA256SUMS"
-        checksum_target.write_text(manifest, encoding="utf-8")
-
-        for info in package_infos:
-            package_target = destination / info.filename
-            digest = hashlib.sha256()
-            with handle.open(info) as source, package_target.open("xb") as target:
-                for block in iter(lambda: source.read(1024 * 1024), b""):
-                    digest.update(block)
-                    target.write(block)
-            if digest.hexdigest() != checksums[info.filename]:
-                package_target.unlink(missing_ok=True)
-                raise ValueError(f"package SHA-256 verification failed: {info.filename}")
-except (OSError, ValueError, zipfile.BadZipFile, UnicodeDecodeError) as exc:
-    raise SystemExit(f"Could not verify release packages: {exc}")
+archive, destination = map(Path, sys.argv[1:])
+package_re = re.compile(r"^linux-charcoal-[0-9]+(?:-headers)?-[^/\\\x00\r\n]+\.pkg\.tar\.zst$")
+sum_re = re.compile(r"([0-9a-fA-F]{64}) [ *](linux-charcoal-[0-9]+(?:-headers)?-[^/\\\x00\r\n]+\.pkg\.tar\.zst)")
+with zipfile.ZipFile(archive) as zf:
+    infos = zf.infolist()
+    names = [i.filename for i in infos]
+    if len(names) != len(set(names)) or "SHA256SUMS" not in names:
+        raise SystemExit("Invalid release ZIP structure")
+    package_infos = [i for i in infos if package_re.fullmatch(i.filename)]
+    package_names = {i.filename for i in package_infos}
+    if len(package_infos) != 2 or sum("-headers-" in n for n in package_names) != 1:
+        raise SystemExit("Release ZIP must contain exactly kernel and headers packages")
+    stems = {re.fullmatch(r"(linux-charcoal-[0-9]+)(?:-headers)?-[0-9].*", n).group(1) for n in package_names}
+    if len(stems) != 1:
+        raise SystemExit("Kernel and headers belong to different series")
+    for info in package_infos:
+        if PurePosixPath(info.filename).name != info.filename or stat.S_ISLNK(info.external_attr >> 16):
+            raise SystemExit(f"Unsafe ZIP entry: {info.filename}")
+    checksums = {}
+    for line in zf.read("SHA256SUMS").decode("utf-8").splitlines():
+        m = sum_re.fullmatch(line)
+        if not m or m.group(2) in checksums:
+            raise SystemExit("Invalid package SHA256SUMS")
+        checksums[m.group(2)] = m.group(1).lower()
+    if set(checksums) != package_names:
+        raise SystemExit("Package list does not match SHA256SUMS")
+    destination.mkdir(mode=0o700)
+    for info in package_infos:
+        target = destination / info.filename
+        h = hashlib.sha256()
+        with zf.open(info) as source, target.open("xb") as out:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
+                h.update(block); out.write(block)
+        if h.hexdigest() != checksums[info.filename]:
+            target.unlink(missing_ok=True)
+            raise SystemExit(f"Package SHA-256 verification failed: {info.filename}")
 PY
 }
 
-main() {
-  require_command curl
-  require_command python3
-  require_command mktemp
-  require_command pacman
-  require_command steamos-readonly
-  require_command steamos-devmode
-  if (( EUID != 0 )); then
-    require_command sudo
-  fi
+list_installed_packages() {
+  pacman -Qq || die "Could not query installed packages"
+}
 
-  WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/charcoal-installer.XXXXXX")"
+select_installed_charcoal() {
+  local installed_file=$1 name
+  while IFS= read -r name; do
+    [[ "$name" == linux-charcoal || "$name" == linux-charcoal-* ]] && printf '%s\n' "$name"
+  done < "$installed_file"
+}
+
+select_stock_kernel() {
+  local installed_file=$1 pkgbase=${2:-linux-charcoal-72} name
+  local stock="linux-neptune-${pkgbase#linux-charcoal-}"
+  while IFS= read -r name; do
+    case "$name" in
+      "$stock"|"$stock-headers") printf '%s\n' "$name" ;;
+    esac
+  done < "$installed_file"
+}
+
+confirm_stock_removal() {
+  local -n stock_ref=$1
+  (( ${#stock_ref[@]} > 0 )) || return 0
+  info "The stock SteamOS stable kernel conflicts with the selected Charcoal kernel:"
+  printf '  - %s\n' "${stock_ref[@]}"
+  info "It must be removed before Charcoal can be installed."
+
+  if [[ "${CHARCOAL_72_REMOVE_STOCK:-0}" == "1" || "${CHARCOAL_72_ASSUME_YES:-0}" == "1" ]]; then
+    return 0
+  fi
+  [[ -t 0 ]] || die "Stock kernel removal needs confirmation; rerun in a terminal or set CHARCOAL_72_REMOVE_STOCK=1"
+  local answer
+  read -r -p "Remove the SteamOS stable stock kernel and continue? [s/N] " answer
+  case "$answer" in
+    s|S|y|Y|yes|YES|sim|SIM) return 0 ;;
+    *) die "Installation cancelled; the stock kernel was not changed" ;;
+  esac
+}
+
+confirm_transaction() {
+  local release_tag=$1
+  shift
+  local -a previous=("$@")
+  info "Verified stable release: ${release_tag}"
+  if (( ${#previous[@]} )); then
+    info "The following old kernel packages will be removed:"
+    printf '  - %s\n' "${previous[@]}"
+  fi
+  info "The new kernel and headers are already downloaded and SHA-256 verified. The installer never reboots automatically."
+  [[ "${CHARCOAL_72_ASSUME_YES:-0}" == "1" ]] && return 0
+  [[ -t 0 ]] || die "Interactive confirmation is required; rerun in a terminal"
+  local answer
+  read -r -p "Continue with the Charcoal SteamOS stable installation? [s/N] " answer
+  case "$answer" in
+    s|S|y|Y|yes|YES|sim|SIM) ;;
+    *) die "Installation cancelled before any package was changed" ;;
+  esac
+}
+
+capture_rollback_packages() {
+  local -n package_names=$1
+  (( ${#package_names[@]} > 0 )) || return 0
+  local rollback_dir="$WORKDIR/rollback" name version candidate found missing=0
+  mkdir -p "$rollback_dir"
+  for name in "${package_names[@]}"; do
+    version="$(pacman -Q "$name" 2>/dev/null | awk '{print $2}')" || true
+    [[ -n "$version" ]] || { missing=1; continue; }
+    found=""
+    for candidate in /var/cache/pacman/pkg/"${name}-${version}"-*.pkg.tar.zst; do
+      [[ -f "$candidate" ]] && { found=$candidate; break; }
+    done
+    if [[ -n "$found" ]]; then
+      cp -- "$found" "$rollback_dir/"
+    else
+      missing=1
+    fi
+  done
+  if (( missing == 0 )); then
+    ROLLBACK_READY=1
+  else
+    info "warning: not every removed kernel package is present in pacman's cache; automatic rollback may be unavailable."
+  fi
+}
+
+attempt_rollback() {
+  (( ROLLBACK_READY )) || return 1
+  local -a rollback_packages
+  mapfile -d '' -t rollback_packages < <(find "$WORKDIR/rollback" -maxdepth 1 -type f -name '*.pkg.tar.zst' -print0 | sort -z)
+  (( ${#rollback_packages[@]} > 0 )) || return 1
+  info "Installation failed; attempting to restore the previous kernel packages from pacman cache..."
+  if run_privileged pacman -U --noconfirm "${rollback_packages[@]}"; then
+    _update_grub || true
+    return 0
+  fi
+  return 1
+}
+
+main() {
+  for cmd in curl python3 mktemp pacman awk find sort steamos-readonly steamos-devmode; do require_command "$cmd"; done
+  (( EUID == 0 )) || require_command sudo
+  WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/charcoal-72-installer.XXXXXX")"
   trap cleanup EXIT
 
-  info "Fetching GitHub's latest stable Charcoal ${KERNEL_SERIES} release..."
-  curl \
-    --fail \
-    --silent \
-    --show-error \
-    --location \
-    --proto '=https' \
-    --proto-redir '=https' \
-    --retry 3 \
-    --connect-timeout 15 \
-    --header 'Accept: application/vnd.github+json' \
-    --header 'X-GitHub-Api-Version: 2022-11-28' \
-    --user-agent "$USER_AGENT" \
-    --output "$WORKDIR/release.json" \
-    "$LATEST_RELEASE_API"
+  info "Fetching published Charcoal SteamOS stable releases..."
+  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    --retry 3 --connect-timeout 15 --header 'Accept: application/vnd.github+json' \
+    --header 'X-GitHub-Api-Version: 2022-11-28' --user-agent "$USER_AGENT" \
+    --output "$WORKDIR/releases.json" "$RELEASES_API"
 
   local metadata
-  if ! metadata="$(parse_release_metadata "$WORKDIR/release.json")"; then
-    die "GitHub's latest stable release is not a verified Charcoal ${KERNEL_SERIES} release"
-  fi
-
+  metadata="$(parse_release_metadata "$WORKDIR/releases.json")" || die "Could not identify a valid SteamOS stable release"
   local -a fields
   mapfile -t fields <<< "$metadata"
-  (( ${#fields[@]} == 5 )) || die "Incomplete GitHub release metadata"
-  # GitHub/SteamOS uses LF, but strip a transport CR defensively so the
-  # verified URLs cannot be altered by a CRLF-producing Python runtime.
-  local index
-  for index in "${!fields[@]}"; do
-    fields[$index]=${fields[$index]%$'\r'}
-  done
+  (( ${#fields[@]} == 5 )) || die "Incomplete GitHub stable release metadata"
 
-  local release_tag=${fields[0]}
-  local archive_name=${fields[1]}
-  local archive_url=${fields[2]}
-  local checksum_name=${fields[3]}
-  local checksum_url=${fields[4]}
-  local archive_path="$WORKDIR/$archive_name"
-  local checksum_path="$WORKDIR/$checksum_name"
-  local package_dir="$WORKDIR/packages"
+  local release_tag=${fields[0]} archive_name=${fields[1]} archive_url=${fields[2]}
+  local checksum_name=${fields[3]} checksum_url=${fields[4]}
+  local archive_path="$WORKDIR/$archive_name" checksum_path="$WORKDIR/$checksum_name" package_dir="$WORKDIR/packages"
 
-  info "Selected latest stable Charcoal ${KERNEL_SERIES} release: ${release_tag}"
-  info "Downloading release ${release_tag}..."
+  info "Downloading ${release_tag}..."
   download_file "$archive_url" "$archive_path"
   download_file "$checksum_url" "$checksum_path"
-
-  info "Verifying release archive SHA-256..."
+  info "Verifying release ZIP SHA-256..."
   verify_release_archive "$archive_path" "$checksum_path" "$archive_name"
-
-  info "Extracting and verifying kernel package SHA-256 checksums..."
-  extract_and_verify_packages "$archive_path" "$package_dir" "$PACKAGE_PREFIX"
+  info "Extracting and verifying SteamOS stable packages..."
+  extract_and_verify_packages "$archive_path" "$package_dir"
 
   local -a packages
-  mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name "${PACKAGE_PREFIX}-*.pkg.tar.zst" -print0 | sort -z)
-  (( ${#packages[@]} >= 2 )) || die "Verified release does not contain the expected kernel and headers packages"
+  mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name 'linux-charcoal-*.pkg.tar.zst' -print0 | sort -z)
+  (( ${#packages[@]} == 2 )) || die "Verified release does not contain exactly kernel and headers"
+
+  info "Checking package metadata without starting a transaction..."
+  local pkg pkgname pkgbase=""
+  for pkg in "${packages[@]}"; do
+    pkgname="$(pacman -Qp "$pkg" | awk '{print $1}')" || die "pacman could not read package metadata: $pkg"
+    [[ "$pkgname" =~ ^linux-charcoal-[0-9]+(-headers)?$ ]] \
+      || die "Unexpected package in release: $pkgname"
+    pkgbase=${pkgname%-headers}
+  done
+
+  local installed_file="$WORKDIR/installed-packages.txt"
+  list_installed_packages > "$installed_file"
+  local -a previous_charcoal stock_packages remove_packages
+  mapfile -t previous_charcoal < <(select_installed_charcoal "$installed_file")
+  mapfile -t stock_packages < <(select_stock_kernel "$installed_file" "$pkgbase")
+
+  confirm_stock_removal stock_packages
+  remove_packages=("${previous_charcoal[@]}" "${stock_packages[@]}")
+  capture_rollback_packages remove_packages
+  confirm_transaction "$release_tag" "${remove_packages[@]}"
 
   info "Making SteamOS writable for the package transaction..."
   run_privileged steamos-readonly disable
   MADE_ROOT_WRITABLE=1
-
   info "Enabling SteamOS developer mode..."
   run_privileged steamos-devmode enable --no-prompt
 
-  info "Installing ${release_tag}. Confirm the replacement of linux-neptune when pacman asks."
-  # Releases carry a monotonically increasing GitHub revision while the
-  # package version tracks Valve's base kernel. Do not use --needed here: it
-  # would skip a verified newer release whose package version is unchanged.
-  run_privileged pacman -U "${packages[@]}"
+  if (( ${#remove_packages[@]} )); then
+    info "Removing conflicting/previous kernel packages without cascading dependency removal..."
+    run_privileged pacman -Rdd --noconfirm "${remove_packages[@]}"
+  fi
+
+  info "Installing verified Charcoal SteamOS stable ${release_tag}..."
+  if ! run_privileged pacman -U --noconfirm "${packages[@]}"; then
+    if attempt_rollback; then
+      die "SteamOS stable installation failed; previous kernel packages were restored"
+    fi
+    die "SteamOS stable installation failed after kernel removal; do not reboot until a working kernel is installed"
+  fi
 
   info "Ensuring persistent zswap and /home swapfile migration completed..."
   run_privileged /usr/lib/gaming-swap/configure
 
   info "Updating the bootloader configuration..."
   _update_grub
-
-  info "Charcoal ${release_tag} was installed successfully. Reboot, then verify with: uname -r"
-  info "ZRAM is disabled persistently; ZSTD zswap (35% pool) uses a swapfile on /home sized to 75% of MemTotal. Reboot to verify the settings."
+  info "Charcoal SteamOS stable ${release_tag} installed successfully. Reboot, then verify with: uname -r"
+  info "ZRAM is disabled persistently; ZSTD zswap uses a swapfile on /home sized to 75% of MemTotal. Reboot to verify the settings."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

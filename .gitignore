@@ -1,2 +1,13 @@
 .cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+src/
+pkg/
+latest-*.patch
+*.pkg.tar.zst
+linux-charcoal-*.zip
+RELEASE-ZIP-SHA256SUM
+SHA256SUMS
 

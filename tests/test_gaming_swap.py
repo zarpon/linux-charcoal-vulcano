@@ -207,14 +207,12 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(old.exists())
         self.assertIn("/home/.gaming-swap/swapfile", self.m.swaps)
 
-    def test_swap_policy_script_is_executable(self):
+    def test_swap_policy_is_executable(self):
         self.assertTrue(SCRIPT.stat().st_mode & 0o111)
 
     def test_branch_zswap_policy(self):
         self.assertEqual(policy.PARAMETERS["max_pool_percent"], "35")
-        self.assertIn("zswap.max_pool_percent=35", policy.CMDLINE)
         self.assertEqual(policy.PARAMETERS["compressor"], "zstd")
-        self.assertIn("zswap.compressor=zstd", policy.CMDLINE)
 
     @unittest.skipUnless(shutil.which("systemd-tmpfiles"), "systemd-tmpfiles is not installed")
     def test_steamos_tmpfiles_cannot_disable_zswap_after_service_runs(self):

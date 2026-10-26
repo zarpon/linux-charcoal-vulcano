@@ -1,484 +1,461 @@
 #!/usr/bin/env python3
-"""Adapt a structurally verified POC patch to the Valve/BORE 6.18 layout.
+"""Adapt a structurally verified POC patch to the Valve/BORE scheduler layout.
 
-The nearest official POC source inserts rq::poc_idle_committed using context
-changed by the BORE port and declares select_idle_sibling() without Valve's
-CONFIG_SMP guard. This adapter removes only the reviewed rq field hunk,
-inserts the same field at the unique Valve/BORE anchor, and adds the missing
-guard as exact patch context. It intentionally does not pin an upstream
-SHA-256: the resolver locks the exact source bytes, commit, path and SHA-256
-for each build, while this adapter rejects any source whose relevant structure
-has changed.
+The resolver locks the exact upstream POC source bytes, commit, path and SHA-256.
+This adapter preserves that selected POC revision's functionality while relocating
+only reviewed scheduler hunks when the post-BORE Valve tree changes their context.
+Unreviewed source shapes are rejected instead of falling back to an older patch.
 """
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 from pathlib import Path
 
 SECTION_HEADER = "diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h\n"
 FAIR_SECTION_HEADER = "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\n"
-CORE_SECTION_HEADER = "diff --git a/kernel/sched/core.c b/kernel/sched/core.c\n"
-LEGACY_ADDITIONS = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "+\tunsigned int\t\tpoc_idle_committed;\n"
-    "+#endif\n"
-)
-CURRENT_ADDITIONS = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "+\tunsigned int\t\tpoc_idle_committed;\n"
-    "+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n"
-    "+#endif\n"
-)
-# Legacy fixture/API alias; current upstream selection passes CURRENT_ADDITIONS
-# explicitly so the 3.0.0-rc1 poc_busy_bit field is never dropped.
+LEGACY_ADDITIONS = "+#ifdef CONFIG_SCHED_POC_SELECTOR\n+\tunsigned int\t\tpoc_idle_committed;\n+#endif\n"
+CURRENT_ADDITIONS = "+#ifdef CONFIG_SCHED_POC_SELECTOR\n+\tunsigned int\t\tpoc_idle_committed;\n+\tu64\t\t\tpoc_busy_bit;\t/* lazy commit: pre-shifted busy bit (0 = idle), lazy mode */\n+#endif\n"
 FIELD_BLOCK = LEGACY_ADDITIONS
-SCHED_ANCHOR_RE = re.compile(
-    r"(?m)^(#ifdef CONFIG_SMP\n"
-    r"\tunsigned int\t\tttwu_pending;\n"
-    r"#endif\n"
-    r"\tu64\t\t\tnr_switches;\n)"
-)
-CURRENT_SCHED_ANCHOR_RE = re.compile(
-    r"(?m)^(#endif /\* CONFIG_NO_HZ_COMMON \*/\n\n"
-    r"\tunsigned int\t\tttwu_pending;\n"
-    r"\tu64\t\t\tnr_switches;\n)"
-)
+SCHED_ANCHOR_RE = re.compile(r"(?m)^(#ifdef CONFIG_SMP\n\tunsigned int\t\tttwu_pending;\n#endif\n\tu64\t\t\tnr_switches;\n)")
+NATIVE_SCHED_ANCHOR_RE = re.compile(r"(?m)^(#ifdef CONFIG_NO_HZ_COMMON\n(?:.*\n)*?\tcall_single_data_t\tnohz_csd;\n#endif /\* CONFIG_NO_HZ_COMMON \*/\n\n)(#ifdef CONFIG_UCLAMP_TASK\n)")
 TTWU_CONTEXT_RE = re.compile(r"(?m)^[ \t]*unsigned int[ \t]+ttwu_pending;[ \t]*\n")
-HUNK_RE = re.compile(
-    r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
-    r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@(?P<context>.*\n)$"
-)
-IDLE_SIBLING_DECLARATION = (
-    "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);\n"
-)
-IDLE_SIBLING_SYNC_DECLARATION = (
-    "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);\n"
-)
+NATIVE_72_NOHZ_CONTEXT_RE = re.compile(r"(?m)^ [ \t]*call_single_data_t[ \t]+nohz_csd;[ \t]*\n^ #endif /\* CONFIG_NO_HZ_COMMON \*/[ \t]*\n")
+NATIVE_72_UCLAMP_CONTEXT_RE = re.compile(r"(?m)^ #ifdef CONFIG_UCLAMP_TASK[ \t]*\n")
+HUNK_RE = re.compile(r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? \+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@(?P<context>.*\n)$")
+IDLE_SIBLING_DECLARATION = "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);\n"
+IDLE_SIBLING_SYNC_DECLARATION = "static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);\n"
 PELT_INCLUDE = ' #include "pelt.h"\n'
 VALVE_SMP_GUARD = " #ifdef CONFIG_SMP\n"
-CORE_POC_SYNC_BLOCK = (
+INCLUDE_SCHED_SECTION_HEADER = "diff --git a/include/linux/sched.h b/include/linux/sched.h\n"
+CURRENT_POC_SYNC_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "+\t/* no history yet: treat the new task's sync wakes as lies until proven */\n"
-    "+\tp->poc_sync = POC_SYNC_INIT;\n"
+    "+/* Learned WF_SYNC honesty of a waker, see kernel/sched/fair.c */\n"
+    "+struct poc_sync {\n"
+    "+\tu64\t\t\t\tmark;\t\t/* own exec at the pending sync wake + 1, 0 = none */\n"
+    "+\tu8\t\t\t\thist;\t\t/* last 8 resolved sync wakes, bit = 1: a lie */\n"
+    "+\tu8\t\t\t\texplore;\t/* waker's-CPU verdicts since the last exploration */\n"
+    "+\tbool\t\t\t\ton_waker_cpu;\t/* pending wake put its wakee on our CPU */\n"
+    "+\tbool\t\t\t\tnopreempt;\t/* as a wakee: must not preempt its waker */\n"
+    "+};\n"
+    "+#endif\n"
+    "+\n"
+)
+CURRENT_POC_SLEEP_ADDITIONS = (
+    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
+    "+\tif (flags & DEQUEUE_SLEEP)\n"
+    "+\t\tpoc_sync_note_sleep(p);\n"
     "+#endif\n"
 )
-PREEMPT_CURR_BLOCK = (
-    "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
-    "+\t/* the task running here, the waker if this is a local sync wake */\n"
-    "+\tstruct task_struct *curr = rq->curr;\n"
-    "+#endif\n"
-)
-PREEMPT_WAIT_BLOCK = (
+V300_WAKEE_WAITS_ADDITIONS = (
     "+#ifdef CONFIG_SCHED_POC_SELECTOR\n"
     "+\tif (poc_sync_wakee_waits(rq, curr, p, wake_flags))\n"
     "+\t\treturn;\n"
     "+#endif\n"
 )
-CORE_GROUP_ANCHOR = "\tINIT_LIST_HEAD(&p->se.group_node);\n"
-PREEMPT_DECL_ANCHOR = "\tint cse_is_idle, pse_is_idle;\n"
-PREEMPT_FIRST_IF = "\tif (unlikely(se == pse))\n"
+V300_NATIVE_WAKEUP_PREFIX = (
+    " \tif (p->sched_class != &fair_sched_class)\n"
+    " \t\treturn;\n"
+    " \n"
+)
+V300_BORE_WAKEUP_PREFIX = (
+    "\tif (p->sched_class != &fair_sched_class ||\n"
+    "\t    donor->sched_class != &fair_sched_class)\n"
+    "\t\treturn;\n"
+    "\n"
+)
+V300_WAKEUP_SUFFIX = (
+    "\tif (unlikely(se == pse))\n"
+    "\t\treturn;\n"
+    "\n"
+)
+V300_REQUIRED = (
+    "Subject: [PATCH] 7.2-rc1-poc-selector-v3.0.0",
+    "+\tu16\t\t\t\thist;\t\t/* last 16 resolved sync wakes, bit = 1: a lie */",
+    "+\tu16\t\t\t\tchain;\t\t/* same 16, bit = 1: more sync wakes joined it */",
+    "+\tu8\t\t\t\tlie_log2;\t/* log2 of how long a lie ran on, in ns, rounded up */",
+    "+\tu8\t\t\t\ton_waker_cpu:1;",
+    "+\tu8\t\t\t\tsampled:1;",
+    "+\tu8\t\t\t\tjoined:1;",
+    "+\tu8\t\t\t\texplore:4;",
+    "+#define POC_SYNC_INIT\t((struct poc_sync){ .hist = 0xffff, .lie_log2 = 14 })",
+    "+\tstruct poc_sync\t\t\tpoc_sync;",
+    "+\tp->poc_sync = POC_SYNC_INIT;",
+    "+\t\tpoc_sync_note_sleep(rq, p);",
+    "+static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);",
+)
 
+BORE_TASK_STRUCT_ANCHOR = (
+    "#endif /* CONFIG_SCHED_BORE */\n"
+    "\n"
+    "struct task_struct {\n"
+    "#ifdef CONFIG_THREAD_INFO_IN_TASK\n"
+)
+BORE_DEQUEUE_ANCHOR = (
+    "\tif (!p->se.sched_delayed)\n"
+    "\t\tutil_est_dequeue(&rq->cfs, p);\n"
+    "\n"
+    "#ifdef CONFIG_SCHED_BORE\n"
+)
 
-class PortError(RuntimeError):
-    pass
+class PortError(RuntimeError): pass
 
+def sched_section(text):
+    start=text.find(SECTION_HEADER)
+    if start<0: raise PortError("POC patch does not contain kernel/sched/sched.h")
+    end=text.find("\ndiff --git ",start+len(SECTION_HEADER))
+    return text[start:len(text) if end<0 else end]
 
-def sched_section(text: str) -> str:
-    start = text.find(SECTION_HEADER)
-    if start < 0:
-        raise PortError("POC patch does not contain kernel/sched/sched.h")
-    end = text.find("\ndiff --git ", start + len(SECTION_HEADER))
-    return text[start : len(text) if end < 0 else end]
+def section_bounds(text,header,description):
+    start=text.find(header)
+    if start<0: raise PortError(f"POC patch does not contain {description}")
+    end=text.find("\ndiff --git ",start+len(header))
+    return start,len(text) if end<0 else end
 
+def next_hunk_end(text,hunk,section_end):
+    n=text.find("\n@@ ",hunk+1,section_end)
+    return section_end if n<0 else n+1
 
-def section_bounds(text: str, header: str, description: str) -> tuple[int, int]:
-    start = text.find(header)
-    if start < 0:
-        raise PortError(f"POC patch does not contain {description}")
-    end = text.find("\ndiff --git ", start + len(header))
-    return start, len(text) if end < 0 else end
+def increment_hunk_context(header):
+    m=HUNK_RE.match(header)
+    if not m: raise PortError("select_idle_sibling hunk header changed upstream")
+    oc=int(m.group("old_count") or "1")+1; nc=int(m.group("new_count") or "1")+1
+    return f"@@ -{m.group('old_start')},{oc} +{m.group('new_start')},{nc} @@{m.group('context')}"
 
-
-def next_hunk_end(text: str, hunk: int, section_end: int) -> int:
-    next_hunk = text.find("\n@@ ", hunk + 1, section_end)
-    if next_hunk >= 0:
-        return next_hunk + 1
-    if section_end < len(text) and text.startswith("\ndiff --git ", section_end):
-        return section_end + 1
-    return section_end
-
-
-def increment_hunk_context(header: str) -> str:
-    match = HUNK_RE.match(header)
-    if not match:
-        raise PortError("select_idle_sibling hunk header changed upstream")
-    old_count = int(match.group("old_count") or "1") + 1
-    new_count = int(match.group("new_count") or "1") + 1
-    return (
-        f"@@ -{match.group('old_start')},{old_count} "
-        f"+{match.group('new_start')},{new_count} @@{match.group('context')}"
-    )
-
-
-def old_hunk_text(body: str) -> str:
-    lines: list[str] = []
+def old_hunk_text(body):
+    out=[]
     for line in body.splitlines(keepends=True):
-        if line.startswith("+"):
-            continue
-        if line.startswith(("-", " ")):
-            lines.append(line[1:])
-            continue
+        if line.startswith("+"): continue
+        if line.startswith(("-"," ")): out.append(line[1:]); continue
         raise PortError("select_idle_sibling hunk has unsupported patch syntax")
-    return "".join(lines)
+    return "".join(out)
 
-
-def rebase_hunk_header(header: str, body: str, fair_source: str) -> str:
-    match = HUNK_RE.match(header)
-    if not match:
-        raise PortError("select_idle_sibling hunk header changed upstream")
-    old_text = old_hunk_text(body)
-    source_offset = fair_source.find(old_text)
-    if source_offset < 0:
-        raise PortError("select_idle_sibling context does not match Valve/BORE fair.c")
-    if fair_source.find(old_text, source_offset + 1) >= 0:
-        raise PortError("select_idle_sibling context is ambiguous in Valve/BORE fair.c")
-    source_line = fair_source.count("\n", 0, source_offset) + 1
-    old_start = int(match.group("old_start"))
-    new_start = int(match.group("new_start"))
-    return (
-        f"@@ -{source_line},{match.group('old_count') or '1'} "
-        f"+{source_line + new_start - old_start},{match.group('new_count') or '1'} "
-        f"@@{match.group('context')}"
-    )
-
-
-def adapt_idle_sibling_hunk(text: str, fair_source: str | None = None) -> str:
-    fair_start, fair_end = section_bounds(text, FAIR_SECTION_HEADER, "kernel/sched/fair.c")
-    candidate: tuple[int, int, int, str] | None = None
-    hunk = text.find("@@ ", fair_start, fair_end)
-    while hunk >= 0:
-        header_end = text.find("\n", hunk, fair_end)
-        if header_end < 0:
-            raise PortError("select_idle_sibling hunk is malformed")
-        header_end += 1
-        hunk_end = next_hunk_end(text, hunk, fair_end)
-        body = text[header_end:hunk_end]
-        if (
-            f"-{IDLE_SIBLING_DECLARATION}" in body
-            and f"+{IDLE_SIBLING_SYNC_DECLARATION}" in body
-        ):
-            if candidate is not None:
-                raise PortError("multiple select_idle_sibling hunks found upstream")
-            candidate = (hunk, header_end, hunk_end, body)
-        hunk = text.find("@@ ", hunk_end, fair_end)
-
-    if candidate is None:
-        raise PortError("reviewed select_idle_sibling hunk was not found")
-
-    hunk, header_end, hunk_end, body = candidate
-    if body.count(PELT_INCLUDE) != 1:
-        raise PortError("select_idle_sibling hunk no longer has one pelt.h anchor")
-    if VALVE_SMP_GUARD in body:
-        raise PortError("select_idle_sibling hunk already has a CONFIG_SMP guard")
-
-    # Prefer the upstream-native hunk unchanged. Valve 6.18.50-valve1 keeps
-    # this declaration in the same context as POC 3.0.0-rc2, even after BORE.
-    # Only use the older Valve CONFIG_SMP context port when the native context
-    # is absent. Ambiguous native context remains a hard failure.
-    if fair_source is not None:
-        try:
-            header = rebase_hunk_header(text[hunk:header_end], body, fair_source)
-            return text[:hunk] + header + body + text[hunk_end:]
-        except PortError as exc:
-            if str(exc) != (
-                "select_idle_sibling context does not match Valve/BORE fair.c"
-            ):
-                raise
-
-    adapted_body = body.replace(PELT_INCLUDE, PELT_INCLUDE + VALVE_SMP_GUARD)
-    if adapted_body == body:
-        raise PortError("could not add the Valve CONFIG_SMP patch context")
-    header = increment_hunk_context(text[hunk:header_end])
-    if fair_source is not None:
-        header = rebase_hunk_header(header, adapted_body, fair_source)
-    return text[:hunk] + header + adapted_body + text[hunk_end:]
-
-
-def reviewed_add_only_hunk(
-    text: str,
-    section_header: str,
-    description: str,
-    expected_blocks: tuple[str, ...],
-) -> tuple[int, int, int, str]:
+def reviewed_addition_hunk(text, section_header, additions, description):
     section_start, section_end = section_bounds(text, section_header, description)
-    candidate: tuple[int, int, int, str] | None = None
+    candidate = None
     hunk = text.find("@@ ", section_start, section_end)
     while hunk >= 0:
         header_end = text.find("\n", hunk, section_end)
         if header_end < 0:
-            raise PortError(f"{description} POC hunk is malformed")
+            raise PortError(f"{description} hunk is malformed")
         header_end += 1
         hunk_end = next_hunk_end(text, hunk, section_end)
         body = text[header_end:hunk_end]
-        if all(block in body for block in expected_blocks):
-            additions = "".join(
-                line for line in body.splitlines(keepends=True) if line.startswith("+")
-            )
-            if additions != "".join(expected_blocks):
-                raise PortError(f"{description} POC hunk has unexpected additions")
-            if any(line.startswith("-") for line in body.splitlines()):
-                raise PortError(f"{description} POC hunk unexpectedly removes source lines")
+        if additions in body:
             if candidate is not None:
-                raise PortError(f"multiple reviewed {description} POC hunks found")
+                raise PortError(f"multiple {description} hunks found upstream")
             candidate = (hunk, header_end, hunk_end, body)
         hunk = text.find("@@ ", hunk_end, section_end)
     if candidate is None:
-        raise PortError(f"reviewed {description} POC hunk was not found")
+        raise PortError(f"reviewed {description} hunk was not found")
     return candidate
 
 
-def unique_source_line(lines: list[str], anchor: str, description: str) -> int:
-    matches = [index for index, line in enumerate(lines) if line == anchor]
-    if len(matches) != 1:
-        raise PortError(
-            f"{description} source anchor must be unique, found {len(matches)}"
-        )
-    return matches[0]
+def hunk_delta(header):
+    match = HUNK_RE.match(header)
+    if not match:
+        raise PortError("reviewed hunk header changed upstream")
+    return int(match.group("new_start")) - int(match.group("old_start"))
 
 
-def insertion_hunk(
-    lines: list[str],
-    start: int,
-    end: int,
-    additions_after: dict[int, str],
-    additions_before: dict[int, str] | None = None,
-) -> str:
-    additions_before = additions_before or {}
-    old_count = end - start
-    added_count = sum(
-        block.count("\n")
-        for block in (*additions_after.values(), *additions_before.values())
-    )
-    body: list[str] = []
-    for index in range(start, end):
-        if index in additions_before:
-            body.append(additions_before[index])
-        body.append(" " + lines[index])
-        if index in additions_after:
-            body.append(additions_after[index])
-    return (
-        f"@@ -{start + 1},{old_count} +{start + 1},{old_count + added_count} @@\n"
-        + "".join(body)
-    )
+def unique_anchor_line(source, anchor, description):
+    offset = source.find(anchor)
+    if offset < 0:
+        raise PortError(f"{description} anchor does not match Valve/BORE source")
+    if source.find(anchor, offset + 1) >= 0:
+        raise PortError(f"{description} anchor is ambiguous in Valve/BORE source")
+    return source.count("\n", 0, offset) + 1
 
 
-def adapt_sched_fork_hunk(text: str, core_source: str | None = None) -> str:
-    hunk, _header_end, hunk_end, _body = reviewed_add_only_hunk(
+def adapt_native_72_include_overlap(text, include_source):
+    hunk, header_end, hunk_end, body = reviewed_addition_hunk(
         text,
-        CORE_SECTION_HEADER,
-        "kernel/sched/core.c __sched_fork",
-        (CORE_POC_SYNC_BLOCK,),
+        INCLUDE_SCHED_SECTION_HEADER,
+        CURRENT_POC_SYNC_ADDITIONS,
+        "native 7.2 poc_sync",
     )
-    if core_source is None:
-        return text
-    if "p->poc_sync = POC_SYNC_INIT;" in core_source:
-        raise PortError("kernel/sched/core.c already contains POC sync initialization")
+    if body.count("struct poc_sync") != 1 or body.count("nopreempt") != 1:
+        raise PortError("native 7.2 poc_sync hunk changed upstream")
 
-    lines = core_source.splitlines(keepends=True)
-    function_anchor = "static void __sched_fork(u64 clone_flags, struct task_struct *p)\n"
-    function_index = unique_source_line(lines, function_anchor, "__sched_fork")
-    group_index = unique_source_line(lines, CORE_GROUP_ANCHOR, "__sched_fork group_node")
-    if not (function_index < group_index <= function_index + 40):
-        raise PortError("__sched_fork group_node anchor moved outside reviewed function")
-
-    start = max(function_index + 1, group_index - 2)
-    end = min(len(lines), group_index + 3)
-    replacement = insertion_hunk(
-        lines, start, end, {group_index: CORE_POC_SYNC_BLOCK}
+    old_start = unique_anchor_line(
+        include_source, BORE_TASK_STRUCT_ANCHOR, "BORE task_struct"
+    )
+    delta = hunk_delta(text[hunk:header_end])
+    added = CURRENT_POC_SYNC_ADDITIONS.count("\n")
+    replacement = (
+        f"@@ -{old_start},4 +{old_start + delta},{4 + added} @@\n"
+        " #endif /* CONFIG_SCHED_BORE */\n"
+        " \n"
+        + CURRENT_POC_SYNC_ADDITIONS
+        + " struct task_struct {\n"
+        " #ifdef CONFIG_THREAD_INFO_IN_TASK\n"
     )
     return text[:hunk] + replacement + text[hunk_end:]
 
 
-def adapt_preempt_wakeup_hunk(text: str, fair_source: str | None = None) -> str:
-    hunk, _header_end, hunk_end, _body = reviewed_add_only_hunk(
+def adapt_native_72_fair_overlap(text, fair_source):
+    hunk, header_end, hunk_end, body = reviewed_addition_hunk(
         text,
         FAIR_SECTION_HEADER,
-        "kernel/sched/fair.c check_preempt_wakeup_fair",
-        (PREEMPT_CURR_BLOCK, PREEMPT_WAIT_BLOCK),
+        CURRENT_POC_SLEEP_ADDITIONS,
+        "native 7.2 poc_sync_note_sleep",
     )
-    if fair_source is None:
-        return text
-    if "poc_sync_wakee_waits(rq, curr, p, wake_flags)" in fair_source:
-        raise PortError("kernel/sched/fair.c already contains POC sync wakee handling")
+    if body.count("poc_sync_note_sleep(p);") != 1:
+        raise PortError("native 7.2 poc_sync_note_sleep hunk changed upstream")
 
-    lines = fair_source.splitlines(keepends=True)
-    function_anchor = (
-        "static void check_preempt_wakeup_fair(struct rq *rq, "
-        "struct task_struct *p, int wake_flags)\n"
+    old_start = unique_anchor_line(
+        fair_source, BORE_DEQUEUE_ANCHOR, "BORE dequeue_task_fair"
     )
-    function_index = unique_source_line(
-        lines, function_anchor, "check_preempt_wakeup_fair"
-    )
-    decl_index = unique_source_line(
-        lines, PREEMPT_DECL_ANCHOR, "check_preempt_wakeup_fair declarations"
-    )
-    first_if_index = unique_source_line(
-        lines, PREEMPT_FIRST_IF, "check_preempt_wakeup_fair first guard"
-    )
-    if not (
-        function_index < decl_index < first_if_index
-        and decl_index - function_index <= 12
-        and first_if_index - decl_index <= 12
-    ):
-        raise PortError("check_preempt_wakeup_fair reviewed anchors changed")
-    if first_if_index + 1 >= len(lines) or lines[first_if_index + 1] != "\t\treturn;\n":
-        raise PortError("check_preempt_wakeup_fair first guard body changed")
-
-    start = max(function_index + 1, decl_index - 3)
-    end = min(len(lines), first_if_index + 3)
-    replacement = insertion_hunk(
-        lines,
-        start,
-        end,
-        {decl_index: PREEMPT_CURR_BLOCK},
-        {first_if_index: PREEMPT_WAIT_BLOCK},
+    delta = hunk_delta(text[hunk:header_end])
+    added = CURRENT_POC_SLEEP_ADDITIONS.count("\n")
+    replacement = (
+        f"@@ -{old_start},4 +{old_start + delta},{4 + added} @@\n"
+        " \tif (!p->se.sched_delayed)\n"
+        " \t\tutil_est_dequeue(&rq->cfs, p);\n"
+        " \n"
+        + CURRENT_POC_SLEEP_ADDITIONS
+        + " #ifdef CONFIG_SCHED_BORE\n"
     )
     return text[:hunk] + replacement + text[hunk_end:]
 
 
-def sched_hunk(sched_header: str, field_block: str = FIELD_BLOCK) -> str:
-    if "poc_idle_committed" in sched_header:
-        raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
-    legacy_matches = list(SCHED_ANCHOR_RE.finditer(sched_header))
-    current_matches = list(CURRENT_SCHED_ANCHOR_RE.finditer(sched_header))
-    if len(legacy_matches) + len(current_matches) != 1:
-        raise PortError(
-            "expected one reviewed Valve/BORE ttwu_pending anchor, found "
-            f"{len(legacy_matches) + len(current_matches)}"
-        )
-    current_layout = bool(current_matches)
-    match = (current_matches or legacy_matches)[0]
-    line = sched_header.count("\n", 0, match.start()) + 1
-    lines = match.group(1).splitlines(keepends=True)
-    # Valve 6.18.50-valve1 moved ttwu_pending out of CONFIG_SMP. Preserve the
-    # exact POC insertion point immediately after ttwu_pending in either
-    # reviewed layout; reject every other shape.
-    insert_at = 3 if current_layout else 2
-    added_lines = field_block.count("\n")
-    return (
-        f"@@ -{line},4 +{line},{4 + added_lines} @@ struct rq {{\n"
-        + "".join(f" {item}" for item in lines[:insert_at])
-        + field_block
-        + "".join(f" {item}" for item in lines[insert_at:])
+def patch_context(source):
+    return "".join(f" {line}" for line in source.splitlines(keepends=True))
+
+
+def adapt_native_72_v300_wakeup_overlap(text, fair_source):
+    hunk, header_end, hunk_end, body = reviewed_addition_hunk(
+        text,
+        FAIR_SECTION_HEADER,
+        V300_WAKEE_WAITS_ADDITIONS,
+        "native 7.2 POC 3.0.0 wakee-waits",
     )
+    expected = (
+        V300_NATIVE_WAKEUP_PREFIX
+        + V300_WAKEE_WAITS_ADDITIONS
+        + patch_context(V300_WAKEUP_SUFFIX)
+    ).removesuffix("\n")
+    if body != expected:
+        raise PortError("native 7.2 POC 3.0.0 wakee-waits hunk changed upstream")
+
+    anchor = V300_BORE_WAKEUP_PREFIX + V300_WAKEUP_SUFFIX
+    old_start = unique_anchor_line(
+        fair_source, anchor, "BORE wakeup_preempt_fair class guard"
+    )
+    header = text[hunk:header_end]
+    match = HUNK_RE.match(header)
+    if not match:
+        raise PortError("native 7.2 POC 3.0.0 wakee-waits header changed upstream")
+    delta = hunk_delta(header)
+    old_count = anchor.count("\n")
+    added = V300_WAKEE_WAITS_ADDITIONS.count("\n")
+    replacement = (
+        f"@@ -{old_start},{old_count} +{old_start + delta},{old_count + added} @@"
+        f"{match.group('context')}"
+        + patch_context(V300_BORE_WAKEUP_PREFIX)
+        + V300_WAKEE_WAITS_ADDITIONS
+        + patch_context(V300_WAKEUP_SUFFIX).removesuffix("\n")
+    )
+    return text[:hunk] + replacement + text[hunk_end:]
 
 
-def insert_sched_hunk(text: str, header: str) -> str:
-    section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
-    first_hunk = text.find("@@ ", section, section_end)
-    if first_hunk < 0:
-        raise PortError("POC patch has no remaining kernel/sched/sched.h hunk")
-    return text[:first_hunk] + header + text[first_hunk:]
+def rebase_hunk_header(header,body,source):
+    m=HUNK_RE.match(header)
+    if not m: raise PortError("select_idle_sibling hunk header changed upstream")
+    old=old_hunk_text(body); off=source.find(old)
+    if off<0: raise PortError("select_idle_sibling context does not match Valve/BORE fair.c")
+    if source.find(old,off+1)>=0: raise PortError("select_idle_sibling context is ambiguous in Valve/BORE fair.c")
+    line=source.count("\n",0,off)+1; old_start=int(m.group("old_start")); new_start=int(m.group("new_start"))
+    return f"@@ -{line},{m.group('old_count') or '1'} +{line+new_start-old_start},{m.group('new_count') or '1'} @@{m.group('context')}"
 
-
-def reviewed_sched_field_hunk(
-    text: str, section_start: int, section_end: int
-) -> tuple[int, int, str]:
-    candidate: tuple[int, int, str] | None = None
-    hunk = text.find("@@ ", section_start, section_end)
-    while hunk >= 0:
-        header_end = text.find("\n", hunk, section_end)
-        if header_end < 0:
-            raise PortError("rq::poc_idle_committed hunk is malformed")
-        hunk_end = next_hunk_end(text, hunk, section_end)
-        body = text[header_end + 1 : hunk_end]
-        if LEGACY_ADDITIONS in body or CURRENT_ADDITIONS in body:
-            if body.count("poc_idle_committed") != 1 or not TTWU_CONTEXT_RE.search(body):
-                raise PortError("rq::poc_idle_committed hunk changed upstream")
-            if candidate is not None:
-                raise PortError("multiple rq::poc_idle_committed hunks found upstream")
-            candidate = (hunk, hunk_end, body)
-        hunk = text.find("@@ ", hunk_end, section_end)
-    if candidate is None:
-        raise PortError("reviewed rq::poc_idle_committed hunk was not found")
+def reviewed_idle_sibling_hunk(text):
+    fs,fe=section_bounds(text,FAIR_SECTION_HEADER,"kernel/sched/fair.c"); candidate=None; h=text.find("@@ ",fs,fe)
+    while h>=0:
+        he=text.find("\n",h,fe)
+        if he<0: raise PortError("select_idle_sibling hunk is malformed")
+        he+=1; hend=next_hunk_end(text,h,fe); body=text[he:hend]
+        if f"-{IDLE_SIBLING_DECLARATION}" in body and f"+{IDLE_SIBLING_SYNC_DECLARATION}" in body:
+            if candidate is not None: raise PortError("multiple select_idle_sibling hunks found upstream")
+            candidate=(h,he,hend,body)
+        h=text.find("@@ ",hend,fe)
+    if candidate is None: raise PortError("reviewed select_idle_sibling hunk was not found")
     return candidate
 
-
-def adapt_patch(
-    text: str,
-    fair_source: str | None = None,
-    sched_header: str | None = None,
-    core_source: str | None = None,
-) -> str:
-    section, section_end = section_bounds(text, SECTION_HEADER, "kernel/sched/sched.h")
-    hunk, next_hunk, body = reviewed_sched_field_hunk(text, section, section_end)
-    field_block = CURRENT_ADDITIONS if CURRENT_ADDITIONS in body else LEGACY_ADDITIONS
-
-    adapted = text[:hunk] + text[next_hunk:]
-    adapted_sched = sched_section(adapted)
-    if "poc_idle_committed" in adapted_sched:
-        raise PortError("rq::poc_idle_committed hunk remains in sched.h")
-    if sched_header is not None:
-        adapted = insert_sched_hunk(adapted, sched_hunk(sched_header, field_block))
-    if "poc_sync" in adapted:
-        adapted = adapt_sched_fork_hunk(adapted, core_source)
-        adapted = adapt_preempt_wakeup_hunk(adapted, fair_source)
-    return adapt_idle_sibling_hunk(adapted, fair_source)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--validate",
-        action="store_true",
-        help="validate the upstream hunk shape without writing an adapted patch",
-    )
-    parser.add_argument("patch", type=Path)
-    parser.add_argument("output", type=Path, nargs="?")
-    parser.add_argument("sched_header", type=Path, nargs="?")
-    parser.add_argument("fair_source", type=Path, nargs="?")
-    args = parser.parse_args()
-
-    if args.validate:
-        if args.output or args.sched_header or args.fair_source:
-            parser.error("--validate accepts only the upstream patch path")
-        try:
-            adapt_patch(args.patch.read_text(encoding="utf-8"))
-        except (UnicodeDecodeError, PortError) as exc:
-            raise SystemExit(f"POC Valve port failed: {exc}") from exc
-        print(
-            "POC Valve adapter accepted the current upstream hunk; "
-            "the exact source bytes are recorded in patch-lock.json"
+def validate_v300_shape(text):
+    missing = [item for item in V300_REQUIRED if text.count(item) != 1]
+    if missing:
+        raise PortError(
+            "native 7.2 POC 3.0.0 shape changed: "
+            f"{len(missing)} required markers missing or non-unique"
         )
-        return
+    if "+\tbool\t\t\t\tnopreempt;" in text or "+\t\tpoc_sync_note_sleep(p);" in text:
+        raise PortError("old POC sync layout is mixed into native POC 3.0.0")
 
-    if not args.output or not args.sched_header or not args.fair_source:
-        parser.error("output, sched_header and fair_source are required unless --validate is used")
 
+def native_patch_applies(tree_root, patch_path):
+    if not (tree_root / ".git").exists():
+        return False, "target is not a git worktree"
+    for recount in (False, True):
+        command = ["git", "-C", str(tree_root), "apply", "--check"]
+        if recount:
+            command.append("--recount")
+        command.append(str(patch_path))
+        result = subprocess.run(command, check=False, text=True, capture_output=True)
+        if result.returncode:
+            return False, result.stderr.strip() or result.stdout.strip()
+    return True, ""
+
+
+def adapt_idle_sibling_hunk(text,fair_source=None):
+    h,he,hend,body=reviewed_idle_sibling_hunk(text)
+    if body.count(PELT_INCLUDE)!=1: raise PortError("select_idle_sibling hunk no longer has one pelt.h anchor")
+    if VALVE_SMP_GUARD in body: raise PortError("select_idle_sibling hunk already has a CONFIG_SMP guard")
+
+    if fair_source is None:
+        # Structural validation for reviewed legacy layouts.
+        body2=body.replace(PELT_INCLUDE,PELT_INCLUDE+VALVE_SMP_GUARD)
+        header=increment_hunk_context(text[h:he])
+        return text[:h]+header+body2+text[hend:]
+
+    # Native 7.2 Valve + BORE keeps the upstream declaration context intact.
+    # Prefer the exact locked upstream hunk before attempting the reviewed
+    # legacy Valve layout that contains an existing CONFIG_SMP guard.
     try:
-        patch_text = args.patch.read_text(encoding="utf-8")
-        core_text = None
-        if "poc_sync" in patch_text:
-            core_source = args.fair_source.with_name("core.c")
-            if not core_source.is_file():
-                raise PortError(f"missing sibling Valve source: {core_source}")
-            core_text = core_source.read_text(encoding="utf-8")
-        adapted_patch = adapt_patch(
-            patch_text,
-            args.fair_source.read_text(encoding="utf-8"),
-            args.sched_header.read_text(encoding="utf-8"),
-            core_text,
+        header=rebase_hunk_header(text[h:he],body,fair_source)
+        body2=body
+    except PortError as native_error:
+        body2=body.replace(PELT_INCLUDE,PELT_INCLUDE+VALVE_SMP_GUARD)
+        header=increment_hunk_context(text[h:he])
+        try:
+            header=rebase_hunk_header(header,body2,fair_source)
+        except PortError:
+            # Fail closed. Do not reduce the POC hunk to a context-free edit.
+            raise native_error
+
+    return text[:h]+header+body2+text[hend:]
+
+def sched_hunk(sched_header,field_block=FIELD_BLOCK):
+    if "poc_idle_committed" in sched_header: raise PortError("kernel/sched/sched.h already contains poc_idle_committed")
+    if field_block == CURRENT_ADDITIONS:
+        matches=list(NATIVE_SCHED_ANCHOR_RE.finditer(sched_header))
+        if len(matches)!=1: raise PortError(f"expected one Valve 7.2 NO_HZ/UCLAMP anchor, found {len(matches)}")
+        m=matches[0]; line=sched_header.count("\n",0,m.start())+1
+        before=m.group(1); after=m.group(2); old_count=before.count("\n")+after.count("\n")
+        # The native POC hunk keeps the blank line before the field block as
+        # context and adds exactly one blank line after it.
+        added=field_block.count("\n")+1
+        return f"@@ -{line},{old_count} +{line},{old_count+added} @@ struct rq {{\n"+"".join(f" {x}" for x in before.splitlines(keepends=True))+field_block+"+\n"+"".join(f" {x}" for x in after.splitlines(keepends=True))
+    matches=list(SCHED_ANCHOR_RE.finditer(sched_header))
+    if len(matches)!=1: raise PortError(f"expected one Valve/BORE ttwu_pending anchor, found {len(matches)}")
+    m=matches[0]; line=sched_header.count("\n",0,m.start())+1; lines=m.group(1).splitlines(keepends=True); added=field_block.count("\n")
+    return f"@@ -{line},4 +{line},{4+added} @@ struct rq {{\n"+"".join(f" {x}" for x in lines[:2])+field_block+"".join(f" {x}" for x in lines[2:])
+
+def insert_sched_hunk(text,header):
+    s,e=section_bounds(text,SECTION_HEADER,"kernel/sched/sched.h"); first=text.find("@@ ",s,e)
+    if first<0:
+        marker="+++ b/kernel/sched/sched.h\n"
+        marker_at=text.find(marker,s,e)
+        if marker_at<0 or text.find(marker,marker_at+1,e)>=0:
+            raise PortError("POC patch has no unambiguous kernel/sched/sched.h header")
+        first=marker_at+len(marker)
+    return text[:first]+header+text[first:]
+
+def is_native_72_sched_context(body): return bool(NATIVE_72_NOHZ_CONTEXT_RE.search(body) and NATIVE_72_UCLAMP_CONTEXT_RE.search(body))
+
+def reviewed_sched_field_hunk(text,s,e):
+    candidate=None; h=text.find("@@ ",s,e)
+    while h>=0:
+        he=text.find("\n",h,e)
+        if he<0: raise PortError("rq::poc_idle_committed hunk is malformed")
+        hend=next_hunk_end(text,h,e); body=text[he+1:hend]
+        if LEGACY_ADDITIONS in body or CURRENT_ADDITIONS in body:
+            if body.count("poc_idle_committed")!=1 or not (TTWU_CONTEXT_RE.search(body) or is_native_72_sched_context(body)): raise PortError("rq::poc_idle_committed hunk changed upstream")
+            if candidate is not None: raise PortError("multiple rq::poc_idle_committed hunks found upstream")
+            candidate=(h,hend,body)
+        h=text.find("@@ ",hend,e)
+    if candidate is None: raise PortError("reviewed rq::poc_idle_committed hunk was not found")
+    return candidate
+
+def adapt_patch(text, fair_source=None, sched_header=None, include_source=None):
+    s,e=section_bounds(text,SECTION_HEADER,"kernel/sched/sched.h"); h,n,body=reviewed_sched_field_hunk(text,s,e)
+    field=CURRENT_ADDITIONS if CURRENT_ADDITIONS in body else LEGACY_ADDITIONS
+
+    # Preserve the locked native 7.2 POC revision. The 3.0.0 overlap is the
+    # wakeup class guard; older reviewed layouts overlap the poc_sync type
+    # insertion and DEQUEUE_SLEEP hook. Rebase only those exact hunks.
+    if field == CURRENT_ADDITIONS and is_native_72_sched_context(body):
+        if V300_REQUIRED[0] in text:
+            validate_v300_shape(text)
+            if sched_header is None and fair_source is None and include_source is None:
+                return text
+            if fair_source is None:
+                raise PortError("native 7.2 POC 3.0.0 adaptation requires fair.c")
+            return adapt_native_72_v300_wakeup_overlap(text, fair_source)
+
+        adapted=text[:h]+text[n:]
+        if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
+
+        reviewed_addition_hunk(
+            text, INCLUDE_SCHED_SECTION_HEADER, CURRENT_POC_SYNC_ADDITIONS,
+            "native 7.2 poc_sync"
         )
-    except (UnicodeDecodeError, PortError) as exc:
-        raise SystemExit(f"POC Valve port failed: {exc}") from exc
+        reviewed_addition_hunk(
+            text, FAIR_SECTION_HEADER, CURRENT_POC_SLEEP_ADDITIONS,
+            "native 7.2 poc_sync_note_sleep"
+        )
+        if sched_header is None and fair_source is None and include_source is None:
+            return text
+        if sched_header is None or fair_source is None or include_source is None:
+            raise PortError("native 7.2 adaptation requires sched.h, fair.c and include/linux/sched.h")
 
-    args.output.write_text(adapted_patch, encoding="utf-8")
-    print(
-        "Prepared the locked upstream POC port with an atomic Valve/BORE "
-        "ttwu_pending hunk and exact CONFIG_SMP context"
-    )
+        # Keep the rq fields at the native NO_HZ/UCLAMP boundary selected by
+        # POC 3.x. The existing native anchor port is fail-closed.
+        adapted=insert_sched_hunk(adapted,sched_hunk(sched_header,field))
+        adapted=adapt_native_72_include_overlap(adapted,include_source)
+        adapted=adapt_native_72_fair_overlap(adapted,fair_source)
+        return adapt_idle_sibling_hunk(adapted,fair_source)
 
+    # Reviewed compatibility path for older POC layouts.
+    adapted=text[:h]+text[n:]
+    if "poc_idle_committed" in sched_section(adapted): raise PortError("rq::poc_idle_committed hunk remains in sched.h")
+    if sched_header is not None: adapted=insert_sched_hunk(adapted,sched_hunk(sched_header,field))
+    return adapt_idle_sibling_hunk(adapted,fair_source)
 
-if __name__ == "__main__":
-    main()
+def main():
+    p=argparse.ArgumentParser(); p.add_argument("--validate",action="store_true"); p.add_argument("patch",type=Path); p.add_argument("output",type=Path,nargs="?"); p.add_argument("sched_header",type=Path,nargs="?"); p.add_argument("fair_source",type=Path,nargs="?"); a=p.parse_args()
+    if a.validate:
+        if a.output or a.sched_header or a.fair_source: p.error("--validate accepts only the upstream patch path")
+        try: adapt_patch(a.patch.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError,PortError) as exc: raise SystemExit(f"POC Valve port failed: {exc}") from exc
+        print("POC Valve adapter accepted the current upstream hunk; the exact source bytes are recorded in patch-lock.json"); return
+    if not a.output or not a.sched_header or not a.fair_source: p.error("output, sched_header and fair_source are required unless --validate is used")
+    sched_path=a.sched_header.resolve()
+    tree_root=sched_path.parents[2]
+    include_path=tree_root/"include/linux/sched.h"
+    try:
+        patch_text=a.patch.read_text(encoding="utf-8")
+        native_ok, native_error = native_patch_applies(tree_root, a.patch.resolve())
+        if native_ok:
+            a.output.write_text(patch_text, encoding="utf-8", newline="\n")
+            print("Locked native POC patch applies cleanly after prior Valve/BORE patches; no port required")
+            return
+
+        include_source = (
+            include_path.read_text(encoding="utf-8") if include_path.is_file() else None
+        )
+        out=adapt_patch(
+            patch_text,
+            a.fair_source.read_text(encoding="utf-8"),
+            a.sched_header.read_text(encoding="utf-8"),
+            include_source,
+        )
+    except (UnicodeDecodeError,OSError,PortError) as exc:
+        detail = (
+            f"; native check: {native_error}"
+            if "native_error" in locals() and native_error
+            else ""
+        )
+        raise SystemExit(f"POC Valve port failed: {exc}{detail}") from exc
+    a.output.write_text(out,encoding="utf-8",newline="\n"); print("Prepared the locked upstream POC patch by porting only reviewed Valve/BORE overlap hunks")
+if __name__=="__main__": main()

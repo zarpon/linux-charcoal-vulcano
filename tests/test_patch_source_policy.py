@@ -248,30 +248,5 @@ class PatchSourcePolicyTests(unittest.TestCase):
             )
 
 
-    def test_master_workflow_enforces_component_specific_adaptive_ports(self) -> None:
-        workflow = (ROOT / ".github/workflows/push.yml").read_text(encoding="utf-8")
-        overrides = json.loads(
-            (ROOT / "automation/patch-source-overrides.json").read_text(encoding="utf-8")
-        )
-        expected = {
-            "poc_selector": "poc-selector-valve",
-            "nap": "nap-direct-apply-6.18",
-        }
-        self.assertIn(
-            'assert item["adapter"] == {"poc_selector": "poc-selector-valve", '
-            '"nap": "nap-direct-apply-6.18"}.get(name)',
-            workflow,
-        )
-        effective = {
-            str(item["name"]): dict(item)
-            for item in MANIFEST["components"]
-        }
-        for component, values in overrides["components"].items():
-            effective[component].update(values)
-        for component, adapter in expected.items():
-            self.assertEqual(effective[component]["adaptive_port"], adapter)
-
-
-
 if __name__ == "__main__":
     unittest.main()

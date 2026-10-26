@@ -1,0 +1,104 @@
+From 9ad45d2fcd4662cae8574f7776d5d58302fbf680 Mon Sep 17 00:00:00 2001
+From: Charcoal CI <noreply@localhost>
+Date: Tue, 28 Jul 2026 12:00:00 +0000
+Subject: [PATCH] sched: complete BORE 6.8.0 port for Valve 6.16.12
+
+Carry the final 6.8.0 changes on top of the reviewed 6.8.0-rc1 Valve
+port: derive the score from penalty, expose bore_score(), and include the
+BORE declarations in the scheduler utility translation unit.
+---
+ include/linux/sched.h        | 8 +-------
+ include/linux/sched/bore.h   | 5 ++++-
+ kernel/sched/bore.c          | 2 +-
+ kernel/sched/build_utility.c | 4 ++++
+ kernel/sched/debug.c         | 4 ++--
+ 5 files changed, 12 insertions(+), 11 deletions(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -824,13 +824,7 @@ struct bore_ctx {
+ 	u64				burst_time;
+ 	u16				prev_penalty;
+ 	u16				curr_penalty;
+-	union {
+-		u16			penalty;
+-		struct {
+-			u8		_;
+-			u8		score;
+-		};
+-	};
++	u16				penalty;
+ 	bool			stop_update;
+ 	bool			futex_waiting;
+ 	struct bore_bc	subtree;
+diff --git a/include/linux/sched/bore.h b/include/linux/sched/bore.h
+--- a/include/linux/sched/bore.h
++++ b/include/linux/sched/bore.h
+@@ -12,7 +12,7 @@
+ #define SCHED_BORE_AUTHOR   "Masahito Suzuki"
+ #define SCHED_BORE_PROGNAME "BORE CPU Scheduler modification"
+ 
+-#define SCHED_BORE_VERSION  "6.8.0-rc1"
++#define SCHED_BORE_VERSION  "6.8.0"
+ 
+ extern u8   __read_mostly sched_bore;
+ DECLARE_STATIC_KEY_TRUE(sched_bore_key);
+@@ -25,6 +25,9 @@ extern u8   __read_mostly sched_burst_protect_slice_lv;
+ DECLARE_STATIC_KEY_TRUE(sched_burst_protect_slice_cond_key);
+ DECLARE_STATIC_KEY_FALSE(sched_burst_protect_slice_prefer_key);
+ 
++static inline u8 bore_score(struct task_struct *p)
++{ return p->bore.penalty >> 8; }
++
+ extern u8   effective_prio_bore(struct task_struct *p);
+ extern void update_curr_bore(struct task_struct *p, u64 delta_exec);
+ extern void restart_burst_bore(struct task_struct *p);
+diff --git a/kernel/sched/bore.c b/kernel/sched/bore.c
+--- a/kernel/sched/bore.c
++++ b/kernel/sched/bore.c
+@@ -80,6 +80,6 @@ u8 effective_prio_bore(struct task_struct *p) {
+ 	int prio = p->static_prio - MAX_RT_PRIO;
+ 	if (static_branch_likely(&sched_bore_key))
+-		prio += p->bore.score;
++		prio += bore_score(p);
+ 	prio &= ~(prio >> 31);
+ 	s32 diff = prio - maxval_prio;
+ 	prio -= (diff & ~(diff >> 31));
+diff --git a/kernel/sched/build_utility.c b/kernel/sched/build_utility.c
+--- a/kernel/sched/build_utility.c
++++ b/kernel/sched/build_utility.c
+@@ -54,6 +54,10 @@
+ #include "stats.h"
+ #include "autogroup.h"
+ 
++#ifdef CONFIG_SCHED_BORE
++#include <linux/sched/bore.h>
++#endif /* CONFIG_SCHED_BORE */
++
+ #include "clock.c"
+ 
+ #ifdef CONFIG_CGROUP_CPUACCT
+diff --git a/kernel/sched/debug.c b/kernel/sched/debug.c
+--- a/kernel/sched/debug.c
++++ b/kernel/sched/debug.c
+@@ -824,7 +824,7 @@ print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
+ 		SPLIT_NS(schedstat_val_or_zero(p->stats.sum_block_runtime)));
+ 
+ #ifdef CONFIG_SCHED_BORE
+-	SEQ_printf(m, " %2d", p->bore.score);
++	SEQ_printf(m, " %2d", bore_score(p));
+ #endif /* CONFIG_SCHED_BORE */
+ #ifdef CONFIG_NUMA_BALANCING
+ 	SEQ_printf(m, "   %d      %d", task_node(p), task_numa_group_id(p));
+@@ -1310,7 +1310,7 @@ void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
+ 
+ 	P(se.load.weight);
+ #ifdef CONFIG_SCHED_BORE
+-	P(bore.score);
++	__PS("bore.score", bore_score(p));
+ #endif /* CONFIG_SCHED_BORE */
+ #ifdef CONFIG_SMP
+ 	P(se.avg.load_sum);
+--
+2.50.1

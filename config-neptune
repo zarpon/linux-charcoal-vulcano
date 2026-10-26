@@ -141,7 +141,7 @@ CONFIG_DRM_PANIC=n
 # Enable Valve LEDs driver
 CONFIG_LEDS_VALVE=m
 
-# Enable realtek dongle for Steam Frame
+# Enable Realtek USB dongles used by Steam Frame and handheld variants
 CONFIG_RTW89_8852CU=m
 CONFIG_RTW89_8922AU=m
 CONFIG_RTW89_8852AU=m

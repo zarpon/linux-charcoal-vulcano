@@ -249,80 +249,6 @@ def apply_adaptive_port(
     name: str,
     adapter: str,
 ) -> None:
-    if adapter == "nap-direct-apply-6.18":
-        if name != "nap":
-            raise ApplyError("NAP 6.18 adapter cannot apply another component")
-        # The newest exact upstream bytes remain checksum-locked. Carry every
-        # upstream hunk unchanged except the one-line governor Makefile hook,
-        # whose surrounding EOF context differs in Valve 6.18.
-        data = patch.read_text(encoding="utf-8")
-        section_pattern = re.compile(
-            r"(?ms)^diff --git a/drivers/cpuidle/governors/Makefile "
-            r"b/drivers/cpuidle/governors/Makefile\n"
-            r".*?(?=^diff --git |\Z)"
-        )
-        sections = section_pattern.findall(data)
-        if len(sections) != 1:
-            raise ApplyError("nap: expected exactly one governors/Makefile upstream hunk")
-        section = sections[0]
-        added = [
-            line
-            for line in section.splitlines()
-            if line.startswith("+") and not line.startswith("+++")
-        ]
-        removed = [
-            line
-            for line in section.splitlines()
-            if line.startswith("-") and not line.startswith("---")
-        ]
-        if added != ["+obj-$(CONFIG_CPU_IDLE_GOV_NAP) += nap/"] or removed:
-            raise ApplyError("nap: governors/Makefile upstream hunk changed shape")
-
-        with tempfile.TemporaryDirectory(prefix="charcoal-nap-") as directory:
-            filtered = Path(directory) / "nap-without-makefile.patch"
-            filtered.write_text(section_pattern.sub("", data, count=1), encoding="utf-8")
-            applied, details = apply_checked(tree, filtered)
-        if not applied:
-            raise ApplyError(
-                "nap: newest upstream patch excluding the reviewed Makefile "
-                f"context cannot be applied: {details}"
-            )
-
-        makefile = tree / "drivers/cpuidle/governors/Makefile"
-        makefile_text = makefile.read_text(encoding="utf-8")
-        anchor = "obj-$(CONFIG_CPU_IDLE_GOV_HALTPOLL) += haltpoll.o\n"
-        addition = "obj-$(CONFIG_CPU_IDLE_GOV_NAP) += nap/\n"
-        if makefile_text.count(addition) == 0 and makefile_text.count(anchor) == 1:
-            makefile.write_text(
-                makefile_text.replace(anchor, anchor + addition, 1),
-                encoding="utf-8",
-            )
-        elif makefile_text.count(addition) != 1:
-            raise ApplyError("nap: expected one HALTPOLL anchor and zero or one NAP entries")
-
-        source = tree / "drivers/cpuidle/governors/nap/nap.c"
-        adapter_script = root / "automation/fix-nap-compat.py"
-        command = [sys.executable, str(adapter_script), str(source)]
-        for attempt in range(2):
-            result = subprocess.run(command, check=False, text=True, capture_output=True)
-            if result.returncode:
-                raise ApplyError(
-                    f"nap: compatibility pass {attempt + 1} failed: "
-                    f"{result.stderr.strip() or result.stdout.strip()}"
-                )
-        checked = subprocess.run(
-            ["git", "diff", "--check", "--", str(makefile), str(source)],
-            cwd=tree,
-            check=False,
-            text=True,
-            capture_output=True,
-        )
-        if checked.returncode:
-            raise ApplyError(
-                "nap: adaptive port introduced whitespace errors: "
-                f"{checked.stderr.strip() or checked.stdout.strip()}"
-            )
-        return
     if adapter != "poc-selector-valve":
         raise ApplyError(f"{name}: unsupported adaptive port adapter {adapter!r}")
     adapter_script = root / "automation/port-poc-selector.py"
@@ -345,57 +271,6 @@ def apply_adaptive_port(
         if not applied:
             raise ApplyError(f"{name}: adapted patch does not apply: {details}")
 
-
-
-BORE_700_61848_SHA256 = "529ac503052e2ea09d9c54cbf536ffaac842ba436ff368c4a595585f46e7b709"
-
-
-def normalize_bore_700_native_whitespace(tree: Path, record: dict[str, Any]) -> bool:
-    """Remove whitespace-only defects from the exact locked BORE 7.0.0 patch.
-
-    The upstream 6.18.48 patch is still the selected and checksum-verified
-    source. This only normalizes three blank help lines and the indentation of
-    the displayed equation after that exact patch has been applied.
-    """
-    if (
-        record.get("project_version") != "7.0.0"
-        or record.get("sha256") != BORE_700_61848_SHA256
-    ):
-        return False
-
-    path = tree / "kernel/Kconfig.hz"
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ApplyError(f"bore: unable to read {path}: {exc}") from exc
-
-    marker = "config MIN_BASE_SLICE_NS\n"
-    if text.count(marker) != 1:
-        raise ApplyError("bore: expected exactly one MIN_BASE_SLICE_NS block")
-
-    prefix, block = text.split(marker, 1)
-    bad_blank = "\t \n"
-    bad_equation = (
-        "\t \t1000000000/HZ * "
-        "DIV_ROUNDUP(min_base_slice_ns, 1000000000/HZ)\n"
-    )
-    if block.count(bad_blank) != 3:
-        raise ApplyError(
-            "bore: locked 7.0.0 whitespace shape changed "
-            f"(blank lines={block.count(bad_blank)}, expected 3)"
-        )
-    if block.count(bad_equation) != 1:
-        raise ApplyError("bore: locked 7.0.0 equation indentation changed")
-
-    block = block.replace(bad_blank, "\n")
-    block = block.replace(
-        bad_equation,
-        "\t\t1000000000/HZ * "
-        "DIV_ROUNDUP(min_base_slice_ns, 1000000000/HZ)\n",
-        1,
-    )
-    path.write_text(prefix + marker + block, encoding="utf-8")
-    return True
 
 def resolve_record(
     root: Path, target: str
@@ -450,8 +325,6 @@ def apply_component(root: Path, tree: Path, patch: Path, target: str) -> str:
 
     applied, details = apply_checked(tree, patch)
     if applied:
-        if name == "bore":
-            normalize_bore_700_native_whitespace(tree, record)
         return "upstream-native" if origin == "upstream-native" else "upstream"
 
     if name == "bt_ssp" and bt_ssp_semantics_present(tree):

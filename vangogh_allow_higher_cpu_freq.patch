@@ -1,7 +1,7 @@
 diff --git a/drivers/gpu/drm/amd/pm/swsmu/smu11/vangogh_ppt.c b/drivers/gpu/drm/amd/pm/swsmu/smu11/vangogh_ppt.c
 --- a/drivers/gpu/drm/amd/pm/swsmu/smu11/vangogh_ppt.c
 +++ b/drivers/gpu/drm/amd/pm/swsmu/smu11/vangogh_ppt.c
-@@ -2228,7 +2228,7 @@ static int vangogh_set_fine_grain_gfx_freq_parameters(struct smu_context *smu)
+@@ -2234,7 +2234,7 @@ static int vangogh_set_fine_grain_gfx_freq_parameters(struct smu_context *smu)
  		smu->gfx_actual_soft_max_freq = smu->gfx_default_soft_max_freq;
  
  	smu->cpu_default_soft_min_freq = 1400;

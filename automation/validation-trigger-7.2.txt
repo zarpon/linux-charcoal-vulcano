@@ -1,0 +1,1 @@
+Validate dynamic SteamOS 7.2 source and newest-patch policy after removing 6.18-only tests.

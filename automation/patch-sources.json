@@ -2,10 +2,9 @@
   "schema": 4,
   "kernel_source": {
     "repository": "evlaV/linux-integration",
-    "series": "6.18",
-    "tag_regex": "^(?P<version>6\\.18\\.\\d+)-valve(?P<valve>[0-9.]+)$",
-    "official_source_index": "https://steamdeck-packages.steamos.cloud/archlinux-mirror/sources/jupiter-main/",
-    "official_package_regex": "^linux-neptune-618-(?P<version>6\\.18\\.\\d+)\\.valve(?P<valve>[0-9.]+)-(?P<pkgrel>\\d+)\\.src\\.tar\\.gz$"
+    "series": "7.2",
+    "tag_regex": "^(?P<version>7\\.2\\.\\d+)-valve(?P<valve>[0-9.]+)$",
+    "allow_prerelease": false
   },
   "components": [
     {
@@ -14,10 +13,12 @@
       "repository": "firelzrd/lru_marie",
       "ref": "main",
       "target": "latest-lru_marie.patch",
-      "source_regex": "6\\.\\d+(?:\\.\\d+)?-lru_marie-[^\\s]+\\.patch",
+      "source_regex": "(?:latest-lru_marie\\.patch|6\\.\\d+(?:\\.\\d+)?-lru_marie-[^\\s]+\\.patch)",
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?\\.patch$",
-      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$"
+      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?",
+      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$",
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true
     },
     {
       "name": "zram_ir",
@@ -25,15 +26,15 @@
       "repository": "firelzrd/zram-ir",
       "ref": "main",
       "target": "latest-zram-ir.patch",
-      "source_regex": "0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch",
-      "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:\\.y)?-zram-ir-[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?\\.patch$",
-      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
+      "source_regex": "(?:latest-zram-ir\\.patch|0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch)",
+      "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-linux\\d+\\.\\d+(?:\\.\\d+)?(?:-rc[0-9]+)?(?:\\.y)?-zram-ir-[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?\\.patch$",
+      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?(?:\\.y)?",
       "project_version_regex": "(?i)zram-ir-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
-      "port_for_kernel": "6.18",
+      "port_for_kernel": "7.2",
       "port_when_incompatible": true,
-      "local_port": "6.18.45-zram-ir-1.2.port.patch",
-      "local_port_project_version": "1.2",
-      "local_port_upstream_sha256": "8e144b9df99de5e2556494d9d357c28cf1f5d6afeb0d2517bb696997c512e747"
+      "local_port": "0001-linux7.2-zram-ir-1.2.patch",
+      "local_port_project_version": "1.3",
+      "local_port_upstream_sha256": "1620f45f0fbab1173c8693a2afc0ada37920c78fdde2d0cbff6afe28545128f4"
     },
     {
       "name": "adios",
@@ -41,11 +42,14 @@
       "repository": "firelzrd/adios",
       "ref": "main",
       "target": "latest-adios.patch",
-      "source_regex": "6\\.\\d+(?:\\.\\d+)?-ADIOS-[^\\s]+\\.patch",
+      "source_regex": "(?:latest-adios\\.patch|6\\.\\d+(?:\\.\\d+)?-ADIOS-[^\\s]+\\.patch)",
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-ADIOS-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?\\.patch$",
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)ADIOS-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$",
-      "exclude_regex": "(?i)default"
+      "exclude_regex": "(?i)default",
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "adaptive_port": "adios-pkgbuild-7.2"
     },
     {
       "name": "bore",
@@ -58,10 +62,8 @@
       "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)bore-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
       "always_latest": true,
-      "port_for_kernel": "6.18",
-      "local_port": "6.18.45-bore-6.8.0.port.patch",
-      "local_port_upstream_sha256": "4ac714dfd1f08f8a3eb60f33755789828192c7f28594217036ba890b00a01bcd",
-      "local_port_project_version": "6.8.0"
+      "port_for_kernel": "7.2",
+      "local_port_overlays": []
     },
     {
       "name": "bore_sched_ext_coexistence",
@@ -72,9 +74,7 @@
       "source_regex": "(?:6\\.\\d+\\.\\d+-bore-sched-ext-coexistence-fix\\.patch|latest-bore-sched-ext-coexistence-fix\\.patch)",
       "filename_regex": "(?i)^patches/additions/0002-sched-ext-coexistence-fix\\.patch$",
       "always_latest": true,
-      "port_for_kernel": "6.18",
-      "local_port": "6.18.45-bore-sched-ext-coexistence-fix.port.patch",
-      "local_port_upstream_sha256": "cdf138cdb94fcb4e2988bd7d2873a51522fdb7212ec314fde202facaf8210b5c"
+      "port_for_kernel": "7.2"
     },
     {
       "name": "poc_selector",
@@ -82,11 +82,11 @@
       "repository": "firelzrd/poc-selector",
       "ref": "main",
       "target": "latest-poc-selector.patch",
-      "source_regex": "6\\.\\d+(?:\\.\\d+)?-poc-selector-[^\\s]+\\.patch",
+      "source_regex": "(?:latest-poc-selector\\.patch|6\\.\\d+(?:\\.\\d+)?-poc-selector-[^\\s]+\\.patch)",
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-\\d+\\.\\d+(?:\\.\\d+)?(?:-[0-9A-Za-z.]+)?-poc-selector-[0-9A-Za-z._-]+\\.patch$",
       "kernel_version_regex": "(?i)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
       "project_version_regex": "(?i)poc-selector-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
-      "port_for_kernel": "6.18",
+      "port_for_kernel": "7.2",
       "port_when_incompatible": true,
       "adaptive_port": "poc-selector-valve"
     },
@@ -96,10 +96,13 @@
       "repository": "firelzrd/nap",
       "ref": "main",
       "target": "latest-nap.patch",
-      "source_regex": "6\\.\\d+(?:\\.\\d+)?-nap-v?[^\\s]+\\.patch",
+      "source_regex": "(?:latest-nap\\.patch|6\\.\\d+(?:\\.\\d+)?-nap-v?[^\\s]+\\.patch)",
       "filename_regex": "(?i)^patches/(?:stable|testing)/0001-\\d+\\.\\d+(?:\\.\\d+)?(?:-[0-9A-Za-z.]+)?-nap-v?[0-9A-Za-z._-]+\\.patch$",
       "kernel_version_regex": "(?i)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)nap-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$"
+      "project_version_regex": "(?i)nap-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:(?:-rc|r)[0-9]+)?)\\.patch$",
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "adaptive_port": "nap-direct-apply-7.2"
     }
   ],
   "auxiliary_components": [
@@ -110,11 +113,9 @@
       "path": "20260728073150.54964-2-void@manifault.com",
       "commit": "20260728073150.54964-2-void@manifault.com",
       "target": "latest-amd-pstate-epp-boost-01-kernel-doc.patch",
-      "source_regex": "6\\\\.18\\\\.53-amd-pstate-epp-boost-01-kernel-doc\\\\.port\\\\.patch",
+      "source_regex": "(?:latest-amd-pstate-epp-boost-01-kernel-doc\\.patch|6\\.16\\.12-amd-pstate-epp-boost-01-kernel-doc\\.port\\.patch)",
       "mailbox": true,
-      "local_port": "6.18.53-amd-pstate-epp-boost-01-kernel-doc.port.patch",
       "port_for_kernel": "6.18",
-      "local_port_upstream_sha256": "74f02a5cd603afe2b714a7cccff92a715b25a643af51f3d66c959a0724e78bae",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-2-void%40manifault.com/raw",
         "https://patchew.org/linux/20260728073150.54964-2-void%40manifault.com/mbox"
@@ -127,11 +128,9 @@
       "path": "20260728073150.54964-3-void@manifault.com",
       "commit": "20260728073150.54964-3-void@manifault.com",
       "target": "latest-amd-pstate-epp-boost-02-cache-order.patch",
-      "source_regex": "6\\\\.18\\\\.53-amd-pstate-epp-boost-02-cache-order\\\\.port\\\\.patch",
+      "source_regex": "(?:latest-amd-pstate-epp-boost-02-cache-order\\.patch|6\\.16\\.12-amd-pstate-epp-boost-02-cache-order\\.port\\.patch)",
       "mailbox": true,
-      "local_port": "6.18.53-amd-pstate-epp-boost-02-cache-order.port.patch",
       "port_for_kernel": "6.18",
-      "local_port_upstream_sha256": "9b5caecdd70729103f04f6ec5b3e1aa8a05d91bbf79b97ad050c10c8dbb5fbe1",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-3-void%40manifault.com/raw",
         "https://patchew.org/linux/20260728073150.54964-3-void%40manifault.com/mbox"
@@ -144,11 +143,9 @@
       "path": "20260728073150.54964-4-void@manifault.com",
       "commit": "20260728073150.54964-4-void@manifault.com",
       "target": "latest-amd-pstate-epp-boost-03-core.patch",
-      "source_regex": "6\\\\.18\\\\.53-amd-pstate-epp-boost-03-core\\\\.port\\\\.patch",
+      "source_regex": "(?:latest-amd-pstate-epp-boost-03-core\\.patch|6\\.16\\.12-amd-pstate-epp-boost-03-core\\.port\\.patch)",
       "mailbox": true,
-      "local_port": "6.18.53-amd-pstate-epp-boost-03-core.port.patch",
       "port_for_kernel": "6.18",
-      "local_port_upstream_sha256": "991cd0df7c2fabcef05e2009eb833b6087a6a3f5d1b11fc9d1f027192e131162",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-4-void%40manifault.com/raw",
         "https://patchew.org/linux/20260728073150.54964-4-void%40manifault.com/mbox"
@@ -161,11 +158,9 @@
       "path": "20260728073150.54964-5-void@manifault.com",
       "commit": "20260728073150.54964-5-void@manifault.com",
       "target": "latest-amd-pstate-epp-boost-04-docs.patch",
-      "source_regex": "6\\\\.18\\\\.53-amd-pstate-epp-boost-04-docs\\\\.port\\\\.patch",
+      "source_regex": "(?:latest-amd-pstate-epp-boost-04-docs\\.patch|6\\.16\\.12-amd-pstate-epp-boost-04-docs\\.port\\.patch)",
       "mailbox": true,
-      "local_port": "6.18.53-amd-pstate-epp-boost-04-docs.port.patch",
       "port_for_kernel": "6.18",
-      "local_port_upstream_sha256": "6ff36ba97524ce21a8b8a9e127f37c8fe1016f6a2b10ca439d2705539630d096",
       "urls": [
         "https://lore.kernel.org/linux-pm/20260728073150.54964-5-void%40manifault.com/raw",
         "https://patchew.org/linux/20260728073150.54964-5-void%40manifault.com/mbox"
@@ -211,11 +206,9 @@
       "filename_regex": "^more-ISA-levels-and-uarches-for-kernel-\\d+\\.\\d+\\+?\\.patch$",
       "kernel_version_regex": "kernel-(?P<kernel>\\d+\\.\\d+)",
       "project_version_regex": "kernel-(?P<version>\\d+\\.\\d+)",
-      "port_for_kernel": "6.18",
+      "port_for_kernel": "7.2",
       "port_when_incompatible": true,
-      "local_port": "6.18.45-cpu-optimizations.port.patch",
-      "local_port_project_version": "6.16",
-      "local_port_upstream_sha256": "ed36bcab65f959200c91991e3337fd716883ef0915fbec65d6252f09fd72c666"
+      "adaptive_port": "cpu-optimizations-6.16plus-to-valve-7.2"
     },
     {
       "name": "dkms_clang",
@@ -235,7 +228,11 @@
       "target": "latest-clang-polly.patch",
       "source_regex": "https://raw\\.githubusercontent\\.com/CachyOS/kernel-patches/(?:refs/heads/master|[0-9a-f]{40})/[^/]+/misc/0001-clang-polly\\.patch",
       "filename_regex": "^\\d+\\.\\d+/misc/0001-clang-polly\\.patch$",
-      "kernel_version_regex": "^(?P<kernel>\\d+\\.\\d+)/"
+      "kernel_version_regex": "^(?P<kernel>\\d+\\.\\d+)/",
+      "port_for_kernel": "7.2",
+      "port_when_incompatible": true,
+      "local_port": "7.2-clang-polly-from-cachyos-7.1.patch",
+      "local_port_upstream_sha256": "71e5926efc30833a6fd756b9358529ac695fa688ae71cd74e31dd274ae1ecf05"
     },
     {
       "name": "firmware_name",
@@ -243,8 +240,12 @@
       "target": "latest-firmware-name.patch",
       "source_regex": "0001-always-print-firmware-file-name\\.patch::https://732852\\.bugs\\.gentoo\\.org/attachment\\.cgi\\?id=649432",
       "urls": [
+        "https://gitweb.gentoo.org/proj/linux-patches.git/plain/3000_Support-printing-firmware-info.patch?id=369383f08d147fd98553defeff5423912d34e177",
         "https://732852.bugs.gentoo.org/attachment.cgi?id=649432"
-      ]
+      ],
+      "repository": "gentoo/linux-patches",
+      "path": "3000_Support-printing-firmware-info.patch",
+      "commit": "369383f08d147fd98553defeff5423912d34e177"
     },
     {
       "name": "minstrel_frac",

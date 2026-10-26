@@ -2,11 +2,9 @@
 # Maintainer: John Schoenick <johns@valvesoftware.com>
 # Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
 
-pkgbase=linux-charcoal-618
-_nepbase=linux-neptune-618
-# The resolver refreshes this seed from Valve's official 6.18 source index
-# before every build; keep a current, buildable tag for local inspection.
-_tag=6.18.45-valve1
+pkgbase=linux-charcoal-72
+_nepbase=linux-neptune-72
+_tag=7.2.7-valve2
 _ver=1
 pkgver=${_tag//-/.}.cc$_ver
 pkgrel=1
@@ -64,7 +62,7 @@ _make_llvm() {
 _srcname=archlinux-linux-charcoal
 # Refreshed before every CI build; for local builds run:
 # python3 automation/resolve-controller-drivers.py --write
-_xpadneo_version=0.10.4
+_xpadneo_version=0.10.5
 source=(
   "$_srcname::git+https://github.com/evlaV/linux-integration.git#tag=$_tag"
   config          # Upstream Arch Linux kernel configuration file, DO NOT EDIT!!!
@@ -105,25 +103,25 @@ source=(
   latest-minstrel-fluctuation.patch
   latest-minstrel-downgrade.patch
   latest-ath11k-remapped-ce.patch
-  latest-adios.patch
-  latest-adios-default.patch
   latest-bore.patch
   latest-bore-sched-ext-coexistence-fix.patch
+   latest-poc-selector.patch
+  latest-adios.patch
+  latest-adios-default.patch
   latest-zen-01.patch
   latest-zen-02.patch
   "git+https://github.com/amkillam/ryzen_smu.git#commit=9f9569f889935f7c7294cc32c1467e5a4081701a"
   "git+https://github.com/dlundqvist/xone.git#commit=f2aa9fe01103d7600553b505b298ff0bd47ff280"
   "git+https://github.com/forkymcforkface/xpad-noone.git#commit=a52e32cf182435d608e66bef9a6c89ebac891999"
-  "git+https://github.com/atar-axis/xpadneo.git#commit=4d1a8e1fd12dec838e774629826732f744310e98"
-   latest-poc-selector.patch
+  "git+https://github.com/atar-axis/xpadneo.git#commit=e8f103a77f777c2c54536dd947969cf228699c13"
   latest-nap.patch
   iommu-perfopt-consolidado-v3.patch
 )
 sha256sums=(
   'SKIP'
-  'e765199f6fbafbe57d013d40e0d2918cbab30fb2a090e01eb7821a515b6b1b8a'
-  'b91c3ed65067704c8fdb8289d44ed18aa62f98f52c3b6d91fb72bc5b1606ae79'
-  '652ff26174991f11a2ca8bab1fadd432a8673af1ca16f97837b5e819efe17e50'
+  'ecd8c76eb203493e67ba4052e7bc1fa46f51c91566f102172e7a18d7de2dd5eb'
+  'c9482d23e18ab37911847918eadfbc022c606f8eddab07acd43ef4d4f339037f'
+  '59a12e3c7d7511cd27a5e5fd9f46e97d62d16be4e6762cd1d15d25a8f4de47f5'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
   '0ca1dd4b6dead2d5cfd40bab0917fec763693c9bebec9ebf33d8b48f90ba0a1b'
   'ae521b7acee1c4fcd46cc7fb2d514782a3b74b475115ca4f5c59c804f3f0c3f6'
@@ -134,43 +132,43 @@ sha256sums=(
   'e5c51e656e4425721f8d491318328f0e3127fd982cd0fa4efded59bee80a6a35'
   '4ac7cdcd2efdcd5fda021eefa670166832bbb493ea7b33f6e66eca1a67cb4e31'
   '8e4738f3aaa22832b3e45dca7b226460702e88bcdcd026ea5d5062e5aa0444de'
-  '9452bc78ee4f7c4136225d476590190e745b1350f205455383ca83a8003ce438'
+  '58c97868ab414a9600e59a5c170dc44803b49fe07a10f7a4497076ae7ca6ffac'
   'b59543c9aac43412e8b90b050380f482214ab33c4703d621ff0ea91ea39c6761'
   '07068c432fd7e80689f44a28346f1909de9ee77aa3e72dfaa6a4ea89d9921afd'
   '1f7df01db0bcd7c18230878003466ac3f651f8f21e74323b7e8178871d824f74'
-  '0aafc11fe271f1c791d19ea77287f9a1f84d4f4ef0423b455dd03f13797889c1'
+  '1a6f9d691612c4a729032273199d17756dd6666d85019655bd95ea24eff59cac'
   '1c49146dc5878bfab32b331d11cb66d493670bbe590ff07c2050305911c281c3'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  '4bcf61814a6daac8f72c46a425b9ce88c07f6bd95f6a0ac287d73dfd4d5da60b'
+  '383b8cea61ef133ec2dfeb9fd1b4f1f8e55b2649cd41e1aee9d71fd8aaaaf4ea'
+  '3371e21a20c5e2a0c619984e8722b6b420f0664cacfdf65de51295176fed7ff2'
+  '74f02a5cd603afe2b714a7cccff92a715b25a643af51f3d66c959a0724e78bae'
+  '9b5caecdd70729103f04f6ec5b3e1aa8a05d91bbf79b97ad050c10c8dbb5fbe1'
+  '991cd0df7c2fabcef05e2009eb833b6087a6a3f5d1b11fc9d1f027192e131162'
+  '6ff36ba97524ce21a8b8a9e127f37c8fe1016f6a2b10ca439d2705539630d096'
+  '51ad35f817863e2222e74a093b5d10be77089d4a6e8749b2f44839f380ec0c7f'
   'ff3bbe78d6f072d57f567878e870956242ee78ccddd258b1ec2e4729621138fe'
+  '2c9843a51e8dd4b41f7620dcc4bf3677c7867d922073202c095324fb1443cfa5'
+  '492aafbd940b18b817e4b7957805b9874f488cc1463fee588dd8dacd18c86677'
+  'f573edc1cb722c34b18a62db5d04c7488d6250807e694a691382b487c48d4445'
+  'f2b896c609c672c68c47639028b1d51a2beab2c84256c0c37807142857b62763'
+  '6f45ef083841792e88fbadbfefb0630abd738a131f9782333fbc61f8b6712b4b'
+  'ecb48f8b4a122180e815beff3f64fd3077fb8bfb57ff2c554c1e8e31388eb8e9'
+  'd787273bd3d00279c38127e3f4928d1685dea070f2152e75f08754e63ef1ba0f'
+  'bf2186776d96122136019b7b11aea1f0f46914bf107aa83c949e654290f7eed3'
+  '78da5c2c011b2679f1309366c3964a919607db5fa1b76a3e426c5af67eded5a1'
+  '4929f7a8033f34715c2a19b606c45d0d711e7328452ed1b31a5bf52a0c1a7232'
+  '6a2290d4edd8852c43dbb0ebc5c6c95bdaa92dd5ca4dcd22ccbe4cd9d3d07819'
+  '948aa495364332596d9f00fba1f90b2da04676a37faaeab9ef2390c44c7fbd83'
+  'cdf138cdb94fcb4e2988bd7d2873a51522fdb7212ec314fde202facaf8210b5c'
+  'a2bab701202fc4d5459e46f3b5136dca3ac8902d5f534c6d57435d811b273e80'
+  '4f186fa06bfb0e0e08320cb53a38afebe6d9eaa5c820396015c59f993bf8e1b6'
+  '5ef2f14326a5fab8980d1ebb6734ece576f930c173b4980eb026513aa3b1b9d0'
+  'bc647f73ec860a0fe7d074c2377588816a616dc2a651b30d7b9cd168863a17c6'
+  '5059762e54c8dbe4262d48eafb8d486a54244eec71da5d7b61fc0f5f1c5c2ea7'
   'SKIP'
   'SKIP'
   'SKIP'
   'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
-  'SKIP'
+  '4d4ac50ba014de33638a2efe9c6adc507b888c6d090aa29ea17b2a4686de4e07'
   '52ee747b6888f6e59df2cc6a4b6d6ccbc104c932bc8cb11b1ff0035cde47425a'
 )
 export KBUILD_BUILD_HOST=archlinux
@@ -188,8 +186,7 @@ _validate_kernel_config() {
     'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y' \
     'CONFIG_ZSWAP_COMPRESSOR_DEFAULT="zstd"' \
     'CONFIG_ZSMALLOC=y' \
-    'CONFIG_CRYPTO_LZ4=y' \
-    'CONFIG_CRYPTO_ZSTD=y'; do
+    'CONFIG_CRYPTO_LZ4=y'; do
     if ! grep -qxF "$expected" .config; then
       echo "ERROR: kernel configuration requires $expected after olddefconfig" >&2
       return 1
@@ -216,45 +213,40 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     echo "Applying patch $src..."
-    if [[ $src == latest-libbpf-uninitialized.patch ]]; then
-      python3 "$startdir/automation/apply-resolved-patch.py" \
-        --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
+    if [[ $src == latest-poc-selector.patch ]]; then
+      local adapted_poc="../${src%.patch}-valve-port.patch"
+      python3 "$startdir/automation/port-poc-selector.py" \
+        "../$src" "$adapted_poc" kernel/sched/sched.h kernel/sched/fair.c
+      git apply --check "$adapted_poc"
+      git apply "$adapted_poc"
+    elif [[ $src == latest-adios.patch ]]; then
+      local adapted_adios="../${src%.patch}-7.2-port.patch"
+      python3 "$startdir/automation/port-adios-7.2.py" \
+        "../$src" "$adapted_adios" block/elevator.c
+      git apply --check "$adapted_adios"
+      git apply "$adapted_adios"
+    elif [[ $src == latest-zen-02.patch ]]; then
+      python3 "$startdir/automation/port-zen-cpufreq-7.2.py" \
+        "../$src" drivers/cpufreq/Kconfig.x86
+      git diff --check -- drivers/cpufreq/Kconfig.x86
+    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then
+      patch -Np1 < "../$src"
       python3 "$startdir/automation/fix-libbpf-clang-warning.py" \
         tools/lib/bpf/elf.c
-    elif [[ $src == latest-*.patch ]]; then
-      python3 "$startdir/automation/apply-resolved-patch.py" \
-        --root "$startdir" --tree "$PWD" --patch "../$src" --target "$src"
     else
       patch -Np1 < "../$src"
     fi
   done
 
-  python3 "$startdir/automation/fix-lru-marie-whitespace.py" mm/vmscan.c
-  git diff --check -- mm/vmscan.c
-
   python3 "$startdir/automation/fix-gud-tv-mode-fortify.py" \
     drivers/gpu/drm/gud/gud_connector.c
   git diff --check -- drivers/gpu/drm/gud/gud_connector.c
 
-  python3 "$startdir/automation/fix-nap-compat.py" \
+  python3 "$startdir/automation/fix-nap-kernel-api.py" \
     drivers/cpuidle/governors/nap/nap.c
   git diff --check -- drivers/cpuidle/governors/nap/nap.c
 
   python3 "$startdir/automation/configure-zen-interactive.py" "$PWD"
-
-  # Upstream patch context can leave an extra blank EOF line in this Makefile.
-  # Normalize only terminal newlines, retaining the strict git diff --check.
-  python3 - <<'PY'
-from pathlib import Path
-path = Path("block/Makefile")
-contents = path.read_bytes()
-if not contents or b"\0" in contents or not contents.endswith(b"\n"):
-    raise SystemExit("unexpected block/Makefile formatting")
-normalized = contents.rstrip(b"\n") + b"\n"
-if contents != normalized:
-    path.write_bytes(normalized)
-PY
-  git diff --check -- block/Makefile
 
   echo "Setting config..."
   cp ../config .config

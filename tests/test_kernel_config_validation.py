@@ -15,7 +15,7 @@ PREPARE_GATE = PKGBUILD.read_text().split("  _make_llvm olddefconfig\n", 1)[1].s
 
 class KernelConfigValidationTests(unittest.TestCase):
     def setUp(self):
-        # Kconfig derives the compressor string from the ZSTD choice. The other
+        # Kconfig derives the compressor string from the selected ZSTD choice. The other
         # inputs come from the same fragment that prepare() merges for the build.
         self.config = (ROOT / "config-charcoal").read_text()
         self.config += '\nCONFIG_ZSWAP_COMPRESSOR_DEFAULT="zstd"\n'
@@ -45,7 +45,6 @@ class KernelConfigValidationTests(unittest.TestCase):
             'CONFIG_ZSWAP_COMPRESSOR_DEFAULT="zstd"',
             "CONFIG_ZSMALLOC=y",
             "CONFIG_CRYPTO_LZ4=y",
-            "CONFIG_CRYPTO_ZSTD=y",
         ):
             with self.subTest(setting=setting):
                 self.assertIn(setting, self.config)

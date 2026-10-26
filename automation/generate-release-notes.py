@@ -65,18 +65,20 @@ def format_components(components: dict) -> list[str]:
 def render(mode: str, lock: dict, package_version: str, kernel_tag: str, zip_name: str, release_tag: str, sha: str, run_id: str) -> str:
     if mode not in {"stable", "preview"}:
         raise ValueError("unsupported release mode")
-    series = "6.18" if mode == "stable" else "7.2"
     kernel = lock["kernel"]
+    series = '.'.join(str(kernel.get('version', '')).split('.')[:2])
+    if not re.fullmatch(r'\d+\.\d+', series) or tuple(map(int, series.split('.'))) < (7, 2):
+        raise ValueError(f"unsupported stable kernel series: {series}")
     if not str(kernel.get("version", "")).startswith(series + "."):
         raise ValueError(f"wrong kernel series for {mode} release: {kernel}")
     if kernel.get("tag") != kernel_tag:
         raise ValueError("kernel tag disagrees with the validated patch lock")
     if mode == "preview" and not release_tag.startswith("charcoal-7.2-preview-"):
         raise ValueError("preview tag has invalid prefix")
-    if mode == "stable" and not release_tag.startswith("charcoal-6.18."):
+    if mode == "stable" and not release_tag.startswith(f"charcoal-{kernel['version']}."):
         raise ValueError("stable tag has invalid prefix")
     lines = [
-        f"# Charcoal SteamOS {series}{' Preview' if mode == 'preview' else ' Stable'} — {safe(package_version)}",
+        f"# Charcoal — SteamOS {'Preview' if mode == 'preview' else 'Stable'} / Linux {series} — {safe(package_version)}",
         "",
         "## Kernel e publicação",
         f"- **Kernel Valve (fonte):** `{safe(kernel_tag)}` — Linux `{safe(kernel['version'])}`.",

@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""Normalize the stable SteamOS 7.2 PKGBUILD and its tracked port adapters."""
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+BOOTSTRAP_TAG = "7.2.7-valve2"
+PATCH_ORDER = [
+    "latest-bore.patch",
+    "latest-bore-sched-ext-coexistence-fix.patch",
+    "latest-poc-selector.patch",
+    "latest-adios.patch",
+    "latest-adios-default.patch",
+]
+
+
+class TransformError(RuntimeError):
+    pass
+
+
+def replace_assignment(text: str, name: str, value: str) -> str:
+    updated, count = re.subn(
+        rf"(?m)^{re.escape(name)}=.*$", f"{name}={value}", text, count=1
+    )
+    if count != 1:
+        raise TransformError(f"assignment not found: {name}")
+    return updated
+
+
+def array_bounds(text: str, name: str) -> tuple[int, int]:
+    start_match = re.search(rf"(?m)^{re.escape(name)}=\(\s*$", text)
+    if not start_match:
+        raise TransformError(f"array not found: {name}")
+    end_match = re.search(r"(?m)^\)\s*$", text[start_match.end() :])
+    if not end_match:
+        raise TransformError(f"unterminated array: {name}")
+    return start_match.start(), start_match.end() + end_match.end()
+
+
+def normalized(line: str) -> str:
+    value = line.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        value = value[1:-1]
+    return value
+
+
+def reorder_patches(text: str) -> str:
+    start, end = array_bounds(text, "source")
+    block = text[start:end]
+    lines = block.splitlines(keepends=True)
+    found: dict[str, str] = {}
+    retained: list[str] = []
+    for line in lines:
+        value = normalized(line)
+        if value in PATCH_ORDER:
+            if value in found:
+                raise TransformError(f"duplicate patch source: {value}")
+            found[value] = line
+        else:
+            retained.append(line)
+    missing = [name for name in PATCH_ORDER if name not in found]
+    if missing:
+        raise TransformError(f"missing patch sources: {', '.join(missing)}")
+
+    # Insert the mandatory scheduler stack immediately before the first Zen
+    # patch. This preserves all unrelated source ordering.
+    insert_at = next(
+        (
+            index
+            for index, line in enumerate(retained)
+            if normalized(line) == "latest-zen-01.patch"
+        ),
+        len(retained) - 1,
+    )
+    ordered = [found[name] for name in PATCH_ORDER]
+    retained[insert_at:insert_at] = ordered
+    return text[:start] + "".join(retained) + text[end:]
+
+
+def wire_adios_72_port(text: str) -> str:
+    """Use the explicit latest-upstream ADIOS elevator port only in the 7.2 build.
+
+    The production PKGBUILD has a full if/elif patch dispatcher, while unit-test
+    fixtures intentionally use a compact one-line POC branch. Support both
+    shapes without weakening validation of the production path.
+    """
+    if "port-adios-7.2.py" in text:
+        return text
+
+    production_anchor = (
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    production_branch = (
+        '    elif [[ $src == latest-adios.patch ]]; then\n'
+        '      local adapted_adios="../${src%.patch}-7.2-port.patch"\n'
+        '      python3 "$startdir/automation/port-adios-7.2.py" \\\n'
+        '        "../$src" "$adapted_adios" block/elevator.c\n'
+        '      git apply --check "$adapted_adios"\n'
+        '      git apply "$adapted_adios"\n'
+    )
+    if text.count(production_anchor) == 1:
+        return text.replace(
+            production_anchor, production_branch + production_anchor, 1
+        )
+
+    compact_pattern = re.compile(
+        r"(?m)^(?P<indent>\s*)if \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
+    )
+    match = compact_pattern.search(text)
+    if not match:
+        raise TransformError(
+            "prepare() dispatcher changed; cannot wire explicit ADIOS 7.2 port"
+        )
+
+    indent = match.group("indent")
+    compact_branch = (
+        f"\n{indent}if [[ $src == latest-adios.patch ]]; then\n"
+        f'{indent}  local adapted_adios="../${{src%.patch}}-7.2-port.patch"\n'
+        f'{indent}  python3 "$startdir/automation/port-adios-7.2.py" \\\n'
+        f'{indent}    "../$src" "$adapted_adios" block/elevator.c\n'
+        f'{indent}  git apply --check "$adapted_adios"\n'
+        f'{indent}  git apply "$adapted_adios"\n'
+        f"{indent}fi"
+    )
+    return text[: match.end()] + compact_branch + text[match.end() :]
+
+
+def wire_zen_02_72_port(text: str) -> str:
+    """Adapt the locked Zen cpufreq patch to the Valve 7.2 Kconfig layout.
+
+    Zen commit cab7ea1 removes the schedutil select from Intel/AMD P-State.
+    Valve 7.2 changed the AMD stanza enough that GNU patch rejects the second
+    hunk. Keep the upstream patch bytes locked, validate them at prepare time,
+    and apply the same two-line semantic change with an explicit adapter.
+    """
+    if "port-zen-cpufreq-7.2.py" in text:
+        return text
+
+    production_anchor = (
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    production_branch = (
+        '    elif [[ $src == latest-zen-02.patch ]]; then\n'
+        '      python3 "$startdir/automation/port-zen-cpufreq-7.2.py" \\\n'
+        '        "../$src" drivers/cpufreq/Kconfig.x86\n'
+        '      git diff --check -- drivers/cpufreq/Kconfig.x86\n'
+    )
+    if text.count(production_anchor) == 1:
+        return text.replace(
+            production_anchor, production_branch + production_anchor, 1
+        )
+
+    compact_pattern = re.compile(
+        r"(?m)^(?P<indent>\s*)if \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
+    )
+    match = compact_pattern.search(text)
+    if not match:
+        raise TransformError(
+            "prepare() dispatcher changed; cannot wire explicit Zen 7.2 cpufreq port"
+        )
+
+    indent = match.group("indent")
+    compact_branch = (
+        f"\n{indent}if [[ $src == latest-zen-02.patch ]]; then\n"
+        f'{indent}  python3 "$startdir/automation/port-zen-cpufreq-7.2.py" \\\n'
+        f'{indent}    "../$src" drivers/cpufreq/Kconfig.x86\n'
+        f'{indent}  git diff --check -- drivers/cpufreq/Kconfig.x86\n'
+        f"{indent}fi"
+    )
+    return text[: match.end()] + compact_branch + text[match.end() :]
+
+
+def wire_zen_07_72_port(text: str) -> str:
+    """Adapt the locked Zen swap readahead patch to Valve 7.2.
+
+    Valve 7.2 replaced the legacy totalram_pages() shift expression in
+    swap_setup() with PAGES_TO_MB(), which makes Zen e3afdec's mm/swap.c
+    hunk reject. Apply the same reviewed Kconfig/help and swap semantics via
+    an explicit adapter, so no fuzz-dependent patch application is required.
+    """
+    if "port-zen-swap-7.2.py" in text:
+        return text
+
+    production_anchor = (
+        '    elif [[ $src == latest-libbpf-uninitialized.patch ]]; then\n'
+    )
+    production_branch = (
+        '    elif [[ $src == latest-zen-07.patch ]]; then\n'
+        '      python3 "$startdir/automation/port-zen-swap-7.2.py" \\\n'
+        '        "../$src" mm/swap.c init/Kconfig\n'
+        '      git diff --check -- init/Kconfig mm/swap.c\n'
+    )
+    if text.count(production_anchor) == 1:
+        return text.replace(
+            production_anchor, production_branch + production_anchor, 1
+        )
+
+    compact_pattern = re.compile(
+        r"(?m)^(?P<indent>\s*)elif \[\[ \$src == "
+        r"latest-poc-selector\.patch \]\]; then :; fi\s*$"
+    )
+    match = compact_pattern.search(text)
+    if not match:
+        raise TransformError(
+            "prepare() dispatcher changed; cannot wire explicit Zen 7.2 swap port"
+        )
+
+    indent = match.group("indent")
+    compact_branch = (
+        f"\n{indent}if [[ $src == latest-zen-07.patch ]]; then\n"
+        f'{indent}  python3 "$startdir/automation/port-zen-swap-7.2.py" \\\n'
+        f'{indent}    "../$src" mm/swap.c init/Kconfig\n'
+        f'{indent}  git diff --check -- init/Kconfig mm/swap.c\n'
+        f"{indent}fi"
+    )
+    return text[: match.end()] + compact_branch + text[match.end() :]
+
+def transform(text: str) -> str:
+    text = replace_assignment(text, "pkgbase", "linux-charcoal-72")
+    text = replace_assignment(text, "_nepbase", "linux-neptune-72")
+    text = replace_assignment(text, "_tag", BOOTSTRAP_TAG)
+    text = reorder_patches(text)
+    text = wire_adios_72_port(text)
+    text = wire_zen_02_72_port(text)
+    return text
+
+
+def validate(text: str) -> None:
+    required = {
+        "pkgbase=linux-charcoal-72",
+        "_nepbase=linux-neptune-72",
+        f"_tag={BOOTSTRAP_TAG}",
+    }
+    for value in required:
+        if value not in text:
+            raise TransformError(f"missing transformed value: {value}")
+    positions = [text.index(name) for name in PATCH_ORDER]
+    if positions != sorted(positions):
+        raise TransformError("mandatory patch order is invalid")
+    if text.count("latest-poc-selector.patch") != 2:
+        raise TransformError("unexpected POC selector reference count")
+    if text.count("latest-adios.patch") != 2:
+        raise TransformError("unexpected ADIOS reference count")
+    if text.count("port-adios-7.2.py") != 1:
+        raise TransformError("explicit ADIOS 7.2 port is not wired exactly once")
+    if text.count("latest-zen-02.patch") != 2:
+        raise TransformError("unexpected Zen cpufreq reference count")
+    if text.count("port-zen-cpufreq-7.2.py") != 1:
+        raise TransformError("explicit Zen 7.2 cpufreq port is not wired exactly once")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", nargs="?", default="PKGBUILD")
+    parser.add_argument("--write", action="store_true")
+    args = parser.parse_args()
+    path = Path(args.path)
+    updated = transform(path.read_text(encoding="utf-8"))
+    validate(updated)
+    if args.write:
+        path.write_text(updated, encoding="utf-8")
+    else:
+        sys.stdout.write(updated)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, TransformError) as exc:
+        print(f"PKGBUILD 7.2 transformation error: {exc}", file=sys.stderr)
+        raise SystemExit(2)

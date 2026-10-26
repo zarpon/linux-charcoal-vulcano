@@ -1,13 +1,13 @@
-# Política de fontes de patches
+# Política de fontes e compatibilidade
 
-Cada build resolve novamente as fontes remotas antes de executar `makepkg`.
+A entrada `automation/prepare-steamos-stable.py` consulta o canal stable oficial da Valve, identifica o kernel na lista de pacotes da imagem e deriva o índice de fontes pela versão do SteamOS. SteamOS 3.9 usa `jupiter-3.9`; 3.10 usa automaticamente `jupiter-3.10`. Não escolhemos uma série só por ela aparecer em main ou no índice de fontes.
 
-- `automation/patch-sources.json` declara todos os patches remotos aplicados pelo `PKGBUILD`.
-- Fontes GitHub são lidas da ponta atual da branch oficial. Para cada componente versionado, o resolvedor começa pela release mais nova, prioriza seu patch nativo para Linux 6.18 e só considera uma porta quando não existe patch nativo aplicável.
-- O payload upstream mais novo é sempre a primeira tentativa de aplicação. Uma porta local da série 6.18 só é aceita como fallback estrito após falha dessa tentativa e deve estar vinculada à mesma versão e ao SHA-256 canônico do upstream. Antes de qualquer uso, a porta é verificada com `git apply --check` contra a árvore Valve exata selecionada; assim uma nova revisão 6.18.x não é bloqueada apenas por metadados de versão, mas uma porta que não se aplica continua bloqueando o empacotamento. O POC Selector é uma exceção controlada: o adaptador `poc-selector-valve` usa diretamente os bytes upstream atuais, registra commit/caminho/SHA-256 no lock e só aceita os hunks conhecidos de `rq::poc_idle_committed` e `select_idle_sibling()`. Ele gera um patch Valve/BORE atômico, verifica-o com `git apply --check` e só então altera a árvore; uma mudança estrutural é bloqueada antes do empacotamento.
-- Patches de commit único ou listas de discussão não possuem uma linha de versões; seus bytes atuais são baixados, validados e registrados no lock. Mensagens de listas são decodificadas de MBOX/MIME para o payload canônico do patch antes do hash e da aplicação, evitando que codificação quoted-printable ou cabeçalhos de transporte alterem o patch aplicado.
-- A série RFC de quatro patches `amd_pstate_epp_boost` aplica primeiro seus payloads `linux-pm` canônicos mais recentes e mantém quatro portas locais separadas para SteamOS 6.18 apenas como fallback. Cada porta é vinculada ao SHA-256 do payload canônico; se qualquer mensagem upstream mudar, o resolvedor falha antes do `makepkg`. A aplicação contra a árvore Valve exata é verificada em toda build.
-- `logs/patch-lock.json` registra commit, caminho, URL, origem, SHA-256 e tamanho de todas as fontes principais e auxiliares.
-- O workflow `patch-source-policy.yml` impede a inclusão de um patch remoto no `PKGBUILD` sem cobertura pelo manifesto.
+`automation/patch-sources.json` declara todas as famílias de patches. A política gerada em `logs/patch-source-overrides-stable.json` utiliza a série detectada, preservando as famílias, os portes e os hashes de origem. Os nomes históricos de alguns helpers mantêm `7.2`, sem fixar a descoberta do stable nessa versão.
 
-Patches exclusivamente locais, como os ajustes Vangogh, não possuem upstream versionado e permanecem sob controle de versão neste repositório.
+O resolvedor identifica primeiro a versão mais recente de cada projeto upstream. Prefere a variante nativa dessa versão para a série detectada. Quando precisa de um porte local, exige versão/hash upstream exatos; mudança desses bytes interrompe o build para revisão. Adaptadores validam a estrutura esperada e a preparação confere a aplicação contra a árvore real antes da compilação. Uma nova série pode exigir correção dos portes; não removemos patches para concluir um build.
+
+Fontes de commit único ou listas de discussão são registradas por seus bytes exatos. MBOX/MIME é decodificado antes do hash e aplicação. A série AMD P-State EPP boost mantém quatro componentes independentes. Fontes já incorporadas pela Valve são contabilizadas pelo resolvedor, sem duplicação funcional.
+
+`logs/patch-lock.json` registra versões, commits, caminhos, URLs, origens, SHA-256 e tamanho de componentes principais e auxiliares. `logs/steamos-stable-source.json` registra a imagem stable e a fonte exata. O build valida ambos antes de publicar a Latest.
+
+Patches locais Van Gogh e IOMMU permanecem versionados. O antigo overlay BORE 6.16 é preservado como referência de compatibilidade; não substitui a seleção do BORE upstream atual. As implementações 6.18 substituídas foram removidas da árvore corrente e continuam recuperáveis no histórico Git.
