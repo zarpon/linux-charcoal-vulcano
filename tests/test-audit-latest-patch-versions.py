@@ -46,7 +46,7 @@ class LatestReleaseNativeSeriesAuditTests(unittest.TestCase):
         }
 
     def test_latest_version_11_uses_618_variant_not_73_variant(self) -> None:
-        for name in ("nap", "lru_marie", "poc_selector", "reflex"):
+        for name in ("nap", "lru_cast", "poc_selector", "reflex"):
             with self.subTest(name=name), mock.patch.object(
                 MODULE.resolver,
                 "upstream_candidates",
@@ -104,14 +104,14 @@ class LatestReleaseNativeSeriesAuditTests(unittest.TestCase):
                 MODULE.audit_component("demo", spec, record, "6.18.53", None), [],
             )
 
-    def test_native_marie_0120_can_be_selected_over_73_only_r2_revision(self) -> None:
+    def test_old_native_cast_is_rejected_when_newer_r2_exists(self) -> None:
         native = MODULE.resolver.Candidate(
-            "patches/testing/0001-linux6.18.22-lru_marie-0.12.0.patch",
+            "patches/testing/0001-linux6.18.22-lru_cast-0.12.0.patch",
             "a" * 40, "https://example.invalid/native.patch",
             2, (6, 18, 22), "0.12.0",
         )
         foreign = MODULE.resolver.Candidate(
-            "patches/testing/0001-linux7.3-rc1-lru_marie-0.12.0r2.patch",
+            "patches/testing/0001-linux7.3-rc1-lru_cast-0.12.0r2.patch",
             "b" * 40, "https://example.invalid/foreign.patch",
             0, (7, 3), "0.12.0r2",
         )
@@ -126,12 +126,11 @@ class LatestReleaseNativeSeriesAuditTests(unittest.TestCase):
         with mock.patch.object(
             MODULE.resolver, "upstream_candidates", return_value=[foreign, native],
         ):
-            self.assertEqual(
+            self.assertTrue(
                 MODULE.audit_component(
-                    "lru_marie", {"name": "lru_marie", "repository": "firelzrd/lru_marie"},
+                    "lru_cast", {"name": "lru_cast", "repository": "firelzrd/lru_cast"},
                     record, "6.18.53", None,
                 ),
-                [],
             )
 
     def test_missing_latest_upstream_metadata_fails_closed(self) -> None:

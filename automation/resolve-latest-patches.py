@@ -543,14 +543,9 @@ def resolve_github_component(
     if not all_candidates:
         raise ResolveError(f"no official upstream patch found for {spec['name']}")
 
-    # 1. Discover newest numeric project release across stable/testing/RC/rN.
-    # 2. Within that release prefer the latest native kernel-series variant.
-    # 3. Otherwise choose latest suffix/revision and nearest porting base.
-    # A 0.12.0r2 7.3 patch must not hide an existing 0.12.0 6.18 patch;
-    # but a native 0.5.1 cannot replace a newer numeric NAP 0.6.5.
-    latest_family = latest_base_release_candidates(all_candidates)
-    native_family = native_series_candidates(latest_family)
-    candidates = latest_project_candidates(native_family or latest_family)
+    # First select the newest upstream release, including revisions rN.
+    # Prefer native kernel-series candidates only within that release.
+    candidates = latest_project_candidates(all_candidates)
     native = native_series_candidates(candidates)
     compatibility_reference = native_series_candidates(all_candidates)
     local_port = spec.get("local_port")
@@ -559,9 +554,8 @@ def resolve_github_component(
     use_adaptive_port = False
 
     if native:
-        # This is deliberately ahead of every port branch. A port is a
-        # fallback for an unavailable or non-applying 6.18 variant, never a
-        # substitute for an official native variant of the latest project release.
+        # Prefer the official native variant of the newest upstream release
+        # before trying a port of that same release.
         candidate = max(native, key=compatible_key)
         selection = "latest-native-series"
     elif not any(item.kernel_version for item in candidates):

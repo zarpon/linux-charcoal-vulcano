@@ -1,16 +1,18 @@
 {
   "schema": 1,
   "components": {
-    "lru_marie": {
-      "source_regex": "(?:latest-lru_marie\\.patch|6\\.\\d+(?:\\.\\d+)?-lru_marie-[^\\s]+\\.patch)",
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-lru_marie-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?\\.patch$",
-      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?",
-      "project_version_regex": "(?i)lru_marie-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$",
+    "lru_cast": {
+      "source_regex": "(?:latest-lru_cast\\.patch|6\\.\\d+(?:\\.\\d+)?-lru_cast-[^\\s]+\\.patch)",
+      "filename_regex": "(?i)^patches/(?:stable/|testing/)?0001-(?:linux)?\\d+\\.\\d+(?:\\.\\d+)?(?:-rc\\d+)?-lru_cast-v?[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?\\.patch$",
+      "kernel_version_regex": "(?i)(?:0001-|linux)(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)(?:-rc[0-9]+)?",
+      "project_version_regex": "(?i)lru_cast-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
       "local_port": null,
       "local_port_project_version": null,
-      "local_port_upstream_sha256": null
+      "local_port_upstream_sha256": null,
+      "adaptive_port": "lru-cast-context",
+      "latest_release_first": true
     },
     "zram_ir": {
       "source_regex": "(?:latest-zram-ir\\.patch|0001-linux[^\\s]*-zram-ir-[^\\s]+\\.patch)",

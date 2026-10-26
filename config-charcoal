@@ -22,8 +22,8 @@ CONFIG_CMDLINE_BOOL=y
 CONFIG_CMDLINE="amd_pstate.epp_boost=1"
 # CONFIG_CMDLINE_OVERRIDE is not set
 
-# Enable lru_marie 
-CONFIG_LRU_MARIE=y
+# Enable CAST page replacement by default.
+CONFIG_LRU_CAST=y
 
 # The installed gaming-swap policy uses ZSTD zswap and a /home swapfile.
 CONFIG_ZSWAP=y

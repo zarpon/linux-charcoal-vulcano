@@ -30,7 +30,7 @@ O arquivo `/etc/tmpfiles.d/zswap-disable.conf` aponta para `/dev/null`,
 neutralizando a regra SteamOS de mesmo nome que desativa zswap depois do
 serviço. Uma configuração local anterior é preservada como
 `zswap-disable.conf.gaming-swap.bak`.
-As configurações próprias do LRU Marie são preservadas. A migração ocorre
+As configurações próprias do LRU CAST são preservadas. A migração ocorre
 no sistema instalado, nunca no ambiente de compilação do pacote.
 
 As configurações persistem entre reinícios e reinstalações do kernel.

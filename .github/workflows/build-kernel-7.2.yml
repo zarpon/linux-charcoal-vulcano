@@ -141,7 +141,7 @@ jobs:
           assert lock['kernel']['version'].startswith('7.2'), lock['kernel']
           assert lock['kernel']['tag'].startswith('7.2'), lock['kernel']
           expected = {
-              'lru_marie', 'zram_ir', 'adios', 'bore',
+              'lru_cast', 'zram_ir', 'adios', 'bore',
               'bore_sched_ext_coexistence', 'poc_selector', 'nap',
           }
           assert set(lock['components']) == expected

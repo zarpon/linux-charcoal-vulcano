@@ -220,10 +220,10 @@ class LocalPortTrackingTests(unittest.TestCase):
 
         self.assertEqual(selected["fallback"]["kernel_version"], "6.18.46")
 
-    def test_lru_marie_testing_0106_prefers_the_native_618_variant(self) -> None:
+    def test_lru_cast_testing_0106_prefers_the_native_618_variant(self) -> None:
         candidates = [
             MODULE.Candidate(
-                "patches/testing/0001-linux6.16.12-lru_marie-0.10.6.patch",
+                "patches/testing/0001-linux6.16.12-lru_cast-0.10.6.patch",
                 "a" * 40,
                 "https://example.invalid/lru-6.16.patch",
                 0,
@@ -231,7 +231,7 @@ class LocalPortTrackingTests(unittest.TestCase):
                 "0.10.6",
             ),
             MODULE.Candidate(
-                "patches/testing/0001-linux6.18.22-lru_marie-0.10.6.patch",
+                "patches/testing/0001-linux6.18.22-lru_cast-0.10.6.patch",
                 "b" * 40,
                 "https://example.invalid/lru-6.18.patch",
                 2,
@@ -239,7 +239,7 @@ class LocalPortTrackingTests(unittest.TestCase):
                 "0.10.6",
             ),
             MODULE.Candidate(
-                "patches/testing/0001-linux7.1-rc5-lru_marie-0.10.6.patch",
+                "patches/testing/0001-linux7.1-rc5-lru_cast-0.10.6.patch",
                 "c" * 40,
                 "https://example.invalid/lru-7.1.patch",
                 0,
@@ -247,14 +247,14 @@ class LocalPortTrackingTests(unittest.TestCase):
                 "0.10.6",
             ),
         ]
-        spec = {"name": "lru_marie", "repository": "firelzrd/lru_marie"}
+        spec = {"name": "lru_cast", "repository": "firelzrd/lru_cast"}
         with mock.patch.object(MODULE, "upstream_candidates", return_value=candidates):
             selected = MODULE.resolve_github_component(spec, "6.18.45", None, ROOT)
 
         self.assertEqual(selected["selection"], "latest-native-series")
         self.assertEqual(
             selected["path"],
-            "patches/testing/0001-linux6.18.22-lru_marie-0.10.6.patch",
+            "patches/testing/0001-linux6.18.22-lru_cast-0.10.6.patch",
         )
 
     def test_unversioned_port_requires_upstream_sha(self) -> None:
@@ -470,27 +470,27 @@ class SameReleaseKernelPriorityTests(unittest.TestCase):
                 self.assertEqual(selected["selection"], "latest-native-series")
                 self.assertEqual(selected["latest_upstream_project_version"], "1.1")
 
-    def test_marie_100_rc1_native_patch_over_old_stable(self) -> None:
+    def test_cast_100_rc1_native_patch_over_old_stable(self) -> None:
         import json
         import re
         manifest = json.loads((ROOT / "automation/patch-sources.json").read_text())
-        spec = next(x for x in manifest["components"] if x["name"] == "lru_marie")
+        spec = next(x for x in manifest["components"] if x["name"] == "lru_cast")
         self.assertLess(MODULE.project_version_key("0.12.0"), MODULE.project_version_key("1.0.0-rc1"))
         for kernel, native_file, numeric in (
             ("6.18.53", "6.18.22", (6, 18, 22)),
             ("7.2.7", "7.2-rc1", (7, 2)),
         ):
             with self.subTest(kernel=kernel):
-                native_path = f"patches/testing/0001-linux{native_file}-lru_marie-1.0.0-rc1.patch"
+                native_path = f"patches/testing/0001-linux{native_file}-lru_cast-1.0.0-rc1.patch"
                 self.assertRegex(native_path, re.compile(spec["filename_regex"]))
                 self.assertEqual(MODULE.candidate_project_version(spec, native_path), "1.0.0-rc1")
                 native = MODULE.Candidate(native_path, "a" * 40, "https://example.invalid/native",
                                           2, numeric, "1.0.0-rc1")
                 foreign = MODULE.Candidate(
-                    "patches/testing/0001-linux7.3-rc7-lru_marie-1.0.0-rc1.patch",
+                    "patches/testing/0001-linux7.3-rc7-lru_cast-1.0.0-rc1.patch",
                     "b" * 40, "https://example.invalid/foreign", 0, (7, 3), "1.0.0-rc1")
                 older = MODULE.Candidate(
-                    f"patches/stable/0001-linux{native_file}-lru_marie-0.12.0.patch",
+                    f"patches/stable/0001-linux{native_file}-lru_cast-0.12.0.patch",
                     "c" * 40, "https://example.invalid/older", 2, numeric, "0.12.0")
                 with mock.patch.object(MODULE, "upstream_candidates", return_value=[older, foreign, native]):
                     record = MODULE.resolve_github_component(spec, kernel, None, ROOT)
@@ -499,28 +499,29 @@ class SameReleaseKernelPriorityTests(unittest.TestCase):
                 self.assertEqual(record["latest_upstream_project_version"], "1.0.0-rc1")
                 self.assertEqual(record["selection"], "latest-native-series")
 
-    def test_revision_r2_of_same_base_prefers_618_specific_upstream_patch(self) -> None:
+    def test_cast_newer_foreign_revision_requires_port(self) -> None:
         native = MODULE.Candidate(
-            "patches/testing/0001-linux6.18.22-lru_marie-0.12.0.patch",
-            "a" * 40, "https://example.invalid/marie-native.patch",
+            "patches/testing/0001-linux6.18.22-lru_cast-0.12.0.patch",
+            "a" * 40, "https://example.invalid/cast-native.patch",
             2, (6, 18, 22), "0.12.0",
         )
         foreign_revision = MODULE.Candidate(
-            "patches/testing/0001-linux7.3-rc1-lru_marie-0.12.0r2.patch",
-            "b" * 40, "https://example.invalid/marie-r2.patch",
+            "patches/testing/0001-linux7.3-rc1-lru_cast-0.12.0r2.patch",
+            "b" * 40, "https://example.invalid/cast-r2.patch",
             0, (7, 3), "0.12.0r2",
         )
         with mock.patch.object(
             MODULE, "upstream_candidates", return_value=[foreign_revision, native],
-        ):
+        ), mock.patch.object(MODULE, "request_bytes", return_value=PATCH):
             selected = MODULE.resolve_github_component(
-                {"name": "lru_marie", "repository": "firelzrd/lru_marie"},
+                {"name": "lru_cast", "repository": "firelzrd/lru_cast", "adaptive_port": "lru-cast-context"},
                 "6.18.53", None, ROOT,
             )
-        self.assertEqual(selected["path"], native.path)
-        self.assertEqual(selected["project_version"], "0.12.0")
+        self.assertEqual(selected["path"], foreign_revision.path)
+        self.assertEqual(selected["project_version"], "0.12.0r2")
         self.assertEqual(selected["latest_upstream_project_version"], "0.12.0r2")
-        self.assertEqual(selected["selection"], "latest-native-series")
+        self.assertEqual(selected["origin"], "adaptive-port")
+        self.assertEqual(selected["selection"], "latest-release-adaptive-port")
 
     def test_newer_release_without_native_uses_reviewed_port_not_old_native(self) -> None:
         old_native = MODULE.Candidate(

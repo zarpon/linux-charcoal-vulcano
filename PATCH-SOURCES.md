@@ -6,6 +6,8 @@ A entrada `automation/prepare-steamos-stable.py` consulta o canal stable oficial
 
 O resolvedor identifica primeiro a versão mais recente de cada projeto upstream. Prefere a variante nativa dessa versão para a série detectada. Quando precisa de um porte local, exige versão/hash upstream exatos; mudança desses bytes interrompe o build para revisão. Adaptadores validam a estrutura esperada e a preparação confere a aplicação contra a árvore real antes da compilação. Uma nova série pode exigir correção dos portes; não removemos patches para concluir um build.
 
+Essa prioridade inclui revisões `rN`: a variante nativa só vence quando pertence à versão upstream mais recente; se houver uma versão posterior exclusiva de outra série, utiliza-se o porte revisado dessa versão. O CAST vem de `firelzrd/lru_cast`, com `CONFIG_LRU_CAST=y` e ativação padrão do upstream. O adaptador tenta os bytes originais primeiro e só adapta o contexto de includes revisado; mudanças desconhecidas exigem revisão, sem baixar uma release anterior. Não instalamos ajuste de `vm.swappiness`: permanece o padrão do kernel, sujeito às configurações externas do sistema.
+
 Fontes de commit único ou listas de discussão são registradas por seus bytes exatos. MBOX/MIME é decodificado antes do hash e aplicação. A série AMD P-State EPP boost mantém quatro componentes independentes. Fontes já incorporadas pela Valve são contabilizadas pelo resolvedor, sem duplicação funcional.
 
 `logs/patch-lock.json` registra versões, commits, caminhos, URLs, origens, SHA-256 e tamanho de componentes principais e auxiliares. `logs/steamos-stable-source.json` registra a imagem stable e a fonte exata. O build valida ambos antes de publicar a Latest.

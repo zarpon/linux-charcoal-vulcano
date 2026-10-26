@@ -249,6 +249,19 @@ def apply_adaptive_port(
     name: str,
     adapter: str,
 ) -> None:
+    if adapter == "lru-cast-context":
+        with tempfile.TemporaryDirectory(prefix="charcoal-cast-") as directory:
+            output = Path(directory) / 'lru-cast.patch'
+            result = subprocess.run([
+                sys.executable, str(root / 'automation/port-lru-cast-latest.py'),
+                str(patch), str(output), str(tree),
+            ], check=False, text=True, capture_output=True)
+            if result.returncode:
+                raise ApplyError(f"{name}: CAST port failed: {result.stderr.strip()}")
+            applied, details = apply_checked(tree, output)
+            if not applied:
+                raise ApplyError(f"{name}: adapted CAST patch does not apply: {details}")
+        return
     if adapter != "poc-selector-valve":
         raise ApplyError(f"{name}: unsupported adaptive port adapter {adapter!r}")
     adapter_script = root / "automation/port-poc-selector.py"

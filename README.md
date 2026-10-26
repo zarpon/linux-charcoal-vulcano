@@ -38,7 +38,7 @@ Thus, a stable transition to Linux 7.3 or newer is discovered automatically, eve
 
 Kernel discovery does not bypass patch compatibility. Every patch family remains required. The newest upstream project version is selected first, preferring a native variant for the resolved series; tracked ports/adapters preserve their upstream hashes and lineage. Existing ports are checked against the new source before compilation. If upstream bytes or kernel APIs change incompatibly, the build fails for correction instead of removing a patch, downgrading its project version or publishing an incomplete kernel. See [PATCH-SOURCES.md](PATCH-SOURCES.md).
 
-The maintained stack includes BORE/sched_ext coexistence, POC Selector, ADIOS/default elevator, LRU Marie, NAP, ZRAM-IR, AMD P-State EPP boost, CPU/O3 optimizations, Clear/Zen changes, DKMS/Clang/Polly compatibility, firmware/wireless adjustments, Ryzen SMU, controller drivers and local Van Gogh/IOMMU patches. Application order is preserved. `6.16.12-bore-6.8.0-final.patch` is retained as a compatibility reference; the current BORE source is selected dynamically. Superseded 6.18 payloads are replaced by their maintained 7.2 implementations.
+The maintained stack includes BORE/sched_ext coexistence, POC Selector, ADIOS/default elevator, LRU CAST, NAP, ZRAM-IR, AMD P-State EPP boost, CPU/O3 optimizations, Clear/Zen changes, DKMS/Clang/Polly compatibility, firmware/wireless adjustments, Ryzen SMU, controller drivers and local Van Gogh/IOMMU patches. Application order is preserved. `6.16.12-bore-6.8.0-final.patch` is retained as a compatibility reference; the current BORE source is selected dynamically. Superseded 6.18 payloads are replaced by their maintained 7.2 implementations.
 
 Functionality already present in Valve's source remains accounted for by the resolver instead of being applied twice. Retired fsync opcode-31, C23/libbpf, Bluetooth SSP and upstream Qualcomm ath11k patches already absent from `kernel-7.2` are not reintroduced. The validated `patch-lock.json` records actual patch versions, origins, hashes and upstream-provided functionality.
 
@@ -71,7 +71,7 @@ The software Crypto API ZSTD default is **level 1** (ZSTD_DEF_LEVEL=1), used by 
 
 O3 and Charcoal gaming/memory configuration remain enabled. Installation persistently disables ZRAM/services, enables ZSTD zswap with a **35% RAM pool**, shrinker enabled, and a `/home` swapfile sized to **75% of RAM**. ZRAM-IR support remains available in the kernel. See [SWAP.md](SWAP.md).
 
-Runtime values remain `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` and `vm.dirty_ratio=5`, preserving LRU Marie defaults. `CONFIG_ZEN_INTERACTIVE` controls the existing evdev asynchronous RCU and P-State schedutil-selection changes, without importing additional Zen memory/scheduler defaults.
+Runtime values remain `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` and `vm.dirty_ratio=5`, preserving LRU CAST defaults. `CONFIG_ZEN_INTERACTIVE` controls the existing evdev asynchronous RCU and P-State schedutil-selection changes, without importing additional Zen memory/scheduler defaults.
 
 IOMMU PerfOpt automatically uses an optimized identity DMA path on eligible AMD integrated GPUs. While active, ATS, PRI, PASID and SVA/GCR3 setup is skipped for that device, reducing DMA containment. Results depend on hardware/workload, with no guaranteed percentage gain or `amdgpu.iommu_perfopt` runtime opt-out.
 
