@@ -288,7 +288,7 @@ jobs:
           Path('SHA256SUMS').write_text(manifest, encoding='utf-8')
           with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as handle:
               handle.writestr('SHA256SUMS', manifest)
-              for name in ('patch-lock.json', 'steamos-stable-source.json', 'checksum-validation.txt', 'release-notes.md'):
+              for name in ('patch-lock.json', 'steamos-stable-source.json', 'checksum-validation.txt', 'release-notes.md', 'zstd-crypto-level.txt', 'zstd-crypto-source.sha256'):
                   handle.write(Path('logs') / name, name)
               for name in ('README.md', 'README.pt-BR.md'):
                   handle.write(name, name)
@@ -311,6 +311,8 @@ jobs:
             logs/SHA256SUMS
             logs/patch-lock.json
             logs/steamos-stable-source.json
+            logs/zstd-crypto-level.txt
+            logs/zstd-crypto-source.sha256
           )
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "${assets[@]}" \
@@ -357,7 +359,7 @@ jobs:
           release = json.loads(Path('logs/latest-release.json').read_text())
           assert release['tag_name'] == os.environ['RELEASE_TAG'], release
           assert release['draft'] is False and release['prerelease'] is False
-          expected = {os.environ['RELEASE_ZIP'], 'RELEASE-ZIP-SHA256SUM', 'patch-lock.json', 'steamos-stable-source.json'}
+          expected = {os.environ['RELEASE_ZIP'], 'RELEASE-ZIP-SHA256SUM', 'patch-lock.json', 'steamos-stable-source.json', 'zstd-crypto-level.txt', 'zstd-crypto-source.sha256'}
           assert expected <= {asset['name'] for asset in release['assets']}, release
           PY
 

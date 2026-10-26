@@ -5,7 +5,7 @@
 pkgbase=linux-charcoal-72
 _nepbase=linux-neptune-72
 _tag=7.2.7-valve2
-_ver=1
+_ver=2
 pkgver=${_tag//-/.}.cc$_ver
 pkgrel=1
 pkgdesc='Linux'
@@ -116,6 +116,7 @@ source=(
   "git+https://github.com/atar-axis/xpadneo.git#commit=e8f103a77f777c2c54536dd947969cf228699c13"
   latest-nap.patch
   iommu-perfopt-consolidado-v3.patch
+  zstd-crypto-default-level-1.patch
 )
 sha256sums=(
   'SKIP'
@@ -170,6 +171,7 @@ sha256sums=(
   'SKIP'
   '4d4ac50ba014de33638a2efe9c6adc507b888c6d090aa29ea17b2a4686de4e07'
   '52ee747b6888f6e59df2cc6a4b6d6ccbc104c932bc8cb11b1ff0035cde47425a'
+  '8c35a18407440f543518e383a96f8098438c3cbe4ea034241fb9a7fe8f7be129'
 )
 export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase
@@ -247,6 +249,13 @@ prepare() {
   git diff --check -- drivers/cpuidle/governors/nap/nap.c
 
   python3 "$startdir/automation/configure-zen-interactive.py" "$PWD"
+
+  # This Crypto API default feeds both compression parameters and workspace
+  # allocation. Fail before compiling if source changes stop applying it.
+  grep -Eq '^#define[[:space:]]+ZSTD_DEF_LEVEL[[:space:]]+1([[:space:]]|$)' crypto/zstd.c
+  sha256sum crypto/zstd.c | tee "$startdir/logs/zstd-crypto-source.sha256"
+  grep -E '^#define[[:space:]]+ZSTD_DEF_LEVEL[[:space:]]+' crypto/zstd.c \
+    | tee "$startdir/logs/zstd-crypto-level.txt"
 
   echo "Setting config..."
   cp ../config .config

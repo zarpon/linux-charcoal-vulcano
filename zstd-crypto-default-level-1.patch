@@ -1,0 +1,19 @@
+From: Charcoal maintainers
+Subject: [PATCH] crypto: zstd: use compression level 1 by default
+
+Use the requested level for Crypto API ZSTD consumers, including zswap.
+The existing parameter and workspace calculation derives its settings from
+ZSTD_DEF_LEVEL; keep the window limit and decompressor unchanged.
+
+diff --git a/crypto/zstd.c b/crypto/zstd.c
+--- a/crypto/zstd.c
++++ b/crypto/zstd.c
+@@ -17,7 +17,7 @@
+ #include <crypto/scatterwalk.h>
+ 
+ 
+-#define ZSTD_DEF_LEVEL		3
++#define ZSTD_DEF_LEVEL		1
+ #define ZSTD_MAX_WINDOWLOG	18
+ #define ZSTD_MAX_SIZE		BIT(ZSTD_MAX_WINDOWLOG)
+ 

@@ -28,6 +28,7 @@ LOCAL_ONLY_PATCHES = {
     "vangogh_allow_higher_cpu_freq.patch",
     "vangogh_higher_max_power_limit.patch",
     "iommu-perfopt-consolidado-v3.patch",
+    "zstd-crypto-default-level-1.patch",
 }
 
 

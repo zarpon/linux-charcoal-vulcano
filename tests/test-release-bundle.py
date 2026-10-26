@@ -20,7 +20,7 @@ class BundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / 'logs').mkdir()
-            audit = ('patch-lock.json', 'steamos-stable-source.json', 'checksum-validation.txt', 'release-notes.md')
+            audit = ('patch-lock.json', 'steamos-stable-source.json', 'checksum-validation.txt', 'release-notes.md', 'zstd-crypto-level.txt', 'zstd-crypto-source.sha256')
             for name in audit:
                 (root / 'logs' / name).write_text('audit fixture\n')
             for name in ('README.md', 'README.pt-BR.md'):

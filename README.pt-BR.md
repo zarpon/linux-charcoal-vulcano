@@ -66,6 +66,9 @@ Alguns nomes de helpers mantêm `7.2` por compatibilidade; a entrada stable forn
 
 ## Recursos de execução preservados
 
+O ZSTD por software da Crypto API usa por padrão o **nível 1** (ZSTD_DEF_LEVEL=1), utilizado pelo zswap com backend genérico. O código existente calcula automaticamente parâmetros e memória de trabalho; o limite da janela e o descompressor permanecem iguais. O build confere a fonte preparada e publica zstd-crypto-level.txt e zstd-crypto-source.sha256. Outros consumidores desse codec genérico também recebem o novo padrão. O modo fast próprio do ZRAM-IR e os backends de hardware Intel QAT mantêm o comportamento existente.
+
+
 O3 e o perfil de jogos/memória Charcoal continuam ativos. A instalação desabilita persistentemente ZRAM/serviços, habilita ZSTD zswap com pool de **35% da RAM**, shrinker ativo e swapfile em `/home` com **75% da RAM**. O suporte ZRAM-IR permanece disponível no kernel. Consulte [SWAP.md](SWAP.md).
 
 Permanecem `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e `vm.dirty_ratio=5`, preservando os padrões do LRU Marie. `CONFIG_ZEN_INTERACTIVE` controla os ajustes existentes de RCU assíncrono evdev e seleção schedutil P-State, sem importar outros padrões Zen de memória/scheduler.

@@ -66,6 +66,9 @@ Some helper filenames retain `7.2` for compatibility; the stable entry point sup
 
 ## Preserved runtime features
 
+The software Crypto API ZSTD default is **level 1** (ZSTD_DEF_LEVEL=1), used by generic ZSTD zswap. The existing code derives compression parameters and workspace sizes automatically; its window limit and decompressor are unchanged. The build checks the prepared source and publishes zstd-crypto-level.txt and zstd-crypto-source.sha256. This default also applies to other users of the generic Crypto API codec. ZRAM-IR's separate fast setting and hardware-specific Intel QAT backends retain their existing behavior.
+
+
 O3 and Charcoal gaming/memory configuration remain enabled. Installation persistently disables ZRAM/services, enables ZSTD zswap with a **35% RAM pool**, shrinker enabled, and a `/home` swapfile sized to **75% of RAM**. ZRAM-IR support remains available in the kernel. See [SWAP.md](SWAP.md).
 
 Runtime values remain `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` and `vm.dirty_ratio=5`, preserving LRU Marie defaults. `CONFIG_ZEN_INTERACTIVE` controls the existing evdev asynchronous RCU and P-State schedutil-selection changes, without importing additional Zen memory/scheduler defaults.
