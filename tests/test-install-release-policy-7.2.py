@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "install-charcoal.sh"
 REPOSITORY = "zarpon/linux-charcoal-vulcano"
 DOWNLOAD_PREFIX = f"https://github.com/{REPOSITORY}/releases/download/"
-TAG_PREFIX = "charcoal-7.2-preview-"
-ZIP_PREFIX = "linux-charcoal-72-"
+TAG_PREFIX = "charcoal-"
+ZIP_PREFIX = "linux-charcoal-"
 
 
 def embedded_selector() -> str:
@@ -84,58 +84,48 @@ class InstallerReleasePolicyTests(unittest.TestCase):
                 check=False,
             )
 
-    def test_selects_published_preview_prerelease_over_newer_stable(self) -> None:
-        result = self.run_selector(
-            [
-                release("charcoal-7.2-preview-7.2.2-r124", prerelease=False),
-                release("charcoal-7.2-preview-7.2.1-r123", prerelease=True),
-            ]
-        )
+    def test_selects_latest_stable_72(self):
+        result = self.run_selector(release("charcoal-7.2.7.valve2.cc1-r1", prerelease=False))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines()[0], "charcoal-7.2-preview-7.2.1-r123")
+        self.assertEqual(result.stdout.splitlines()[0], "charcoal-7.2.7.valve2.cc1-r1")
 
-    def test_skips_draft_and_wrong_series_prereleases(self) -> None:
-        result = self.run_selector(
-            [
-                release("charcoal-7.2-preview-7.2.2-r124", prerelease=True, draft=True),
-                release("charcoal-6.18.50-r125", prerelease=True),
-                release("charcoal-7.2-preview-7.2.1-r123", prerelease=True),
-            ]
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines()[0], "charcoal-7.2-preview-7.2.1-r123")
+    def test_refuses_preview_drafts_old_series_and_list_responses(self):
+        cases = [
+            release("charcoal-7.2-preview-7.2.7-r1", prerelease=True),
+            release("charcoal-7.2.7-r1", prerelease=True),
+            release("charcoal-7.2.7-r1", prerelease=False, draft=True),
+            release("charcoal-7.2-preview-7.2.7-r1", prerelease=False),
+            release("charcoal-6.18.53.valve1.cc1-r1", prerelease=False),
+            [release("charcoal-7.2.7-r1", prerelease=False)],
+        ]
+        for case in cases:
+            with self.subTest(case=case):
+                self.assertNotEqual(self.run_selector(case).returncode, 0)
 
-    def test_refuses_a_channel_with_only_stable_releases(self) -> None:
-        result = self.run_selector(
-            [release("charcoal-7.2-preview-7.2.2-r124", prerelease=False)]
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("prerelease", result.stderr)
-
-    def test_refuses_ambiguous_archives(self) -> None:
-        result = self.run_selector(
-            [release("charcoal-7.2-preview-7.2.1-r123", prerelease=True, zip_count=2)]
-        )
+    def test_refuses_ambiguous_archives(self):
+        result = self.run_selector(release("charcoal-7.2.7.valve2.cc1-r1", prerelease=False, zip_count=2))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("incomplete or ambiguous", result.stderr)
 
-    def test_workflow_creates_and_updates_only_non_latest_prereleases(self) -> None:
-        workflow = (ROOT / ".github/workflows/build-kernel-7.2.yml").read_text(
-            encoding="utf-8"
-        )
-        publish = workflow.split("      - name: Publish Charcoal 7.2 Preview release", 1)[1]
-        publish = publish.split("      - name: Verify Preview release flags", 1)[0]
-        self.assertEqual(publish.count("--prerelease"), 2, publish)
-        self.assertEqual(publish.count("--latest=false"), 2, publish)
-        verify = workflow.split("      - name: Verify Preview release flags", 1)[1]
-        self.assertIn("assert record['isPrerelease'] is True", verify)
-        self.assertIn("assert record['isLatest'] is False", verify)
+    def test_refuses_asset_from_another_repository(self):
+        record = release("charcoal-7.2.7.valve2.cc1-r1", prerelease=False)
+        record["assets"][0]["browser_download_url"] = "https://github.com/other/repo/releases/download/tag/kernel.zip"
+        result = self.run_selector(record)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Refusing asset outside", result.stderr)
 
-    def test_readmes_describe_the_prerelease_installer_contract(self) -> None:
+    def test_development_workflow_is_manual_and_never_publishes(self):
+        manual = (ROOT / ".github/workflows/build-kernel-7.2.yml").read_text()
+        triggers = manual.split("on:", 1)[1].split("permissions:", 1)[0]
+        self.assertEqual(triggers.strip(), "workflow_dispatch:")
+        self.assertNotIn("gh release create", manual)
+        self.assertNotIn("gh release edit", manual)
+
+    def test_readmes_describe_stable_latest_installer(self):
         for name in ("README.md", "README.pt-BR.md"):
-            readme = (ROOT / name).read_text(encoding="utf-8").lower()
-            self.assertIn("prerelease = true", readme)
-            self.assertIn("charcoal-7.2-preview-", readme)
+            readme = (ROOT / name).read_text().lower()
+            self.assertIn("prerelease = false", readme)
+            self.assertIn("releases/latest", readme)
 
 
 if __name__ == "__main__":

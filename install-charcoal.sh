@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Install the newest Charcoal SteamOS 7.2 Preview release from the kernel-7.2 line.
+# Install the latest stable Charcoal kernel for SteamOS with Linux 7.2.
 
 set -Eeuo pipefail
 
 readonly REPOSITORY="zarpon/linux-charcoal-vulcano"
-readonly RELEASES_API="https://api.github.com/repos/${REPOSITORY}/releases?per_page=100"
+readonly RELEASES_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
 readonly RELEASE_DOWNLOAD_PREFIX="https://github.com/${REPOSITORY}/releases/download/"
-readonly RELEASE_TAG_PREFIX="charcoal-7.2-preview-"
-readonly RELEASE_ZIP_PREFIX="linux-charcoal-72-"
-readonly USER_AGENT="charcoal-kernel-7.2-installer"
+readonly RELEASE_TAG_PREFIX="charcoal-"
+readonly RELEASE_ZIP_PREFIX="linux-charcoal-"
+readonly USER_AGENT="charcoal-stable-installer"
 
 WORKDIR=""
 MADE_ROOT_WRITABLE=0
@@ -79,14 +79,16 @@ parse_release_metadata() {
   local releases_json=$1
   python3 - "$releases_json" "$REPOSITORY" "$RELEASE_DOWNLOAD_PREFIX" "$RELEASE_TAG_PREFIX" "$RELEASE_ZIP_PREFIX" <<'PY'
 import json
+import re
 import sys
 from pathlib import PurePosixPath
 
 releases_json, repository, download_prefix, tag_prefix, zip_prefix = sys.argv[1:]
 with open(releases_json, encoding="utf-8") as handle:
     releases = json.load(handle)
-if not isinstance(releases, list):
-    raise SystemExit("GitHub did not return a releases list")
+if not isinstance(releases, dict):
+    raise SystemExit("GitHub did not return the Latest stable release")
+releases = [releases]
 
 def text(value, label):
     if not isinstance(value, str) or not value or any(c in value for c in "\x00\r\n"):
@@ -107,22 +109,24 @@ for release in releases:
     if not isinstance(release, dict):
         continue
     tag = release.get("tag_name")
-    if release.get("draft") is not False or release.get("prerelease") is not True:
+    if release.get("draft") is not False or release.get("prerelease") is not False:
         continue
-    if isinstance(tag, str) and tag.startswith(tag_prefix):
+    if isinstance(tag, str) and re.fullmatch(re.escape(tag_prefix) + r"[0-9]+\.[0-9]+\.[0-9]+\.valve[0-9.]+\.cc[0-9]+-r[0-9]+", tag):
+        if tuple(map(int, tag[len(tag_prefix):].split('.')[:2])) < (7, 2):
+            continue
         selected = release
         break
 if selected is None:
-    raise SystemExit("No published Charcoal SteamOS 7.2 Preview prerelease was found")
+    raise SystemExit("No published Charcoal SteamOS stable release was found")
 
 tag = text(selected.get("tag_name"), "release tag")
 assets = selected.get("assets")
 if not isinstance(assets, list):
-    raise SystemExit("GitHub 7.2 Preview release has no assets")
+    raise SystemExit("GitHub stable release has no assets")
 archives = [a for a in assets if isinstance(a, dict) and str(a.get("name", "")).startswith(zip_prefix) and str(a.get("name", "")).endswith(".zip")]
 checksums = [a for a in assets if isinstance(a, dict) and a.get("name") == "RELEASE-ZIP-SHA256SUM"]
 if len(archives) != 1 or len(checksums) != 1:
-    raise SystemExit("7.2 Preview release assets are incomplete or ambiguous")
+    raise SystemExit("stable release assets are incomplete or ambiguous")
 archive_name = text(archives[0].get("name"), "archive name")
 if PurePosixPath(archive_name).name != archive_name:
     raise SystemExit("Invalid release ZIP filename")
@@ -163,8 +167,8 @@ extract_and_verify_packages() {
 import hashlib, re, stat, sys, zipfile
 from pathlib import Path, PurePosixPath
 archive, destination = map(Path, sys.argv[1:])
-package_re = re.compile(r"^linux-charcoal-72(?:-headers)?-[^/\\\x00\r\n]+\.pkg\.tar\.zst$")
-sum_re = re.compile(r"([0-9a-fA-F]{64}) [ *](linux-charcoal-72(?:-headers)?-[^/\\\x00\r\n]+\.pkg\.tar\.zst)")
+package_re = re.compile(r"^linux-charcoal-[0-9]+(?:-headers)?-[^/\\\x00\r\n]+\.pkg\.tar\.zst$")
+sum_re = re.compile(r"([0-9a-fA-F]{64}) [ *](linux-charcoal-[0-9]+(?:-headers)?-[^/\\\x00\r\n]+\.pkg\.tar\.zst)")
 with zipfile.ZipFile(archive) as zf:
     infos = zf.infolist()
     names = [i.filename for i in infos]
@@ -174,6 +178,9 @@ with zipfile.ZipFile(archive) as zf:
     package_names = {i.filename for i in package_infos}
     if len(package_infos) != 2 or sum("-headers-" in n for n in package_names) != 1:
         raise SystemExit("Release ZIP must contain exactly kernel and headers packages")
+    stems = {re.fullmatch(r"(linux-charcoal-[0-9]+)(?:-headers)?-[0-9].*", n).group(1) for n in package_names}
+    if len(stems) != 1:
+        raise SystemExit("Kernel and headers belong to different series")
     for info in package_infos:
         if PurePosixPath(info.filename).name != info.filename or stat.S_ISLNK(info.external_attr >> 16):
             raise SystemExit(f"Unsafe ZIP entry: {info.filename}")
@@ -209,11 +216,12 @@ select_installed_charcoal() {
   done < "$installed_file"
 }
 
-select_stock_72() {
-  local installed_file=$1 name
+select_stock_kernel() {
+  local installed_file=$1 pkgbase=${2:-linux-charcoal-72} name
+  local stock="linux-neptune-${pkgbase#linux-charcoal-}"
   while IFS= read -r name; do
     case "$name" in
-      linux-neptune-72|linux-neptune-72-headers) printf '%s\n' "$name" ;;
+      "$stock"|"$stock-headers") printf '%s\n' "$name" ;;
     esac
   done < "$installed_file"
 }
@@ -221,16 +229,16 @@ select_stock_72() {
 confirm_stock_removal() {
   local -n stock_ref=$1
   (( ${#stock_ref[@]} > 0 )) || return 0
-  info "The stock SteamOS 7.2 kernel conflicts with linux-charcoal-72:"
+  info "The stock SteamOS stable kernel conflicts with the selected Charcoal kernel:"
   printf '  - %s\n' "${stock_ref[@]}"
-  info "It must be removed before Charcoal 7.2 can be installed."
+  info "It must be removed before Charcoal can be installed."
 
   if [[ "${CHARCOAL_72_REMOVE_STOCK:-0}" == "1" || "${CHARCOAL_72_ASSUME_YES:-0}" == "1" ]]; then
     return 0
   fi
   [[ -t 0 ]] || die "Stock kernel removal needs confirmation; rerun in a terminal or set CHARCOAL_72_REMOVE_STOCK=1"
   local answer
-  read -r -p "Remove the SteamOS 7.2 stock kernel and continue? [s/N] " answer
+  read -r -p "Remove the SteamOS stable stock kernel and continue? [s/N] " answer
   case "$answer" in
     s|S|y|Y|yes|YES|sim|SIM) return 0 ;;
     *) die "Installation cancelled; the stock kernel was not changed" ;;
@@ -241,7 +249,7 @@ confirm_transaction() {
   local release_tag=$1
   shift
   local -a previous=("$@")
-  info "Verified 7.2 Preview release: ${release_tag}"
+  info "Verified stable release: ${release_tag}"
   if (( ${#previous[@]} )); then
     info "The following old kernel packages will be removed:"
     printf '  - %s\n' "${previous[@]}"
@@ -250,7 +258,7 @@ confirm_transaction() {
   [[ "${CHARCOAL_72_ASSUME_YES:-0}" == "1" ]] && return 0
   [[ -t 0 ]] || die "Interactive confirmation is required; rerun in a terminal"
   local answer
-  read -r -p "Continue with the Charcoal SteamOS 7.2 Preview installation? [s/N] " answer
+  read -r -p "Continue with the Charcoal SteamOS stable installation? [s/N] " answer
   case "$answer" in
     s|S|y|Y|yes|YES|sim|SIM) ;;
     *) die "Installation cancelled before any package was changed" ;;
@@ -301,17 +309,17 @@ main() {
   WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/charcoal-72-installer.XXXXXX")"
   trap cleanup EXIT
 
-  info "Fetching published Charcoal SteamOS 7.2 Preview releases..."
+  info "Fetching published Charcoal SteamOS stable releases..."
   curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
     --retry 3 --connect-timeout 15 --header 'Accept: application/vnd.github+json' \
     --header 'X-GitHub-Api-Version: 2022-11-28' --user-agent "$USER_AGENT" \
     --output "$WORKDIR/releases.json" "$RELEASES_API"
 
   local metadata
-  metadata="$(parse_release_metadata "$WORKDIR/releases.json")" || die "Could not identify a valid SteamOS 7.2 Preview release"
+  metadata="$(parse_release_metadata "$WORKDIR/releases.json")" || die "Could not identify a valid SteamOS stable release"
   local -a fields
   mapfile -t fields <<< "$metadata"
-  (( ${#fields[@]} == 5 )) || die "Incomplete GitHub 7.2 Preview release metadata"
+  (( ${#fields[@]} == 5 )) || die "Incomplete GitHub stable release metadata"
 
   local release_tag=${fields[0]} archive_name=${fields[1]} archive_url=${fields[2]}
   local checksum_name=${fields[3]} checksum_url=${fields[4]}
@@ -322,26 +330,27 @@ main() {
   download_file "$checksum_url" "$checksum_path"
   info "Verifying release ZIP SHA-256..."
   verify_release_archive "$archive_path" "$checksum_path" "$archive_name"
-  info "Extracting and verifying SteamOS 7.2 packages..."
+  info "Extracting and verifying SteamOS stable packages..."
   extract_and_verify_packages "$archive_path" "$package_dir"
 
   local -a packages
-  mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name 'linux-charcoal-72-*.pkg.tar.zst' -print0 | sort -z)
+  mapfile -d '' -t packages < <(find "$package_dir" -maxdepth 1 -type f -name 'linux-charcoal-*.pkg.tar.zst' -print0 | sort -z)
   (( ${#packages[@]} == 2 )) || die "Verified release does not contain exactly kernel and headers"
 
   info "Checking package metadata without starting a transaction..."
-  local pkg pkgname
+  local pkg pkgname pkgbase=""
   for pkg in "${packages[@]}"; do
     pkgname="$(pacman -Qp "$pkg" | awk '{print $1}')" || die "pacman could not read package metadata: $pkg"
-    [[ "$pkgname" == linux-charcoal-72 || "$pkgname" == linux-charcoal-72-headers ]] \
+    [[ "$pkgname" =~ ^linux-charcoal-[0-9]+(-headers)?$ ]] \
       || die "Unexpected package in release: $pkgname"
+    pkgbase=${pkgname%-headers}
   done
 
   local installed_file="$WORKDIR/installed-packages.txt"
   list_installed_packages > "$installed_file"
   local -a previous_charcoal stock_packages remove_packages
   mapfile -t previous_charcoal < <(select_installed_charcoal "$installed_file")
-  mapfile -t stock_packages < <(select_stock_72 "$installed_file")
+  mapfile -t stock_packages < <(select_stock_kernel "$installed_file" "$pkgbase")
 
   confirm_stock_removal stock_packages
   remove_packages=("${previous_charcoal[@]}" "${stock_packages[@]}")
@@ -359,12 +368,12 @@ main() {
     run_privileged pacman -Rdd --noconfirm "${remove_packages[@]}"
   fi
 
-  info "Installing verified Charcoal SteamOS 7.2 Preview ${release_tag}..."
+  info "Installing verified Charcoal SteamOS stable ${release_tag}..."
   if ! run_privileged pacman -U --noconfirm "${packages[@]}"; then
     if attempt_rollback; then
-      die "SteamOS 7.2 installation failed; previous kernel packages were restored"
+      die "SteamOS stable installation failed; previous kernel packages were restored"
     fi
-    die "SteamOS 7.2 installation failed after kernel removal; do not reboot until a working kernel is installed"
+    die "SteamOS stable installation failed after kernel removal; do not reboot until a working kernel is installed"
   fi
 
   info "Ensuring persistent zswap and /home swapfile migration completed..."
@@ -372,7 +381,7 @@ main() {
 
   info "Updating the bootloader configuration..."
   _update_grub
-  info "Charcoal SteamOS 7.2 Preview ${release_tag} installed successfully. Reboot, then verify with: uname -r"
+  info "Charcoal SteamOS stable ${release_tag} installed successfully. Reboot, then verify with: uname -r"
   info "ZRAM is disabled persistently; ZSTD zswap uses a swapfile on /home sized to 75% of MemTotal. Reboot to verify the settings."
 }
 

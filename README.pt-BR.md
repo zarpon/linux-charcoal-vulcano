@@ -1,123 +1,23 @@
-# Kernel Charcoal SteamOS — SteamOS 7.2 Preview
+# Charcoal — branch manual de desenvolvimento Linux 7.2
 
-Esta branch é a linha experimental do Charcoal para o **SteamOS 7.2**. Ela fica isolada da linha estável `master`/6.18 e das demais linhas de kernel do repositório.
+A linha estável mantida agora é a [`master`](https://github.com/zarpon/linux-charcoal-vulcano/tree/master). O SteamOS 3.9 stable utiliza Linux 7.2; as versões identificam projetos diferentes.
 
-> **Importante:** os builds produzidos pela `kernel-7.2` usam um canal próprio de releases chamado **Charcoal 7.2 Preview**. Todo build concluído com sucesso nessa branch é publicado como **pré-release** do GitHub e nunca como `Latest`, sem assumir o canal de release estável do repositório.
+Esta branch não publica mais releases ou prereleases e não tem build automático por push ou diário. O workflow `Build SteamOS 7.2 development kernel manually` pode ser disparado manualmente na `kernel-7.2` para disponibilizar somente artefatos do Actions. As antigas releases Preview são preservadas, sem novas publicações. Os nomes dos artefatos podem manter a identificação Preview histórica.
 
-## Política de fonte
-
-O build localiza automaticamente o pacote-fonte oficial mais recente `linux-neptune-72` no índice público de pacotes do SteamOS, converte essa versão para a tag correspondente da série 7.2 no `linux-integration` da Valve e então resolve toda a pilha de patches do Charcoal para essa fonte.
-
-Para cada família de patch mantida pelo projeto, a regra é:
-
-1. selecionar primeiro a **versão mais nova do projeto upstream**;
-2. dentro dessa versão, preferir uma variante nativa para kernel/SteamOS 7.2 quando existir;
-3. se a versão mais nova não possuir variante utilizável para 7.2, utilizar um porte revisado e rastreado dessa mesma versão, em vez de retroceder silenciosamente para uma versão antiga do patch apenas porque ela aplica sem conflitos.
-
-O pacote-fonte exato da Valve, tag, commit, origem de cada patch, versão upstream selecionada e SHA-256 ficam registrados nos logs da compilação e no `patch-lock.json`. Portes locais ficam vinculados aos bytes exatos do patch upstream que implementam; se o upstream mudar, a validação exige revisão/novo porte em vez de reutilizar silenciosamente código desatualizado.
-
-## Instalar o Charcoal 7.2 Preview
-
-Execute no Modo Desktop do SteamOS:
-> **Requisito de BIOS no Steam Deck:** antes de instalar, confirme que a opção
-> IOMMU está ativa na BIOS. Salve a configuração e reinicie.
+## Instalação estável
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/kernel-7.2/install-charcoal.sh -o install-charcoal-7.2.sh && bash install-charcoal-7.2.sh
+curl -fsSL https://raw.githubusercontent.com/zarpon/linux-charcoal-vulcano/master/install-charcoal.sh -o install-charcoal.sh && bash install-charcoal.sh
 ```
 
-O instalador fica preso exclusivamente ao canal 7.2 Preview. Ele consulta a lista de Releases do GitHub e seleciona o pré-release publicado mais recente cuja tag comece com `charcoal-7.2-preview-`, rejeitando drafts e releases comuns.
+O instalador desta branch também acompanha `releases/latest`, aceitando releases estáveis com `prerelease = false`. Rejeita tags Preview antigas, confere os SHA-256 do ZIP e do par kernel/headers, exige confirmação para substituir pacotes conflitantes, preserva rollback por arquivos exatos do cache quando disponíveis, restaura o modo somente leitura e não reinicia automaticamente. No Steam Deck, habilite IOMMU na BIOS antes.
 
-O instalador **não usa `releases/latest`**. Portanto, a instalação do 7.2 Preview não depende de qual release de outra branch esteja marcado como `Latest` no repositório.
+A master identifica automaticamente a imagem do SteamOS stable, seu kernel exato e o repositório de fontes correspondente, inclusive em futuras mudanças para SteamOS 3.10 / Linux 7.3. Consulte a [README estável](https://github.com/zarpon/linux-charcoal-vulcano/blob/master/README.pt-BR.md) para política, instalação e limites da recuperação. Os comandos locais daquele documento são para a `master`; esta branch usa o workflow manual dedicado 7.2.
 
-Somente é aceito um bundle `linux-charcoal-72-*.zip` acompanhado do arquivo `RELEASE-ZIP-SHA256SUM`.
+## Recursos de desenvolvimento preservados
 
-Antes de alterar qualquer pacote do sistema, o instalador:
+Nenhum patch de kernel ou recurso de execução foi retirado desta branch. Mantém BORE/coexistência sched_ext, POC Selector, ADIOS, LRU Marie, NAP, ZRAM-IR, AMD P-State, otimizações CPU, compatibilidade LLVM/Polly, drivers de controles, Ryzen SMU, Van Gogh e IOMMU, com a política de seleção de fontes existente.
 
-- baixa completamente o bundle 7.2 Preview;
-- valida o SHA-256 do ZIP da release;
-- valida o SHA-256 dos dois pacotes internos, kernel `linux-charcoal-72` e headers;
-- faz um preflight dos pacotes validados com o pacman;
-- detecta os pacotes instalados cujo nome começa com `linux-charcoal`;
-- exibe a transação e exige confirmação antes de tornar o SteamOS gravável.
+Permanecem O3, ZSTD zswap (pool de 35% RAM e shrinker ativo), desativação persistente do ZRAM e swapfile em `/home` com 75% RAM. Mantém `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2`, `vm.dirty_ratio=5` e os padrões próprios do LRU Marie. Ferramentas e persistência do aprendizado NAP continuam disponíveis. Consulte [SWAP.md](SWAP.md) e [NAP-TOOLS.md](NAP-TOOLS.md).
 
-Somente depois dessas validações e da confirmação, qualquer kernel Charcoal anterior é removido com uma transação restrita `pacman -Rdd`, e em seguida são instalados o kernel e os headers SteamOS 7.2 previamente verificados. Pacotes como `linux-neptune-*` e quaisquer pacotes não relacionados nunca entram na lista de remoção. O `-Rdd` é usado especificamente para impedir remoção em cascata de dependências.
-
-Se os arquivos exatos dos pacotes Charcoal anteriores ainda existirem em `/var/cache/pacman/pkg`, o instalador os copia para a área temporária antes da remoção e tenta restaurá-los automaticamente caso a instalação dos novos pacotes 7.2 falhe. Se não houver material de rollback disponível e a instalação falhar após a remoção, o instalador interrompe o procedimento, avisa para **não reiniciar** e restaura o sistema de arquivos raiz do SteamOS para modo somente leitura.
-
-O instalador nunca reinicia o aparelho automaticamente. Depois de uma instalação concluída com sucesso, reinicie manualmente e confirme:
-
-```bash
-uname -r
-```
-
-O resultado deve conter `charcoal-72`.
-
-## Política de releases desta branch
-
-Todo build de kernel concluído com sucesso na branch `kernel-7.2` é empacotado em ZIP, recebe metadados SHA-256 e é publicado no canal dedicado com:
-
-- título: **Charcoal 7.2 Preview**;
-- prefixo exclusivo de tag: `charcoal-7.2-preview-`;
-- `prerelease = true`;
-- `latest = false`.
-
-Assim, o kernel 7.2 fica no canal de pré-releases para teste sem disputar o `Latest` estável usado pelas outras linhas do repositório.
-
-A branch temporária de validação pode executar testes, resolver fontes, aplicar patches, compilar e gerar artifacts, mas **não publica releases**. A publicação do pré-release só ocorre quando o código está na branch definitiva `kernel-7.2` e a compilação completa termina com sucesso.
-
-## Configuração atual do kernel 7.2
-
-A branch 7.2 mantém as configurações de jogos e memória do Charcoal, incluindo o porte específico do zram-ir para 7.2. O suporte ZRAM-IR permanece disponível, mas a instalação desativa zram e usa ZSTD zswap com um swapfile na partição home.
-
-### AMD IOMMU PerfOpt
-
-Em IOMMU AMD compatível, o PerfOpt é habilitado automaticamente para GPUs
-integradas elegíveis usando um domínio DMA identity. O caminho otimizado do IOMMU
-pode reduzir a latência de DMA. A configuração de ATS, PRI, PASID
-e SVA/GCR3 é ignorada para esse dispositivo enquanto o PerfOpt está ativo,
-reduzindo o isolamento de DMA do IOMMU nesse caminho. O efeito depende do hardware
-e da carga; não há percentual de ganho garantido. Não há opção
-amdgpu.iommu_perfopt para desativá-lo em tempo de execução.
-
-## Workflow de build
-
-O workflow dedicado é:
-
-`.github/workflows/build-kernel-7.2.yml`
-
-A compilação executa a resolução dinâmica da fonte oficial do SteamOS 7.2, auditoria das versões upstream dos patches, validação do `patch-lock`, preflight/aplicação no código-fonte real e compilação do kernel. Somente depois de todas essas etapas concluídas com sucesso a branch definitiva `kernel-7.2` pode publicar o **Charcoal 7.2 Preview**.
-
-O próprio workflow verifica após a publicação que o release não é draft, é prerelease e não está marcado como `Latest`. Uma falha de publicação ou de validação faz o workflow falhar.
-
-## Aviso
-
-O suporte ao SteamOS 7.2 desta branch é experimental. Use este instalador apenas se a intenção for testar a linha **Charcoal 7.2 Preview** e se houver conhecimento de como restaurar o kernel stock do SteamOS em caso de necessidade.
-
-Para a linha estável do Charcoal, utilize a branch `master`.
-
-## Perfil de compilação e swap
-
-O kernel usa O3. A instalação ativa ZSTD zswap com limite de pool de 35%,
-shrinker ativo e swapfile de 75% da RAM na partição de `/home`. ZRAM e
-os serviços que o ativam são desativados persistentemente. Consulte
-[SWAP.md](SWAP.md) para comportamento, requisitos e verificação.
-
-O tuning usa `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e
-`vm.dirty_ratio=5`. Os defaults próprios do LRU Marie são preservados.
-
-`CONFIG_ZEN_INTERACTIVE` controla apenas os dois patches Zen existentes:
-liberação assíncrona de clientes evdev por RCU e remoção dos selects obrigatórios
-de schedutil nos drivers P-State. Nenhum default adicional de memória ou scheduler
-Zen é importado. O fsync legado opcode 31 e os patches já upstream de C23/libbpf,
-Bluetooth SSP e Qualcomm ath11k não são baixados nem aplicados.
-
-## Ferramentas NAP
-
-Cada build busca as ferramentas mais recentes na branch `main` do NAP e
-registra o commit e os hashes usados no pacote.
-
-A instalação preserva automaticamente o aprendizado do NAP entre boots e salva
-os pesos a cada 30 minutos. Inclui `napctl` e o visualizador offline
-`/usr/share/nap/napviz.html`, gerado com o modelo do kernel compilado. Consulte
-[NAP-TOOLS.md](NAP-TOOLS.md) para compatibilidade, comandos e verificação.
+IOMMU PerfOpt mantém o caminho DMA identity existente em GPUs integradas AMD elegíveis e as mesmas implicações ATS/PRI/PASID/SVA. Não há ganho percentual garantido.

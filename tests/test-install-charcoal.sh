@@ -26,7 +26,7 @@ linux-neptune-72-headers
 unrelated-package
 EOF
 
-mapfile -t stock < <(select_stock_72 "$tmp/installed")
+mapfile -t stock < <(select_stock_kernel "$tmp/installed")
 [[ ${#stock[@]} -eq 2 ]] || fail "expected stock kernel and stock headers"
 [[ ${stock[0]} == linux-neptune-72 ]] || fail "stock kernel was not detected"
 [[ ${stock[1]} == linux-neptune-72-headers ]] || fail "stock headers were not detected"
@@ -54,10 +54,10 @@ grep -Fq 'pacman -Qp "$pkg" | awk '\''{print $1}'\''' "$INSTALLER" \
   || fail "installer does not use SteamOS-compatible package metadata query"
 
 # Regression checks for the real transaction order and prompt.
-grep -Fq 'Remove the SteamOS 7.2 stock kernel and continue? [s/N]' "$INSTALLER" \
+grep -Fq 'Remove the SteamOS stable stock kernel and continue? [s/N]' "$INSTALLER" \
   || fail "interactive stock-kernel removal prompt is missing"
-grep -Fq 'linux-neptune-72|linux-neptune-72-headers' "$INSTALLER" \
-  || fail "installer is not limited to the SteamOS 7.2 stock kernel packages"
+grep -Fq 'local stock="linux-neptune-${pkgbase#linux-charcoal-}"' "$INSTALLER" \
+  || fail "installer is not limited to the SteamOS stable stock kernel packages"
 grep -Fq 'remove_packages=("${previous_charcoal[@]}" "${stock_packages[@]}")' "$INSTALLER" \
   || fail "stock packages are not included in the removal transaction"
 grep -Fq 'run_privileged pacman -Rdd --noconfirm "${remove_packages[@]}"' "$INSTALLER" \
@@ -70,10 +70,10 @@ install_line="$(grep -n -F 'run_privileged pacman -U --noconfirm "${packages[@]}
 [[ -n "$remove_line" && -n "$install_line" && $remove_line -lt $install_line ]] \
   || fail "stock removal must occur before Charcoal installation"
 
-grep -Fq 'RELEASE_TAG_PREFIX="charcoal-7.2-preview-"' "$INSTALLER" \
-  || fail "installer is not pinned to the 7.2 Preview release channel"
-grep -Fq 'release.get("prerelease") is not True' "$INSTALLER" \
-  || fail "installer must require GitHub prereleases"
+grep -Fq 'RELEASE_TAG_PREFIX="charcoal-"' "$INSTALLER" \
+  || fail "installer is not pinned to the 7.2 stable release channel"
+grep -Fq 'release.get("prerelease") is not False' "$INSTALLER" \
+  || fail "installer must reject GitHub prereleases"
 
 grep -Fq 'run_privileged /usr/lib/gaming-swap/configure' "$INSTALLER" \
   || fail "installer does not check swap migration after pacman"
