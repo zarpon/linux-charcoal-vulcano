@@ -18,7 +18,7 @@ UNUSED_616_PATCHES = {
     "6.16.12-amd-pstate-epp-boost-04-docs.port.patch",
     "6.16.12-bore-6.8.0-rc1.patch",
     "6.16.12-bore-sched-ext-coexistence-fix.patch",
-    "6.16.12-lru_marie-0.6.7.patch",
+    "6.16.12-lru_cast-0.6.7.patch",
 }
 RETAINED_616_OVERLAY = "6.16.12-bore-6.8.0-final.patch"
 ACTIVE_COMPONENTS = {
@@ -26,7 +26,7 @@ ACTIVE_COMPONENTS = {
     "latest-adios-default.patch",
     "latest-bore.patch",
     "latest-bore-sched-ext-coexistence-fix.patch",
-    "latest-lru_marie.patch",
+    "latest-lru_cast.patch",
     "latest-nap.patch",
     "latest-poc-selector.patch",
     "latest-zram-ir.patch",

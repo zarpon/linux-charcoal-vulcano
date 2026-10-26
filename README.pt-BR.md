@@ -38,7 +38,7 @@ Assim, a mudança do stable para Linux 7.3 ou superior é descoberta automaticam
 
 Descobrir um kernel novo não pula a compatibilidade dos patches. Todas as famílias continuam obrigatórias. O resolvedor escolhe primeiro a versão mais recente de cada projeto e prefere sua variante nativa da série detectada; portes/adaptadores mantêm hashes e origem. Os portes existentes passam por verificação contra a nova fonte antes da compilação. Se os bytes upstream ou APIs mudarem de forma incompatível, o build falha para correção, sem retirar patches, escolher uma versão antiga do projeto ou publicar um kernel incompleto. Consulte [PATCH-SOURCES.md](PATCH-SOURCES.md).
 
-A pilha preserva BORE/coexistência sched_ext, POC Selector, ADIOS/elevator padrão, LRU Marie, NAP, ZRAM-IR, AMD P-State EPP boost, otimizações CPU/O3, Clear/Zen, compatibilidade DKMS/Clang/Polly, firmware/wireless, Ryzen SMU, drivers de controles e patches locais Van Gogh/IOMMU. A ordem de aplicação é mantida. `6.16.12-bore-6.8.0-final.patch` permanece como referência de compatibilidade; o BORE atual é selecionado dinamicamente. Os arquivos 6.18 substituídos dão lugar às implementações 7.2 mantidas.
+A pilha preserva BORE/coexistência sched_ext, POC Selector, ADIOS/elevator padrão, LRU CAST, NAP, ZRAM-IR, AMD P-State EPP boost, otimizações CPU/O3, Clear/Zen, compatibilidade DKMS/Clang/Polly, firmware/wireless, Ryzen SMU, drivers de controles e patches locais Van Gogh/IOMMU. A ordem de aplicação é mantida. `6.16.12-bore-6.8.0-final.patch` permanece como referência de compatibilidade; o BORE atual é selecionado dinamicamente. Os arquivos 6.18 substituídos dão lugar às implementações 7.2 mantidas.
 
 Funcionalidades já presentes na fonte Valve continuam contabilizadas pelo resolvedor, sem reaplicação duplicada. Patches antigos fsync opcode-31, C23/libbpf, Bluetooth SSP e Qualcomm ath11k upstream já ausentes da `kernel-7.2` não são reintroduzidos. O `patch-lock.json` validado registra versões, origens, hashes e funcionalidades atendidas pelo upstream.
 
@@ -71,7 +71,7 @@ O ZSTD por software da Crypto API usa por padrão o **nível 1** (ZSTD_DEF_LEVEL
 
 O3 e o perfil de jogos/memória Charcoal continuam ativos. A instalação desabilita persistentemente ZRAM/serviços, habilita ZSTD zswap com pool de **35% da RAM**, shrinker ativo e swapfile em `/home` com **75% da RAM**. O suporte ZRAM-IR permanece disponível no kernel. Consulte [SWAP.md](SWAP.md).
 
-Permanecem `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e `vm.dirty_ratio=5`, preservando os padrões do LRU Marie. `CONFIG_ZEN_INTERACTIVE` controla os ajustes existentes de RCU assíncrono evdev e seleção schedutil P-State, sem importar outros padrões Zen de memória/scheduler.
+Permanecem `vm.vfs_cache_pressure=100`, `vm.dirty_background_ratio=2` e `vm.dirty_ratio=5`, preservando os padrões do LRU CAST. `CONFIG_ZEN_INTERACTIVE` controla os ajustes existentes de RCU assíncrono evdev e seleção schedutil P-State, sem importar outros padrões Zen de memória/scheduler.
 
 IOMMU PerfOpt usa automaticamente o caminho DMA identity otimizado em GPUs integradas AMD elegíveis. Enquanto ativo, pula ATS, PRI, PASID e SVA/GCR3 naquele dispositivo, reduzindo contenção DMA. O resultado depende de hardware/carga; não há ganho percentual garantido nem opção de desativação em execução `amdgpu.iommu_perfopt`.
 

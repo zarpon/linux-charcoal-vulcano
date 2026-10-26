@@ -143,12 +143,8 @@ def audit_component(
     if not candidates:
         return [f"{name}: upstream exposes no candidate patches"]
 
-    # Resolve the newest numeric upstream release, prefer its matching
-    # kernel-series variant (including pre/post-release equivalents), and
-    # audit the globally highest revision separately for provenance.
-    latest_family = resolver.latest_base_release_candidates(candidates)
-    native_family = resolver.native_series_candidates(latest_family)
-    latest = resolver.latest_project_candidates(native_family or latest_family)
+    # Audit the complete newest release before native-kernel compatibility.
+    latest = resolver.latest_project_candidates(candidates)
     global_latest = resolver.latest_project_candidates(candidates)
     upstream = upstream_record(record)
     versioned = [candidate for candidate in latest if candidate.project_version]

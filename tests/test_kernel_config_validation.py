@@ -38,6 +38,7 @@ class KernelConfigValidationTests(unittest.TestCase):
         for setting in (
             "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y",
             "CONFIG_ZEN_INTERACTIVE=y",
+            "CONFIG_LRU_CAST=y",
             "CONFIG_ZSWAP=y",
             "CONFIG_ZSWAP_DEFAULT_ON=y",
             "CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y",

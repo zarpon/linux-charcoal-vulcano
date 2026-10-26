@@ -54,7 +54,7 @@ aprendizado atual. Remover o pacote para o timer, salva o estado e desabilita as
 unidades, preservando os arquivos de aprendizado.
 
 A integração não altera a seleção do governador, seus parâmetros de aprendizado,
-sysctl, LRU Marie ou a política de swap existente.
+sysctl, LRU CAST ou a política de swap existente.
 
 ## Verificação após reiniciar
 

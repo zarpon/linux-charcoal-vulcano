@@ -27,23 +27,23 @@ class ZenProfileTests(unittest.TestCase):
                 'config X86_INTEL_PSTATE\n\tselect ACPI_PROCESSOR\n\thelp\n\t  Intel\n'
                 'config X86_AMD_PSTATE\n\tselect ACPI_CPPC_LIB\n\thelp\n\t  AMD\n'
             ),
-            'mm/lru_marie/core.c': 'Marie own defaults must remain untouched\n',
+            'mm/lru_cast/core.c': 'CAST own defaults must remain untouched\n',
         }
         for name, text in files.items():
             path = tree / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
 
-    def test_gates_both_existing_patches_without_changing_marie(self) -> None:
+    def test_gates_both_existing_patches_without_changing_cast(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             tree = Path(directory)
             self.fixture(tree)
-            before = (tree / 'mm/lru_marie/core.c').read_bytes()
+            before = (tree / 'mm/lru_cast/core.c').read_bytes()
             ZEN.configure(tree)
             first = {str(p.relative_to(tree)): p.read_bytes() for p in tree.rglob('*') if p.is_file()}
             ZEN.configure(tree)
             self.assertEqual(first, {str(p.relative_to(tree)): p.read_bytes() for p in tree.rglob('*') if p.is_file()})
-            self.assertEqual(before, (tree / 'mm/lru_marie/core.c').read_bytes())
+            self.assertEqual(before, (tree / 'mm/lru_cast/core.c').read_bytes())
             source = (tree / 'drivers/input/evdev.c').read_text()
             self.assertIn('IS_ENABLED(CONFIG_ZEN_INTERACTIVE)', source)
             self.assertIn('synchronize_rcu();', source)

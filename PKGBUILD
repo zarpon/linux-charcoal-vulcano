@@ -84,7 +84,7 @@ source=(
   99-charcoal.sh
   vangogh_allow_higher_cpu_freq.patch
   vangogh_higher_max_power_limit.patch
-  latest-lru_marie.patch
+  latest-lru_cast.patch
   latest-zram-ir.patch
   latest-amd-pstate-epp-boost-01-kernel-doc.patch
   latest-amd-pstate-epp-boost-02-cache-order.patch
@@ -122,9 +122,9 @@ sha256sums=(
   'SKIP'
   'ecd8c76eb203493e67ba4052e7bc1fa46f51c91566f102172e7a18d7de2dd5eb'
   'c9482d23e18ab37911847918eadfbc022c606f8eddab07acd43ef4d4f339037f'
-  '59a12e3c7d7511cd27a5e5fd9f46e97d62d16be4e6762cd1d15d25a8f4de47f5'
+  'c681bfb19ef1ae30a984d1bfcc1cb900f8f3c8809cadcd2fc0038cef64c44cd5'
   'b831de1b98a2f77f636f4780e37ebfcb3a6829f94f5423eb04c4b26e64ac43b8'
-  '0ca1dd4b6dead2d5cfd40bab0917fec763693c9bebec9ebf33d8b48f90ba0a1b'
+  '6145462665bcc2a95e3413aa3a0ad1e940754673daf1d161a8b8e9097341f8a4'
   'ae521b7acee1c4fcd46cc7fb2d514782a3b74b475115ca4f5c59c804f3f0c3f6'
   '6e71f4ef06f4e40053ac530d0000669bcf65db6e3992ccee54f0c61f8ba04ec6'
   '52cbbf41450806d766260bc4f1ea055f6f9fdd55d37ad831840b16d505beb0cc'
@@ -182,6 +182,7 @@ _validate_kernel_config() {
   for expected in \
     'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' \
     'CONFIG_ZEN_INTERACTIVE=y' \
+    'CONFIG_LRU_CAST=y' \
     'CONFIG_ZSWAP=y' \
     'CONFIG_ZSWAP_DEFAULT_ON=y' \
     'CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y' \
@@ -215,7 +216,12 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     echo "Applying patch $src..."
-    if [[ $src == latest-poc-selector.patch ]]; then
+    if [[ $src == latest-lru_cast.patch ]]; then
+      local prepared_cast="../${src%.patch}-prepared.patch"
+      python3 "$startdir/automation/port-lru-cast-latest.py" "../$src" "$prepared_cast" "$PWD"
+      git apply --recount --check "$prepared_cast"
+      git apply --recount "$prepared_cast"
+    elif [[ $src == latest-poc-selector.patch ]]; then
       local adapted_poc="../${src%.patch}-valve-port.patch"
       python3 "$startdir/automation/port-poc-selector.py" \
         "../$src" "$adapted_poc" kernel/sched/sched.h kernel/sched/fair.c
