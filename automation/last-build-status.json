@@ -1,14 +1,14 @@
 {
-  "conclusion": "success",
-  "created_at": "2026-08-07T00:18:57Z",
-  "event": "workflow_dispatch",
+  "conclusion": "",
+  "created_at": "2026-10-26T12:17:32Z",
+  "event": "push",
   "head_branch": "master",
-  "head_sha": "898938a980a09f0fa86f332489e39aa98b8b8224",
-  "html_url": "https://github.com/zarpon/linux-charcoal-vulcano/actions/runs/31134209928",
+  "head_sha": "81c4ee00b6da909f6c9ad0964372249022c0989d",
+  "html_url": "https://github.com/zarpon/linux-charcoal-vulcano/actions/runs/40321406629",
   "run_attempt": 1,
-  "run_id": 31134209928,
-  "run_number": 678,
-  "status": "completed",
-  "updated_at": "2026-08-07T01:02:56Z",
+  "run_id": 40321406629,
+  "run_number": 1005,
+  "status": "queued",
+  "updated_at": "2026-10-26T12:17:32Z",
   "workflow": "Build latest SteamOS Charcoal kernel"
 }
