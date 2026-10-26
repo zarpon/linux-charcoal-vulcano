@@ -212,7 +212,7 @@
 +nap-state-save.timer. They restore at boot, save at shutdown, and save every
 +30 minutes. Units skip kernels without /sys/devices/system/cpu/nap/weights;
 +enabling them before the first reboot is expected and does not change the
-+governor, its learning settings, sysctl, LRU Marie, zswap, or swapfiles.
++governor, its learning settings, sysctl, LRU CAST, zswap, or swapfiles.
 +
 +State lives in /var/lib/nap (root-only, persistent on SteamOS). Compatible
 +records restore per CPU; damaged, incompatible or foreign-machine state is

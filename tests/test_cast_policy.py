@@ -28,7 +28,7 @@ class CastPolicyTests(unittest.TestCase):
         self.assertEqual(record['project_version'], '0.2.5')
         self.assertEqual(record['origin'], 'upstream-native')
 
-    def test_newer_foreign_revision_is_ported_instead_of_old_native(self):
+    def test_newer_foreign_revision_is_selected_for_port(self):
         paths = ['patches/0001-7.2-rc1-lru_cast-v0.2.5.patch',
                  'patches/0001-7.3-rc7-lru_cast-v0.2.5r2.patch']
         tree = {'tree': [{'path': path, 'type': 'blob'} for path in paths]}
@@ -38,8 +38,9 @@ class CastPolicyTests(unittest.TestCase):
             record = resolver.resolve_github_component(self.component(), '7.2.7', None, ROOT)
         self.assertEqual(record['project_version'], '0.2.5r2')
         self.assertEqual(record['origin'], 'adaptive-port')
-        self.assertEqual(record['adapter'], 'lru-cast-context')
-        self.assertEqual(record['content_bytes'], patch)
+        self.assertEqual(record['selection'], 'latest-release-adaptive-port')
+        self.assertEqual(record['path'], paths[1])
+        self.assertEqual(record['latest_upstream_project_version'], '0.2.5r2')
 
     def test_default_configuration_and_no_swappiness_override(self):
         config = (ROOT / 'config-charcoal').read_text()

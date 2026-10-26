@@ -499,7 +499,7 @@ class SameReleaseKernelPriorityTests(unittest.TestCase):
                 self.assertEqual(record["latest_upstream_project_version"], "1.0.0-rc1")
                 self.assertEqual(record["selection"], "latest-native-series")
 
-    def test_newer_r2_requires_port_instead_of_older_native(self) -> None:
+    def test_cast_newer_foreign_revision_requires_port(self) -> None:
         native = MODULE.Candidate(
             "patches/testing/0001-linux6.18.22-lru_cast-0.12.0.patch",
             "a" * 40, "https://example.invalid/cast-native.patch",
@@ -520,6 +520,7 @@ class SameReleaseKernelPriorityTests(unittest.TestCase):
         self.assertEqual(selected["path"], foreign_revision.path)
         self.assertEqual(selected["project_version"], "0.12.0r2")
         self.assertEqual(selected["latest_upstream_project_version"], "0.12.0r2")
+        self.assertEqual(selected["origin"], "adaptive-port")
         self.assertEqual(selected["selection"], "latest-release-adaptive-port")
 
     def test_newer_release_without_native_uses_reviewed_port_not_old_native(self) -> None:
