@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   build-kernel:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/validation/')
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
