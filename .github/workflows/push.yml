@@ -263,6 +263,14 @@ jobs:
           echo "KERNEL_TAG=$KERNEL_TAG" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           echo "RELEASE_ZIP=$RELEASE_ZIP" >> "$GITHUB_ENV"
+          python3 automation/generate-release-notes.py \
+            --mode stable \
+            --lock logs/patch-lock.json \
+            --pkgver "$PKGVER" \
+            --kernel-tag "$KERNEL_TAG" \
+            --release-tag "$RELEASE_TAG" \
+            --release-zip "$RELEASE_ZIP" \
+            --output logs/release-notes.md
           python3 - "$RELEASE_ZIP" <<'PY'
           import hashlib
           import os
@@ -280,8 +288,10 @@ jobs:
           Path('SHA256SUMS').write_text(manifest, encoding='utf-8')
           with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as handle:
               handle.writestr('SHA256SUMS', manifest)
-              for name in ('patch-lock.json', 'steamos-stable-source.json', 'checksum-validation.txt'):
+              for name in ('patch-lock.json', 'steamos-stable-source.json', 'checksum-validation.txt', 'release-notes.md'):
                   handle.write(Path('logs') / name, name)
+              for name in ('README.md', 'README.pt-BR.md'):
+                  handle.write(name, name)
               for package in packages:
                   handle.write(package, package.name)
           digest = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -289,15 +299,6 @@ jobs:
               f"{digest}  {archive.name}\n", encoding='utf-8'
           )
           PY
-          python3 automation/generate-release-notes.py \
-            --mode stable \
-            --lock logs/patch-lock.json \
-            --pkgver "$PKGVER" \
-            --kernel-tag "$KERNEL_TAG" \
-            --release-tag "$RELEASE_TAG" \
-            --release-zip "$RELEASE_ZIP" \
-            --output logs/release-notes.md
-
       - name: Publish latest stable release
         if: (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release)) && github.ref == 'refs/heads/master'
         run: |
