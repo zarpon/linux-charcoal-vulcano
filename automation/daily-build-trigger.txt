@@ -1,5 +1,5 @@
 Daily full kernel build trigger.
 
-Last requested build: 2026-10-18T01:27:44-03:00
+Last requested build: 2026-10-30T06:37:29.686-03:00
 Source: scheduled-build recovery after no 00:05 dispatcher run appeared within the normal delay window
-Recovery contract: push to kernel-7.2 triggers build-kernel-7.2.yml and publishes Preview as prerelease only
+Recovery contract: push to master triggers push.yml and publishes a normal stable GitHub Latest release
