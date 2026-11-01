@@ -317,6 +317,7 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
             + module.CURRENT_ADDITIONS
             + "+\n"
             + " #ifdef CONFIG_UCLAMP_TASK\n"
+            + " \tstruct uclamp_rq\tuclamp[UCLAMP_CNT];\n"
         )
         required_markers = (
             "diff --git a/kernel/sched/core.c b/kernel/sched/core.c\n"
