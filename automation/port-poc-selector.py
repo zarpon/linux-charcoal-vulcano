@@ -86,6 +86,11 @@ V300_REQUIRED = (
     "+static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu, int sync);",
 )
 
+V300_SUPPORTED_SUBJECTS = (
+    V300_REQUIRED[0],
+    "Subject: [PATCH] 7.2-rc1-poc-selector-v3.0.1",
+)
+
 BORE_TASK_STRUCT_ANCHOR = (
     "#endif /* CONFIG_SCHED_BORE */\n"
     "\n"
@@ -283,7 +288,12 @@ def reviewed_idle_sibling_hunk(text):
     return candidate
 
 def validate_v300_shape(text):
-    missing = [item for item in V300_REQUIRED if text.count(item) != 1]
+    # 3.0.1 retains the reviewed 3.0.0 native scheduler shape.
+    # Unknown versions or changed markers must fail closed.
+    subject_count = sum(text.count(subject) for subject in V300_SUPPORTED_SUBJECTS)
+    missing = [item for item in V300_REQUIRED[1:] if text.count(item) != 1]
+    if subject_count != 1:
+        missing.append("reviewed POC 3.0.0/3.0.1 subject")
     if missing:
         raise PortError(
             "native 7.2 POC 3.0.0 shape changed: "
@@ -385,12 +395,12 @@ def adapt_patch(text, fair_source=None, sched_header=None, include_source=None):
     # wakeup class guard; older reviewed layouts overlap the poc_sync type
     # insertion and DEQUEUE_SLEEP hook. Rebase only those exact hunks.
     if field == CURRENT_ADDITIONS and is_native_72_sched_context(body):
-        if V300_REQUIRED[0] in text:
+        if any(subject in text for subject in V300_SUPPORTED_SUBJECTS):
             validate_v300_shape(text)
             if sched_header is None and fair_source is None and include_source is None:
                 return text
             if fair_source is None:
-                raise PortError("native 7.2 POC 3.0.0 adaptation requires fair.c")
+                raise PortError("native 7.2 POC 3.0.x adaptation requires fair.c")
             return adapt_native_72_v300_wakeup_overlap(text, fair_source)
 
         adapted=text[:h]+text[n:]

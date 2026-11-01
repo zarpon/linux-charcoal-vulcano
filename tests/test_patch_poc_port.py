@@ -296,5 +296,46 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
             )
 
 
+    def test_v301_native_hunk_uses_reviewed_v300_path(self) -> None:
+        # 3.0.1 keeps the reviewed 3.0.0 native shape, not the 2.x layout.
+        subject = "Subject: [PATCH] 7.2-rc1-poc-selector-v3.0.1\n"
+        native_fair = (
+            module.FAIR_SECTION_HEADER
+            + "--- a/kernel/sched/fair.c\n+++ b/kernel/sched/fair.c\n"
+            + "@@ -9781,6 +9884,10 @@ static void wakeup_preempt_fair\n"
+            + module.V300_NATIVE_WAKEUP_PREFIX
+            + module.V300_WAKEE_WAITS_ADDITIONS
+            + module.patch_context(module.V300_WAKEUP_SUFFIX)
+        )
+        native_sched = (
+            module.SECTION_HEADER
+            + "--- a/kernel/sched/sched.h\n+++ b/kernel/sched/sched.h\n"
+            + "@@ -1177,6 +1177,11 @@ struct rq {\n"
+            + " \tcall_single_data_t\tnohz_csd;\n"
+            + " #endif /* CONFIG_NO_HZ_COMMON */\n"
+            + " \n"
+            + module.CURRENT_ADDITIONS
+            + "+\n"
+            + " #ifdef CONFIG_UCLAMP_TASK\n"
+        )
+        required_markers = (
+            "diff --git a/kernel/sched/core.c b/kernel/sched/core.c\n"
+            + "\n".join(module.V300_REQUIRED[1:]) + "\n"
+        )
+        upstream = subject + native_fair + native_sched + required_markers
+        self.assertEqual(module.adapt_patch(upstream), upstream)
+        bore_source = module.V300_BORE_WAKEUP_PREFIX + module.V300_WAKEUP_SUFFIX
+        adapted = module.adapt_patch(upstream, fair_source=bore_source)
+        self.assertIn(module.patch_context(module.V300_BORE_WAKEUP_PREFIX), adapted)
+        self.assertEqual(adapted.count("poc_sync_wakee_waits(rq, curr, p, wake_flags)"), 1)
+        self.assertIn("poc_idle_committed", adapted)
+        for bad in (
+            upstream.replace("v3.0.1", "v3.0.2", 1),
+            upstream.replace("+\tu16\t\t\t\thist;", "+\tu32\t\t\t\thist;", 1),
+        ):
+            with self.assertRaises(module.PortError):
+                module.adapt_patch(bad)
+
+
 if __name__ == "__main__":
     unittest.main()
