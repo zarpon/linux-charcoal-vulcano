@@ -382,7 +382,7 @@ main() {
   info "Updating the bootloader configuration..."
   _update_grub
   info "Charcoal SteamOS stable ${release_tag} installed successfully. Reboot, then verify with: uname -r"
-  info "ZRAM is disabled persistently; ZSTD zswap uses a swapfile on /home sized to 75% of MemTotal. Reboot to verify the settings."
+  info "ZRAM is disabled persistently; ZSTD zswap uses a swapfile on /home sized to 100% of MemTotal. Reboot to verify the settings."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

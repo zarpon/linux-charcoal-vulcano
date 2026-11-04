@@ -6,7 +6,7 @@ O argumento `zswap.zpool=zsmalloc` é preservado para kernels antigos; os
 atuais já usam zsmalloc diretamente e não oferecem esse seletor por sysfs.
 
 O pacote cria `/home/.gaming-swap/swapfile` na partição que contém `/home`,
-com 75% de `MemTotal`, arredondado para páginas inteiras. O diretório é
+com 100% de `MemTotal`, arredondado para páginas inteiras. O diretório é
 exclusivo de root (0700) e o arquivo tem permissão 0600. Em Btrfs, usa um
 subvolume separado e `btrfs filesystem mkswapfile`, sem CoW nem buracos,
 validando o mapeamento antes do `swapon`. Também suporta ext4 e XFS.

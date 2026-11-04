@@ -255,7 +255,7 @@ class Migration:
             path.chmod(0o600)
             return name, False
         if shutil.disk_usage(directory).free < size + 1024**3:
-            raise MigrationError("Not enough free space in /home for 75% RAM plus 1 GiB reserve; old swap is preserved")
+            raise MigrationError("Not enough free space in /home for 100% RAM plus 1 GiB reserve; old swap is preserved")
         try:
             if filesystem == "btrfs":
                 # Separate subvolume avoids prohibiting snapshots of /home.
@@ -370,7 +370,7 @@ class Migration:
         if not match:
             raise MigrationError("Cannot read total RAM")
         page = os.sysconf("SC_PAGE_SIZE")
-        size = ((int(match[1]) * 1024 * 3 + 4 * page - 1) // (4 * page)) * page
+        size = ((int(match[1]) * 1024 + page - 1) // page) * page
         active = self.active()
         units = self.units()
         files, file_units = self.old_files(active, units)
@@ -410,7 +410,7 @@ class Migration:
             self.run("update-grub")
         elif shutil.which("grub-mkconfig") and self.path("/boot/grub").is_dir():
             self.run("grub-mkconfig", "-o", "/boot/grub/grub.cfg")
-        print(f"gaming-swap: {target}, {size} bytes (75% of MemTotal); zram disabled persistently. Reboot to verify zswap.")
+        print(f"gaming-swap: {target}, {size} bytes (100% of MemTotal); zram disabled persistently. Reboot to verify zswap.")
 
 
 def main():
