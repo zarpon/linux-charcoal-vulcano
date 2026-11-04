@@ -230,7 +230,7 @@ prepare() {
     elif [[ $src == latest-adios.patch ]]; then
       local adapted_adios="../${src%.patch}-7.2-port.patch"
       python3 "$startdir/automation/port-adios-7.2.py" \
-        "../$src" "$adapted_adios" block/elevator.c
+        "../$src" "$adapted_adios" block/elevator.c scripts/setlocalversion
       git apply --check "$adapted_adios"
       git apply "$adapted_adios"
     elif [[ $src == latest-zen-02.patch ]]; then

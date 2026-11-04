@@ -5,7 +5,9 @@ ADIOS is resolved from the globally newest upstream project revision, including
 stable/testing revisions. When that revision lacks a native 7.2 patch, this
 adapter handles only the
 elevator_set_default() layout difference between upstream Linux and Valve 7.2.
-All non-elevator ADIOS hunks are preserved byte-for-byte.
+All non-elevator ADIOS hunks are preserved, except an exact scripts/setlocalversion
+hunk already applied by the mandatory preceding BORE patch. That duplicate is
+removed only after verifying both upstream content and the patched Valve source.
 """
 from __future__ import annotations
 
@@ -14,6 +16,26 @@ import difflib
 from pathlib import Path
 
 ELEVATOR_DIFF = "diff --git a/block/elevator.c b/block/elevator.c\n"
+SCM_DIFF = "diff --git a/scripts/setlocalversion b/scripts/setlocalversion\n"
+SCM_HUNK = (
+    "@@ -117,7 +117,7 @@ scm_version()\n"
+    " \t\t# If only the short version is requested, don't bother\n"
+    " \t\t# running further git commands\n"
+    " \t\tif $short; then\n"
+    "-\t\t\techo \"+\"\n"
+    "+\t\t\t#echo \"+\"\n"
+    " \t\t\treturn\n"
+    " \t\tfi\n"
+    " \n"
+)
+SCM_APPLIED = (
+    "\t\t# If only the short version is requested, don't bother\n"
+    "\t\t# running further git commands\n"
+    "\t\tif $short; then\n"
+    "\t\t\t#echo \"+\"\n"
+    "\t\t\treturn\n"
+    "\t\tfi\n"
+)
 TRAILER = "\n-- \n"
 LEGACY_FUNC = "static struct elevator_type *elevator_get_default(struct request_queue *q)"
 MODERN_FUNC = "void elevator_set_default(struct request_queue *q)"
@@ -105,12 +127,44 @@ def make_elevator_diff(original: str, ported: str) -> str:
     return ELEVATOR_DIFF + body
 
 
-def adapt_patch(patch: str, elevator_source: str) -> str:
+def strip_redundant_scm_hunk(patch: str, scm_source: str | None) -> str:
+    """Keep BORE's already-applied SCM change without dropping any other ADIOS hunk.
+
+    Both upstreams modify precisely the same single line. An unfamiliar hunk or
+    a source not already patched by BORE must abort, not silently lose coverage.
+    """
+    if SCM_DIFF not in patch:
+        return patch
+    if patch.count(SCM_DIFF) != 1:
+        raise PortError("ambiguous ADIOS scripts/setlocalversion sections")
+    start = patch.index(SCM_DIFF)
+    next_diff = patch.find("\ndiff --git ", start + len(SCM_DIFF))
+    trailer = patch.find(TRAILER, start + len(SCM_DIFF))
+    ends = [pos + 1 for pos in (next_diff, trailer) if pos >= 0]
+    end = min(ends) if ends else len(patch)
+    section = patch[start:end]
+    if section.count("@@ -") != 1 or "@@ -" not in section:
+        raise PortError("unreviewed ADIOS scripts/setlocalversion hunk")
+    header, hunk = section.split("@@ -", 1)
+    if (
+        not header.startswith(SCM_DIFF)
+        or header.count("--- a/scripts/setlocalversion\n") != 1
+        or header.count("+++ b/scripts/setlocalversion\n") != 1
+        or "@@ -" + hunk != SCM_HUNK
+    ):
+        raise PortError("unreviewed ADIOS scripts/setlocalversion hunk")
+    if scm_source is None or scm_source.count(SCM_APPLIED) != 1:
+        raise PortError("BORE scripts/setlocalversion change is not already applied exactly once")
+    return patch[:start] + patch[end:]
+
+
+def adapt_patch(patch: str, elevator_source: str, scm_source: str | None = None) -> str:
     start, end = section_bounds(patch)
     validate_upstream_section(patch[start:end])
     ported = port_elevator_source(elevator_source)
     replacement = make_elevator_diff(elevator_source, ported)
-    return patch[:start] + replacement + patch[end:]
+    adapted = patch[:start] + replacement + patch[end:]
+    return strip_redundant_scm_hunk(adapted, scm_source)
 
 
 def main() -> int:
@@ -118,18 +172,20 @@ def main() -> int:
     parser.add_argument("patch", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("elevator_source", type=Path)
+    parser.add_argument("setlocalversion_source", type=Path)
     args = parser.parse_args()
     try:
         adapted = adapt_patch(
             args.patch.read_text(encoding="utf-8"),
             args.elevator_source.read_text(encoding="utf-8"),
+            args.setlocalversion_source.read_text(encoding="utf-8"),
         )
     except (OSError, UnicodeDecodeError, PortError) as exc:
         raise SystemExit(f"ADIOS 7.2 port failed: {exc}") from exc
     args.output.write_text(adapted, encoding="utf-8")
     print(
         "Prepared explicit latest-upstream ADIOS -> Linux/Valve 7.2 elevator port; "
-        "all non-elevator upstream hunks preserved"
+        "all other upstream hunks preserved, redundant BORE SCM hunk verified"
     )
     return 0
 
