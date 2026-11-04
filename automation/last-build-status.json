@@ -1,5 +1,5 @@
 {
-  "conclusion": "",
+  "conclusion": "success",
   "created_at": "2026-11-04T21:51:18Z",
   "event": "push",
   "head_branch": "master",
@@ -8,7 +8,7 @@
   "run_attempt": 1,
   "run_id": 41919933095,
   "run_number": 1026,
-  "status": "in_progress",
-  "updated_at": "2026-11-04T21:51:21Z",
+  "status": "completed",
+  "updated_at": "2026-11-04T22:31:09Z",
   "workflow": "Build latest SteamOS Charcoal kernel"
 }
