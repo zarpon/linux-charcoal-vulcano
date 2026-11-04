@@ -3,3 +3,7 @@ Daily full kernel build trigger.
 Last requested build: 2026-10-30T06:37:29.686-03:00
 Source: scheduled-build recovery after no 00:05 dispatcher run appeared within the normal delay window
 Recovery contract: push to master triggers push.yml and publishes a normal stable GitHub Latest release
+
+Manual recovery requested: 2026-11-04 (America/Sao_Paulo).
+Reason: daily full kernel build absent from current master runs; user explicitly requested immediate build.
+Trigger: push to master runs push.yml and publishes normal stable GitHub Latest.
