@@ -218,9 +218,24 @@ prepare() {
     echo "Applying patch $src..."
     if [[ $src == latest-lru_cast.patch ]]; then
       local prepared_cast="../${src%.patch}-prepared.patch"
-      python3 "$startdir/automation/port-lru-cast-latest.py" "../$src" "$prepared_cast" "$PWD"
-      git apply --recount --check "$prepared_cast"
-      git apply --recount "$prepared_cast"
+      local cast_report
+      cast_report="$(python3 "$startdir/automation/port-lru-cast-latest.py" "../$src" "$prepared_cast" "$PWD")"
+      printf '%s\n' "$cast_report"
+      if [[ $cast_report == *reviewed-valve-7.2.7-cast-0.3.0-fuzz* ]]; then
+        # Only the immutable reviewed Valve bridge may use fuzz; no rejects.
+        patch --dry-run --batch --forward --no-backup-if-mismatch --fuzz=3 -p1 < "$prepared_cast"
+        patch --batch --forward --no-backup-if-mismatch --fuzz=3 -Np1 < "$prepared_cast"
+        if find . -name '*.rej' -print -quit | grep -q .; then
+          echo "ERROR: CAST Valve port left a rejected hunk" >&2
+          return 1
+        fi
+        test -f mm/lru_cast/policy/ring.c
+        grep -Fq 'config LRU_CAST' mm/Kconfig
+        git diff --check
+      else
+        git apply --recount --check "$prepared_cast"
+        git apply --recount "$prepared_cast"
+      fi
     elif [[ $src == latest-poc-selector.patch ]]; then
       local adapted_poc="../${src%.patch}-valve-port.patch"
       python3 "$startdir/automation/port-poc-selector.py" \
