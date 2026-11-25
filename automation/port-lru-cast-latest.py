@@ -137,6 +137,11 @@ CAST_VALVE_MM_CONTEXTS = (
 )
 
 
+CAST_VALVE_WORKINGSET_HUNK = "@@ -293,6 +297,12 @@ static void lru_gen_refault(struct folio *folio, void *shadow)\n \n \trcu_read_lock();\n \n+\t/* left by CAST before it was switched off: a refault, of no history here */\n+\tif (lru_cast_shadow(shadow)) {\n+\t\tmod_lruvec_state(folio_lruvec(folio), WORKINGSET_REFAULT_BASE + type, delta);\n+\t\tgoto unlock;\n+\t}\n+\n \trecent = lru_gen_test_recent(shadow, &lruvec, &token, &workingset);\n \tif (lruvec != folio_lruvec(folio))\n \t\tgoto unlock;\n"
+CAST_VALVE_WORKINGSET_PORT = "@@ -299,9 +303,15 @@ static void lru_gen_refault(struct folio *folio, void *shadow)\n \tstruct lru_gen_folio *lrugen;\n \tint type = folio_is_file_lru(folio);\n \tint delta = folio_nr_pages(folio);\n \n \trcu_read_lock();\n \n+\t/* left by CAST before it was switched off: a refault, of no history here */\n+\tif (lru_cast_shadow(shadow)) {\n+\t\tmod_lruvec_state(folio_lruvec(folio), WORKINGSET_REFAULT_BASE + type, delta);\n+\t\tgoto unlock;\n+\t}\n+\n \trecent = lru_gen_test_recent(shadow, &lruvec, &token, &workingset, type);\n \tif (lruvec != folio_lruvec(folio))\n \t\tgoto unlock;\n"
+CAST_VALVE_WORKINGSET_PREIMAGE = "\tstruct lru_gen_folio *lrugen;\n\tint type = folio_is_file_lru(folio);\n\tint delta = folio_nr_pages(folio);\n\n\trcu_read_lock();\n\n\trecent = lru_gen_test_recent(shadow, &lruvec, &token, &workingset, type);\n\tif (lruvec != folio_lruvec(folio))\n\t\tgoto unlock;"
+
+
 def git_blob_digest(data: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
@@ -224,6 +229,28 @@ def cast_dryrun_failure(dry: subprocess.CompletedProcess[str]) -> str:
     )
 
 
+
+
+def adapt_valve_workingset_refault(patch: str, tree: Path) -> str:
+    """Keep CAST shadow refault accounting inside lru_gen_refault with type/delta in scope."""
+    sections = re.split(r"(?=^diff --git )", patch, flags=re.M)
+    matches = 0
+    for index, section in enumerate(sections):
+        if not section.startswith("diff --git a/mm/workingset.c b/mm/workingset.c\n"):
+            continue
+        matches += 1
+        if section.count(CAST_VALVE_WORKINGSET_HUNK) != 1:
+            raise RuntimeError("CAST Valve workingset official hunk changed; review required")
+        target = (tree / "mm/workingset.c").read_text(encoding="utf-8")
+        if target.count(CAST_VALVE_WORKINGSET_PREIMAGE) != 1:
+            raise RuntimeError("CAST Valve workingset refault variable scope/API drift")
+        sections[index] = section.replace(
+            CAST_VALVE_WORKINGSET_HUNK, CAST_VALVE_WORKINGSET_PORT, 1
+        )
+    if matches != 1:
+        raise RuntimeError("CAST Valve workingset section absent/duplicated")
+    return "".join(sections)
+
 def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
     if hashlib.sha256(source).hexdigest() != CAST_VALVE_SOURCE_SHA256:
         raise RuntimeError("unreviewed CAST upstream source SHA; refuse Valve bridge")
@@ -252,6 +279,7 @@ def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
     bridge = bridge.replace(CAST_VALVE_RMAP_HUNK, CAST_VALVE_RMAP_PORT, 1)
     bridge = adapt_valve_vmscan_lock_context(bridge, tree)
     bridge = adapt_valve_mm_contexts(bridge, tree)
+    bridge = adapt_valve_workingset_refault(bridge, tree)
     bridge, notes = adapt_reviewed_contexts(bridge, tree)
     if "valve-sched-tick-donor-context" not in notes:
         raise RuntimeError("Valve scheduler donor-context bridge not proven")

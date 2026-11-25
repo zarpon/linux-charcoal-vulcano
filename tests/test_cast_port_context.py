@@ -165,6 +165,45 @@ new file mode 100644
                 self.assertIn("checking mm/workingset.c", summary)
                 self.assertTrue((Path(directory) / "logs" / "cast-valve-dry-run.log").is_file())
 
+
+    def test_valve_workingset_shadow_accounting_in_refault_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            (tree / "mm").mkdir()
+            (tree / "mm/workingset.c").write_text(
+                "static void lru_gen_refault(struct folio *folio, void *shadow)\n{\n"
+                + cast_port.CAST_VALVE_WORKINGSET_PREIMAGE + "\n}\n"
+            )
+            upstream = (
+                "diff --git a/mm/workingset.c b/mm/workingset.c\n"
+                + cast_port.CAST_VALVE_WORKINGSET_HUNK
+            )
+            adapted = cast_port.adapt_valve_workingset_refault(upstream, tree)
+            self.assertIn(cast_port.CAST_VALVE_WORKINGSET_PORT, adapted)
+            self.assertIn("int type = folio_is_file_lru(folio);", adapted)
+            self.assertIn("int delta = folio_nr_pages(folio);", adapted)
+            self.assertIn("lru_cast_shadow(shadow)", adapted)
+            self.assertIn("WORKINGSET_REFAULT_BASE + type, delta", adapted)
+            self.assertIn("lru_gen_test_recent(shadow, &lruvec, &token, &workingset, type)", adapted)
+            self.assertEqual(
+                [line[1:] for line in cast_port.CAST_VALVE_WORKINGSET_HUNK.splitlines()
+                 if line.startswith("+")],
+                [line[1:] for line in cast_port.CAST_VALVE_WORKINGSET_PORT.splitlines()
+                 if line.startswith("+")]
+            )
+            (tree / "mm/workingset.c").write_text("unreviewed scope")
+            with self.assertRaisesRegex(RuntimeError, "scope/API drift"):
+                cast_port.adapt_valve_workingset_refault(upstream, tree)
+            (tree / "mm/workingset.c").write_text(
+                cast_port.CAST_VALVE_WORKINGSET_PREIMAGE
+            )
+            with self.assertRaisesRegex(RuntimeError, "official hunk changed"):
+                cast_port.adapt_valve_workingset_refault(
+                    upstream.replace("lru_cast_shadow", "unreviewed_shadow"), tree
+                )
+            with self.assertRaisesRegex(RuntimeError, "section absent/duplicated"):
+                cast_port.adapt_valve_workingset_refault("", tree)
+
     def test_unknown_sched_context_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
