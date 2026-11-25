@@ -55,6 +55,105 @@ def adapt_reviewed_contexts(patch: str, tree: Path) -> tuple[str, list[str]]:
     return ''.join(sections), adaptations
 
 
+
+
+# Locked CAST v0.3.0 Valve 7.2.7 compatibility bridge, not a CAST downgrade.
+# Source: official 7.3-rc7 v0.3.0 (SHA256 below), upstream ref
+# c2aed944f2b7ca9fdf6ab549eccdf5b5f4f64812.
+# Bridge: same official v0.3.0 6.18.62 variant (Git blob below).
+# The 58 CAST core new-file additions are byte-identical in both official patches.
+# Target: evlaV/linux-integration tag 7.2.7-valve2 commit 31504582a07316ae0e8a8fb3b8fdc39d94842816.
+CAST_VALVE_SOURCE_SHA256 = "962359849dfbe6a7a67120cbeb2137d583e3d620b3e40f0bf4f4f161fc17010c"
+CAST_VALVE_BRIDGE_BLOB = "45686da70242cbaa97dc29a52939ea0e0943790c"
+CAST_VALVE_HEAD = "31504582a07316ae0e8a8fb3b8fdc39d94842816"
+CAST_VALVE_BRIDGE = Path(__file__).resolve().parents[1] / "patches/ports/lru-cast-v0.3.0-6.18.62-upstream-bridge.patch"
+
+CAST_VALVE_RMAP_HUNK = """@@ -904,6 +904,9 @@ static bool folio_referenced_one(struct folio *folio,
+ \t\tif (lru_gen_enabled() && pvmw.pte) {
+ \t\t\tif (lru_gen_look_around(&pvmw))
+ \t\t\t\treferenced++;
++\t\t} else if (lru_cast_enabled() && pvmw.pte) {
++\t\t\tif (lru_cast_look_around(&pvmw))
++\t\t\t\treferenced++;
+ \t\t} else if (pvmw.pte) {
+ \t\t\tif (ptep_clear_flush_young_notify(vma, address,
+ \t\t\t\t\t\tpvmw.pte))
+"""
+CAST_VALVE_RMAP_PORT = """@@ -980,6 +980,9 @@ static bool folio_referenced_one(struct folio *folio,
+ \t\tif (lru_gen_enabled() && !lru_gen_switching() && pvmw.pte) {
+ \t\t\tif (lru_gen_look_around(&pvmw, nr))
+ \t\t\t\treferenced++;
++\t\t} else if (lru_cast_enabled() && pvmw.pte) {
++\t\t\tif (lru_cast_look_around(&pvmw))
++\t\t\t\treferenced++;
+ \t\t} else if (pvmw.pte) {
+ \t\t\tif (clear_flush_young_ptes_notify(vma, address, pvmw.pte, nr))
+ \t\t\t\treferenced++;
+"""
+
+
+def git_blob_digest(data: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+
+
+def cast_core_additions(text: str) -> dict[str, str]:
+    result = {}
+    for section in re.split(r"(?=^diff --git a/)", text, flags=re.M):
+        match = re.match(r"diff --git a/(.+?) b/", section)
+        if not match:
+            continue
+        name = match.group(1)
+        if name == "include/linux/lru_cast.h" or name.startswith("mm/lru_cast/"):
+            result[name] = "\n".join(
+                line[1:] for line in section.splitlines()
+                if line.startswith("+") and not line.startswith("+++")
+            )
+    return result
+
+
+def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
+    if hashlib.sha256(source).hexdigest() != CAST_VALVE_SOURCE_SHA256:
+        raise RuntimeError("unreviewed CAST upstream source SHA; refuse Valve bridge")
+    actual_head = subprocess.run(
+        ["git", "-C", str(tree), "rev-parse", "HEAD"], check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if actual_head != CAST_VALVE_HEAD:
+        raise RuntimeError("Valve kernel tree commit changed; re-review required")
+    bridge_data = CAST_VALVE_BRIDGE.read_bytes()
+    if git_blob_digest(bridge_data) != CAST_VALVE_BRIDGE_BLOB:
+        raise RuntimeError("authenticated CAST 0.3.0 bridge blob changed")
+    bridge = bridge_data.decode("utf-8")
+    official_core = cast_core_additions(source.decode("utf-8"))
+    bridge_core = cast_core_additions(bridge)
+    if len(official_core) != 58 or official_core != bridge_core:
+        raise RuntimeError("CAST 0.3.0 bridge changed functional core additions")
+    if bridge.count(CAST_VALVE_RMAP_HUNK) != 1:
+        raise RuntimeError("official bridge rmap hunk changed")
+    rmap_target = "\n".join(
+        line[1:] for line in CAST_VALVE_RMAP_PORT.splitlines()[1:]
+        if line.startswith(" ")
+    )
+    if (tree / "mm/rmap.c").read_text(encoding="utf-8").count(rmap_target) != 1:
+        raise RuntimeError("Valve rmap MGLRU switching and notifier context changed")
+    bridge = bridge.replace(CAST_VALVE_RMAP_HUNK, CAST_VALVE_RMAP_PORT, 1)
+    bridge, notes = adapt_reviewed_contexts(bridge, tree)
+    if "valve-sched-tick-donor-context" not in notes:
+        raise RuntimeError("Valve scheduler donor-context bridge not proven")
+    output.write_text(bridge, encoding="utf-8", newline="\n")
+    dry = subprocess.run(
+        ["patch", "--dry-run", "--batch", "--forward", "--no-backup-if-mismatch",
+         "--fuzz=3", "-p1", "-i", str(output.resolve())],
+        cwd=tree, capture_output=True, text=True,
+    )
+    transcript = dry.stdout + dry.stderr
+    if dry.returncode or "FAILED" in transcript or "saving rejects" in transcript:
+        output.unlink(missing_ok=True)
+        raise RuntimeError("CAST Valve 7.2 port still has incompatible hunks: " + transcript[-5000:])
+    return "reviewed-valve-7.2.7-cast-0.3.0-fuzz"
+
+
+
 def prepare(source: Path, output: Path, tree: Path) -> str:
     data = source.read_bytes()
     output.write_bytes(data)
@@ -72,6 +171,12 @@ def prepare(source: Path, output: Path, tree: Path) -> str:
         detail = result.stderr
     else:
         detail = direct.stderr
+    if (tree / ".git").exists() and (tree / "Makefile").is_file():
+        try:
+            return reviewed_valve_cast_bridge(data, tree, output)
+        except (RuntimeError, OSError, subprocess.CalledProcessError):
+            output.unlink(missing_ok=True)
+            raise
     output.unlink()
     raise RuntimeError('latest CAST requires a reviewed kernel API port; refusing older release: ' + detail)
 

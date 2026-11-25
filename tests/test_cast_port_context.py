@@ -61,6 +61,33 @@ class CastValveContextPortTests(unittest.TestCase):
                 check=True,
             )
 
+
+    def test_valve_bridge_refuses_source_change_and_checks_core(self):
+        a = """diff --git a/mm/lru_cast/version.h b/mm/lru_cast/version.h
+new file mode 100644
+--- /dev/null
++++ b/mm/lru_cast/version.h
+@@ -0,0 +1 @@
++version
+"""
+        b = a.replace("+version", "+changed")
+        self.assertEqual(cast_port.cast_core_additions(a)["mm/lru_cast/version.h"], "version")
+        self.assertNotEqual(cast_port.cast_core_additions(a), cast_port.cast_core_additions(b))
+        self.assertEqual(
+            cast_port.git_blob_digest(b"abc"),
+            __import__("hashlib").sha1(b"blob 3\0abc").hexdigest(),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(RuntimeError, "upstream source SHA"):
+                cast_port.reviewed_valve_cast_bridge(b"untrusted", root, root / "out.patch")
+
+    def test_reviewed_valve_rmap_preserves_switching_and_notifier(self):
+        self.assertIn("!lru_gen_switching()", cast_port.CAST_VALVE_RMAP_PORT)
+        self.assertIn("lru_gen_look_around(&pvmw, nr)", cast_port.CAST_VALVE_RMAP_PORT)
+        self.assertIn("clear_flush_young_ptes_notify", cast_port.CAST_VALVE_RMAP_PORT)
+        self.assertIn("lru_cast_look_around(&pvmw)", cast_port.CAST_VALVE_RMAP_PORT)
+
     def test_unknown_sched_context_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
