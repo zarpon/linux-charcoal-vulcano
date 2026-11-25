@@ -92,6 +92,11 @@ CAST_VALVE_RMAP_PORT = """@@ -980,6 +980,9 @@ static bool folio_referenced_one(s
 """
 
 
+CAST_VALVE_VMSCAN_HUNK = "@@ -2037,10 +2160,18 @@ static unsigned long shrink_inactive_list(unsigned long nr_to_scan,\n \n \tlru_add_drain();\n \n+\t/* reclaim at work: the walker is to tell of what it is about to weigh */\n+\tif (lru_cast_on(lruvec))\n+\t\tlru_cast_walk_ask();\n+\n \tspin_lock_irq(&lruvec->lru_lock);\n \n-\tnr_taken = isolate_lru_folios(nr_to_scan, lruvec, &folio_list,\n-\t\t\t\t     &nr_scanned, sc, lru);\n"
+CAST_VALVE_VMSCAN_PORT = "@@ -2037,10 +2160,18 @@ static unsigned long shrink_inactive_list(unsigned long nr_to_scan,\n \n \tlru_add_drain();\n \n+\t/* reclaim at work: the walker is to tell of what it is about to weigh */\n+\tif (lru_cast_on(lruvec))\n+\t\tlru_cast_walk_ask();\n+\n \tlruvec_lock_irq(lruvec);\n \n-\tnr_taken = isolate_lru_folios(nr_to_scan, lruvec, &folio_list,\n-\t\t\t\t     &nr_scanned, sc, lru);\n"
+CAST_VALVE_VMSCAN_PREIMAGE = "\tlru_add_drain();\n\n\tlruvec_lock_irq(lruvec);\n\n\tnr_taken = isolate_lru_folios(nr_to_scan, lruvec, &folio_list,\n\t\t\t\t     &nr_scanned, sc, lru);"
+
+
 def git_blob_digest(data: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
@@ -110,6 +115,26 @@ def cast_core_additions(text: str) -> dict[str, str]:
             )
     return result
 
+
+
+
+def adapt_valve_vmscan_lock_context(patch: str, tree: Path) -> str:
+    """Port CAST reclaim to Valve's lruvec_lock_irq wrapper; keep CAST isolation intact."""
+    sections = re.split(r"(?=^diff --git )", patch, flags=re.M)
+    hits = 0
+    for i, section in enumerate(sections):
+        if not section.startswith("diff --git a/mm/vmscan.c b/mm/vmscan.c\n"):
+            continue
+        hits += 1
+        if section.count(CAST_VALVE_VMSCAN_HUNK) != 1:
+            raise RuntimeError("CAST Valve vmscan source hunk changed; review required")
+        vmscan = (tree / "mm/vmscan.c").read_text(encoding="utf-8")
+        if vmscan.count(CAST_VALVE_VMSCAN_PREIMAGE) != 1:
+            raise RuntimeError("CAST Valve vmscan lock/API preimage changed; review required")
+        sections[i] = section.replace(CAST_VALVE_VMSCAN_HUNK, CAST_VALVE_VMSCAN_PORT, 1)
+    if hits != 1:
+        raise RuntimeError("CAST Valve vmscan diff section missing/duplicated")
+    return "".join(sections)
 
 def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
     if hashlib.sha256(source).hexdigest() != CAST_VALVE_SOURCE_SHA256:
@@ -137,6 +162,7 @@ def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
     if (tree / "mm/rmap.c").read_text(encoding="utf-8").count(rmap_target) != 1:
         raise RuntimeError("Valve rmap MGLRU switching and notifier context changed")
     bridge = bridge.replace(CAST_VALVE_RMAP_HUNK, CAST_VALVE_RMAP_PORT, 1)
+    bridge = adapt_valve_vmscan_lock_context(bridge, tree)
     bridge, notes = adapt_reviewed_contexts(bridge, tree)
     if "valve-sched-tick-donor-context" not in notes:
         raise RuntimeError("Valve scheduler donor-context bridge not proven")

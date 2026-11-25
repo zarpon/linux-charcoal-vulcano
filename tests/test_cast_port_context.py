@@ -88,6 +88,39 @@ new file mode 100644
         self.assertIn("clear_flush_young_ptes_notify", cast_port.CAST_VALVE_RMAP_PORT)
         self.assertIn("lru_cast_look_around(&pvmw)", cast_port.CAST_VALVE_RMAP_PORT)
 
+
+    def test_valve_vmscan_lock_wrapper_port(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mm").mkdir()
+            (root / "mm/vmscan.c").write_text(
+                "/* source fixture based on Valve 7.2.7 */\n"
+                + cast_port.CAST_VALVE_VMSCAN_PREIMAGE + "\n"
+            )
+            upstream_section = (
+                "diff --git a/mm/vmscan.c b/mm/vmscan.c\n"
+                + cast_port.CAST_VALVE_VMSCAN_HUNK
+                + "+\tif (lru_cast_on(lruvec))\n"
+                + "+\t\tnr_taken = lru_cast_isolate_folios(nr_to_scan, lruvec, &folio_list,\n"
+                + "+\telse\n"
+                + "+\t\tnr_taken = isolate_lru_folios(nr_to_scan, lruvec, &folio_list,\n"
+            )
+            result = cast_port.adapt_valve_vmscan_lock_context(upstream_section, root)
+            self.assertEqual(result.count(cast_port.CAST_VALVE_VMSCAN_PORT), 1)
+            self.assertIn("+\t\tlru_cast_walk_ask();", result)
+            self.assertIn("+\t\tnr_taken = lru_cast_isolate_folios", result)
+            self.assertNotIn(" \tspin_lock_irq(&lruvec->lru_lock);", result)
+            (root / "mm/vmscan.c").write_text("unreviewed locking API")
+            with self.assertRaisesRegex(RuntimeError, "lock/API preimage changed"):
+                cast_port.adapt_valve_vmscan_lock_context(upstream_section, root)
+            (root / "mm/vmscan.c").write_text(cast_port.CAST_VALVE_VMSCAN_PREIMAGE)
+            with self.assertRaisesRegex(RuntimeError, "source hunk changed"):
+                cast_port.adapt_valve_vmscan_lock_context(
+                    upstream_section.replace("lru_cast_walk_ask", "no_walk_ask"), root
+                )
+            with self.assertRaisesRegex(RuntimeError, "missing/duplicated"):
+                cast_port.adapt_valve_vmscan_lock_context("", root)
+
     def test_unknown_sched_context_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
