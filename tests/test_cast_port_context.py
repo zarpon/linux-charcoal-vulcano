@@ -121,6 +121,50 @@ new file mode 100644
             with self.assertRaisesRegex(RuntimeError, "missing/duplicated"):
                 cast_port.adapt_valve_vmscan_lock_context("", root)
 
+
+    def test_valve_mm_contexts_keep_kernel_features_and_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = {}
+            for name, official, adapted, preimage in cast_port.CAST_VALVE_MM_CONTEXTS:
+                files.setdefault(name, []).append(preimage)
+                self.assertNotEqual(official, adapted)
+                self.assertIn("@@", adapted)
+            for name, contents in files.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n/* isolated fixture */\n".join(contents))
+            patch = "\n".join(
+                official for _, official, _, _ in cast_port.CAST_VALVE_MM_CONTEXTS
+            )
+            result = cast_port.adapt_valve_mm_contexts(patch, root)
+            self.assertIn("+\tif (lru_cast_add_folio", result)
+            self.assertIn("VM_WARN_ON_ONCE_FOLIO(!folio_matches_lruvec", result)
+            self.assertIn(" #include <linux/leafops.h>", result)
+            self.assertIn("+#include <linux/kfifo.h>", result)
+            with self.assertRaisesRegex(RuntimeError, "bridge hunk drift"):
+                cast_port.adapt_valve_mm_contexts(
+                    patch.replace("lru_cast_add_folio", "bad_cast_add"), root
+                )
+            (root / "mm/filemap.c").write_text("unreviewed Valve include layout")
+            with self.assertRaisesRegex(RuntimeError, "target API preimage drift"):
+                cast_port.adapt_valve_mm_contexts(patch, root)
+
+    def test_valve_dryrun_failure_keeps_first_and_last_errors(self):
+        out = subprocess.CompletedProcess(
+            args=["patch"], returncode=1,
+            stdout="can't create include/linux/mm_inline.h\n" + "ok\n" * 3000
+                   + "checking mm/workingset.c\n",
+            stderr="",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            from unittest import mock
+            with mock.patch.object(cast_port, "__file__", str(Path(directory) / "automation" / "port.py")):
+                summary = cast_port.cast_dryrun_failure(out)
+                self.assertIn("can't create include/linux/mm_inline.h", summary)
+                self.assertIn("checking mm/workingset.c", summary)
+                self.assertTrue((Path(directory) / "logs" / "cast-valve-dry-run.log").is_file())
+
     def test_unknown_sched_context_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

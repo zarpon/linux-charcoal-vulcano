@@ -97,6 +97,46 @@ CAST_VALVE_VMSCAN_PORT = "@@ -2037,10 +2160,18 @@ static unsigned long shrink_in
 CAST_VALVE_VMSCAN_PREIMAGE = "\tlru_add_drain();\n\n\tlruvec_lock_irq(lruvec);\n\n\tnr_taken = isolate_lru_folios(nr_to_scan, lruvec, &folio_list,\n\t\t\t\t     &nr_scanned, sc, lru);"
 
 
+CAST_VALVE_MM_CONTEXTS = (
+    (
+        "include/linux/mm_inline.h",
+        "@@ -9,6 +9,7 @@\n #include <linux/string.h>\n #include <linux/userfaultfd_k.h>\n #include <linux/swapops.h>\n+#include <linux/lru_cast.h>\n \n /**\n  * folio_is_file_lru - Should the folio be on a file LRU or anon LRU?\n",
+        "@@ -9,6 +9,7 @@\n #include <linux/string.h>\n #include <linux/userfaultfd_k.h>\n #include <linux/leafops.h>\n+#include <linux/lru_cast.h>\n \n /**\n  * folio_is_file_lru - Should the folio be on a file LRU or anon LRU?\n",
+        "#include <linux/string.h>\n#include <linux/userfaultfd_k.h>\n#include <linux/leafops.h>\n\n/**\n * folio_is_file_lru - Should the folio be on a file LRU or anon LRU?",
+    ),
+    (
+        "include/linux/mm_inline.h",
+        "@@ -102,7 +103,8 @@ static __always_inline enum lru_list folio_lru_list(const struct folio *folio)\n \n #ifdef CONFIG_LRU_GEN\n \n-#ifdef CONFIG_LRU_GEN_ENABLED\n+/* as mm/vmscan.c's lru_gen_caps */\n+#if defined(CONFIG_LRU_GEN_ENABLED) && !defined(CONFIG_LRU_CAST)\n static inline bool lru_gen_enabled(void)\n {\n \tDECLARE_STATIC_KEY_TRUE(lru_gen_caps[NR_LRU_GEN_CAPS]);\n",
+        "@@ -106,4 +107,5 @@ static __always_inline enum lru_list folio_lru_list(const struct folio *folio)\n-#ifdef CONFIG_LRU_GEN_ENABLED\n+/* as mm/vmscan.c's lru_gen_caps */\n+#if defined(CONFIG_LRU_GEN_ENABLED) && !defined(CONFIG_LRU_CAST)\n static inline bool lru_gen_enabled(void)\n {\n \tDECLARE_STATIC_KEY_TRUE(lru_gen_caps[NR_LRU_GEN_CAPS]);\n",
+        "#ifdef CONFIG_LRU_GEN_ENABLED\nstatic inline bool lru_gen_enabled(void)\n{\n\tDECLARE_STATIC_KEY_TRUE(lru_gen_caps[NR_LRU_GEN_CAPS]);",
+    ),
+    (
+        "include/linux/mm_inline.h",
+        "@@ -340,10 +342,13 @@ static inline void folio_migrate_refs(struct folio *new, const struct folio *old\n static __always_inline\n void lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)\n {\n-\tenum lru_list lru = folio_lru_list(folio);\n+\tenum lru_list lru;\n \n \tif (lru_gen_add_folio(lruvec, folio, false))\n \t\treturn;\n+\tif (lru_cast_add_folio(lruvec, folio, false))\n+\t\treturn;\n+\tlru = folio_lru_list(folio);\n \n \tupdate_lru_size(lruvec, lru, folio_zonenum(folio),\n \t\t\tfolio_nr_pages(folio));\n",
+        "@@ -340,12 +342,15 @@ static inline void folio_migrate_refs(struct folio *new, const struct folio *old\n static __always_inline\n void lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)\n {\n-\tenum lru_list lru = folio_lru_list(folio);\n+\tenum lru_list lru;\n \n \tVM_WARN_ON_ONCE_FOLIO(!folio_matches_lruvec(folio, lruvec), folio);\n \n \tif (lru_gen_add_folio(lruvec, folio, false))\n \t\treturn;\n+\tif (lru_cast_add_folio(lruvec, folio, false))\n+\t\treturn;\n+\tlru = folio_lru_list(folio);\n \n \tupdate_lru_size(lruvec, lru, folio_zonenum(folio),\n \t\t\tfolio_nr_pages(folio));\n",
+        "static __always_inline\nvoid lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)\n{\n\tenum lru_list lru = folio_lru_list(folio);\n\n\tVM_WARN_ON_ONCE_FOLIO(!folio_matches_lruvec(folio, lruvec), folio);\n\n\tif (lru_gen_add_folio(lruvec, folio, false))\n\t\treturn;\n\n\tupdate_lru_size(lruvec, lru, folio_zonenum(folio),\n\t\t\tfolio_nr_pages(folio));",
+    ),
+    (
+        "include/linux/mm_inline.h",
+        "@@ -354,10 +359,13 @@ void lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)\n static __always_inline\n void lruvec_add_folio_tail(struct lruvec *lruvec, struct folio *folio)\n {\n-\tenum lru_list lru = folio_lru_list(folio);\n+\tenum lru_list lru;\n \n \tif (lru_gen_add_folio(lruvec, folio, true))\n \t\treturn;\n+\tif (lru_cast_add_folio(lruvec, folio, true))\n+\t\treturn;\n+\tlru = folio_lru_list(folio);\n \n \tupdate_lru_size(lruvec, lru, folio_zonenum(folio),\n \t\t\tfolio_nr_pages(folio));\n",
+        "@@ -354,12 +359,15 @@ void lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)\n static __always_inline\n void lruvec_add_folio_tail(struct lruvec *lruvec, struct folio *folio)\n {\n-\tenum lru_list lru = folio_lru_list(folio);\n+\tenum lru_list lru;\n \n \tVM_WARN_ON_ONCE_FOLIO(!folio_matches_lruvec(folio, lruvec), folio);\n \n \tif (lru_gen_add_folio(lruvec, folio, true))\n \t\treturn;\n+\tif (lru_cast_add_folio(lruvec, folio, true))\n+\t\treturn;\n+\tlru = folio_lru_list(folio);\n \n \tupdate_lru_size(lruvec, lru, folio_zonenum(folio),\n \t\t\tfolio_nr_pages(folio));\n",
+        "static __always_inline\nvoid lruvec_add_folio_tail(struct lruvec *lruvec, struct folio *folio)\n{\n\tenum lru_list lru = folio_lru_list(folio);\n\n\tVM_WARN_ON_ONCE_FOLIO(!folio_matches_lruvec(folio, lruvec), folio);\n\n\tif (lru_gen_add_folio(lruvec, folio, true))\n\t\treturn;\n\n\tupdate_lru_size(lruvec, lru, folio_zonenum(folio),\n\t\t\tfolio_nr_pages(folio));",
+    ),
+    (
+        "include/linux/mmzone.h",
+        "@@ -23,6 +24,8 @@\n #include <linux/page-flags.h>\n #include <linux/local_lock.h>\n #include <linux/zswap.h>\n+#include <linux/sizes.h>\n+#include <linux/kfifo.h>\n #include <asm/page.h>\n \n /* Free memory management - zoned buddy allocator.  */\n",
+        "@@ -23,7 +24,8 @@\n #include <linux/page-flags.h>\n #include <linux/local_lock.h>\n #include <linux/zswap.h>\n #include <linux/sizes.h>\n+#include <linux/kfifo.h>\n #include <asm/page.h>\n \n /* Free memory management - zoned buddy allocator.  */\n",
+        "#include <linux/page-flags.h>\n#include <linux/local_lock.h>\n#include <linux/zswap.h>\n#include <linux/sizes.h>\n#include <asm/page.h>\n\n/* Free memory management - zoned buddy allocator.  */",
+    ),
+    (
+        "mm/filemap.c",
+        "@@ -21,6 +21,7 @@\n #include <linux/gfp.h>\n #include <linux/mm.h>\n #include <linux/swap.h>\n+#include <linux/lru_cast.h>\n #include <linux/swapops.h>\n #include <linux/syscalls.h>\n #include <linux/mman.h>\n",
+        "@@ -21,6 +21,7 @@\n #include <linux/gfp.h>\n #include <linux/mm.h>\n #include <linux/swap.h>\n+#include <linux/lru_cast.h>\n #include <linux/leafops.h>\n #include <linux/syscalls.h>\n #include <linux/mman.h>\n",
+        "#include <linux/gfp.h>\n#include <linux/mm.h>\n#include <linux/swap.h>\n#include <linux/leafops.h>\n#include <linux/syscalls.h>\n#include <linux/mman.h>",
+    ),
+)
+
+
 def git_blob_digest(data: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
@@ -136,6 +176,54 @@ def adapt_valve_vmscan_lock_context(patch: str, tree: Path) -> str:
         raise RuntimeError("CAST Valve vmscan diff section missing/duplicated")
     return "".join(sections)
 
+
+def adapt_valve_mm_contexts(patch: str, tree: Path) -> str:
+    """Preserve Valve leafops, size includes, and lruvec membership checks."""
+    for name, official, adapted, required_preimage in CAST_VALVE_MM_CONTEXTS:
+        target = (tree / name).read_text(encoding="utf-8")
+        if target.count(required_preimage) != 1:
+            raise RuntimeError("CAST Valve target API preimage drift: " + name)
+        if patch.count(official) != 1:
+            raise RuntimeError("CAST official bridge hunk drift: " + name)
+        patch = patch.replace(official, adapted, 1)
+    return patch
+
+
+
+def cast_dryrun_failure(dry: subprocess.CompletedProcess[str]) -> str:
+    """Keep all failing patch diagnostics visible even with 83 diff sections."""
+    transcript = (dry.stdout or "") + "\n" + (dry.stderr or "")
+    log_file = Path(__file__).resolve().parents[1] / "logs" / "cast-valve-dry-run.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.write_text(
+        "Exit: " + str(dry.returncode) + "\n" + transcript,
+        encoding="utf-8",
+    )
+    lines = transcript.splitlines()
+    problems = []
+    problem = re.compile(
+        r"FAILED|malformed|not patching|can't find file|can't create|"
+        r"already exists|reversed|previously applied|skipping patch|"
+        r"saving rejects|permission denied|patch: \*\*\*\*|"
+        r"not found|error:",
+        re.IGNORECASE,
+    )
+    for index, line in enumerate(lines):
+        if problem.search(line):
+            problems.append(
+                "Line " + str(index + 1) + ": "
+                + "\n".join(lines[max(index - 2, 0): min(index + 3, len(lines))])
+            )
+    return (
+        "CAST Valve dry-run failed closed (exit "
+        + str(dry.returncode)
+        + "); full transcript in logs/cast-valve-dry-run.log"
+        + "\nIssues:\n" + ("\n".join(problems)[:12500] if problems else "No obvious failure marker")
+        + "\nTranscript head:\n" + transcript[:8000]
+        + "\nTranscript tail:\n" + transcript[-3000:]
+    )
+
+
 def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
     if hashlib.sha256(source).hexdigest() != CAST_VALVE_SOURCE_SHA256:
         raise RuntimeError("unreviewed CAST upstream source SHA; refuse Valve bridge")
@@ -163,6 +251,7 @@ def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
         raise RuntimeError("Valve rmap MGLRU switching and notifier context changed")
     bridge = bridge.replace(CAST_VALVE_RMAP_HUNK, CAST_VALVE_RMAP_PORT, 1)
     bridge = adapt_valve_vmscan_lock_context(bridge, tree)
+    bridge = adapt_valve_mm_contexts(bridge, tree)
     bridge, notes = adapt_reviewed_contexts(bridge, tree)
     if "valve-sched-tick-donor-context" not in notes:
         raise RuntimeError("Valve scheduler donor-context bridge not proven")
@@ -175,7 +264,7 @@ def reviewed_valve_cast_bridge(source: bytes, tree: Path, output: Path) -> str:
     transcript = dry.stdout + dry.stderr
     if dry.returncode or "FAILED" in transcript or "saving rejects" in transcript:
         output.unlink(missing_ok=True)
-        raise RuntimeError("CAST Valve 7.2 port still has incompatible hunks: " + transcript[-5000:])
+        raise RuntimeError(cast_dryrun_failure(dry))
     return "reviewed-valve-7.2.7-cast-0.3.0-fuzz"
 
 
