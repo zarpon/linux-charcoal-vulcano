@@ -220,10 +220,12 @@ def nearest_candidate(candidates: list[Candidate], kernel_version: str) -> Candi
         version = candidate.kernel_version or ()
         left = version + (0,) * (3 - len(version))
         right = target + (0,) * (3 - len(target))
-        return (
-            abs(left[0] - right[0]) * 1_000_000
-            + abs(left[1] - right[1]) * 1_000
-            + abs(left[2] - right[2])
+        # Compare positions on one ordered kernel-version axis. Summing
+        # component distances incorrectly makes 6.12 closer to 7.2 than 6.18.
+        return abs(
+            (left[0] - right[0]) * 1_000_000
+            + (left[1] - right[1]) * 1_000
+            + left[2] - right[2]
         )
 
     versioned = [item for item in candidates if item.kernel_version]

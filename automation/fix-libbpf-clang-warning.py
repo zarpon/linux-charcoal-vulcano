@@ -12,6 +12,18 @@ GUARDED = (
     "#endif /* !__clang__ */"
 )
 EXPECTED_OCCURRENCES = 1
+UPSTREAM_PUSH = (
+    "#if !defined(__clang__)\n"
+    "#pragma GCC diagnostic push\n"
+    "/* https://gcc.gnu.org/PR114952 */\n"
+    f"{PRAGMA}\n"
+    "#endif"
+)
+UPSTREAM_POP = (
+    "#if !defined(__clang__)\n"
+    "#pragma GCC diagnostic pop\n"
+    "#endif"
+)
 
 
 class CompatibilityError(RuntimeError):
@@ -19,6 +31,15 @@ class CompatibilityError(RuntimeError):
 
 
 def adapt(text: str) -> str:
+    if UPSTREAM_PUSH in text or UPSTREAM_POP in text:
+        if (
+            text.count(UPSTREAM_PUSH) == 1
+            and text.count(UPSTREAM_POP) == 1
+            and text.count(PRAGMA) == EXPECTED_OCCURRENCES
+            and text.index(UPSTREAM_PUSH) < text.index(UPSTREAM_POP)
+        ):
+            return text
+        raise CompatibilityError("upstream libbpf Clang warning guards are incomplete or duplicated")
     if GUARDED in text:
         raise CompatibilityError("libbpf Clang warning guard is already present")
     count = text.count(PRAGMA)
@@ -44,7 +65,10 @@ def main() -> None:
         raise SystemExit(f"libbpf Clang compatibility fix failed: {exc}") from exc
 
     args.elf_source.write_text(adapted, encoding="utf-8")
-    print("Guarded the GCC-only -Wmaybe-uninitialized pragma from Clang")
+    if adapted == source:
+        print("Validated upstream v2 GCC-only warning guards; source unchanged")
+    else:
+        print("Guarded the GCC-only -Wmaybe-uninitialized pragma from Clang")
 
 
 if __name__ == "__main__":

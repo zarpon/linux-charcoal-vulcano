@@ -37,9 +37,12 @@ def format_components(components: dict) -> list[str]:
     for name, info in sorted(components.items()):
         if not isinstance(info, dict) or not SHA256_RE.fullmatch(str(info.get("sha256", ""))):
             raise ValueError(f"invalid patch SHA256 metadata: {name}")
+        upstream = info.get("upstream") if info.get("origin") == "local-port" else info
+        if not isinstance(upstream, dict):
+            raise ValueError(f"local port has no upstream metadata: {name}")
         label = PATCH_LABELS.get(name, name.replace("_", " "))
-        version = info.get("project_version") or "não registrada (consultar arquivo)"
-        kernel_variant = info.get("kernel_version") or info.get("kernel_target") or "genérica / não declarada"
+        version = upstream.get("project_version") or "não registrada (consultar arquivo)"
+        kernel_variant = upstream.get("kernel_version") or info.get("kernel_target") or "genérica / não declarada"
         selection = info.get("selection") or info.get("origin") or "não declarada"
         lines.append(f"| **{safe(label)}** | `{safe(version)}` | `{safe(kernel_variant)}` | {safe(selection)} |")
         path = info.get("selected_path") or info.get("path") or info.get("url") or "sem caminho"
@@ -48,16 +51,17 @@ def format_components(components: dict) -> list[str]:
             f"- SHA256 selecionado: `{info['sha256']}`",
         ])
         for key, heading in (("commit", "Commit upstream"), ("latest_upstream_project_version", "Revisão global mais recente")):
-            if info.get(key):
-                details.append(f"- {heading}: `{safe(info[key])}`")
-        if isinstance(info.get("compatibility_reference"), dict):
-            ref = info["compatibility_reference"]
+            if upstream.get(key):
+                details.append(f"- {heading}: `{safe(upstream[key])}`")
+        if isinstance(upstream.get("compatibility_reference"), dict):
+            ref = upstream["compatibility_reference"]
             details.append(f"- Referência para porte: `{safe(ref.get('kernel_version', '?'))}` / `{safe(ref.get('project_version', '?'))}`")
         if isinstance(info.get("upstream"), dict):
             ref = info["upstream"]
             details.append(f"- Referência de porte local: `{safe(ref.get('repository', '?'))}/{safe(ref.get('path', '?'))}` @ `{safe(ref.get('commit', '?'))}`")
-        if info.get("upstream_sha256"):
-            details.append(f"- SHA256 original antes do porte: `{safe(info['upstream_sha256'])}`")
+        upstream_sha256 = upstream.get("sha256") if info.get("origin") == "local-port" else info.get("upstream_sha256")
+        if upstream_sha256:
+            details.append(f"- SHA256 original antes do porte: `{safe(upstream_sha256)}`")
         details.append("")
     return lines + ["", "<details>", "<summary>Proveniência e SHA256 completos de cada patch</summary>", ""] + details + ["</details>"]
 

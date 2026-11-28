@@ -183,6 +183,7 @@ _validate_kernel_config() {
     'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' \
     'CONFIG_ZEN_INTERACTIVE=y' \
     'CONFIG_LRU_CAST=y' \
+    'CONFIG_GENTOO_PRINT_FIRMWARE_INFO=y' \
     'CONFIG_ZSWAP=y' \
     'CONFIG_ZSWAP_DEFAULT_ON=y' \
     'CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y' \
@@ -270,6 +271,7 @@ prepare() {
   git diff --check -- drivers/cpuidle/governors/nap/nap.c
 
   python3 "$startdir/automation/configure-zen-interactive.py" "$PWD"
+  python3 "$startdir/automation/configure-firmware-info.py" "$PWD"
 
   # This Crypto API default feeds both compression parameters and workspace
   # allocation. Fail before compiling if source changes stop applying it.
