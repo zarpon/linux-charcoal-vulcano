@@ -25,6 +25,9 @@ CONFIG_CMDLINE="amd_pstate.epp_boost=1"
 # Enable CAST page replacement by default.
 CONFIG_LRU_CAST=y
 
+# Preserve firmware filename logging with the maintained Gentoo patch.
+CONFIG_GENTOO_PRINT_FIRMWARE_INFO=y
+
 # The installed gaming-swap policy uses ZSTD zswap and a /home swapfile.
 CONFIG_ZSWAP=y
 CONFIG_ZSWAP_DEFAULT_ON=y

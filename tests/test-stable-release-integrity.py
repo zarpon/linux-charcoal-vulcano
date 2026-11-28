@@ -73,5 +73,28 @@ class IntegrityTests(unittest.TestCase):
                 notes.render('stable', lock, version, tag, 'kernel.zip', 'charcoal-6.18.1-r1', 'abc', '1')
 
 
+    def test_notes_show_local_port_upstream_version_and_hash(self):
+        spec = importlib.util.spec_from_file_location('release_notes', ROOT / 'automation/generate-release-notes.py')
+        notes = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(notes)
+        components = {'zram_ir': {
+            'origin': 'local-port', 'selection': 'latest-release-port',
+            'path': '0001-linux7.2-zram-ir-1.2.patch', 'commit': 'repository-local',
+            'sha256': 'a' * 64,
+            'upstream': {
+                'repository': 'firelzrd/zram-ir', 'project_version': '1.3',
+                'latest_upstream_project_version': '1.3', 'kernel_version': '7.3',
+                'path': 'patches/0001-linux7.3-rc1-zram-ir-1.3.patch',
+                'commit': 'b' * 40, 'sha256': 'c' * 64,
+            },
+        }}
+        result = '\n'.join(notes.format_components(components))
+        self.assertIn('| **ZRAM-IR** | `1.3` | `7.3` | latest-release-port |', result)
+        self.assertNotIn('não registrada', result)
+        self.assertNotIn('Commit upstream: `repository-local`', result)
+        self.assertIn('SHA256 original antes do porte: `' + 'c' * 64 + '`', result)
+        self.assertIn('Revisão global mais recente: `1.3`', result)
+
+
 if __name__ == '__main__':
     unittest.main()

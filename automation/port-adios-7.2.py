@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import subprocess
 from pathlib import Path
 
 ELEVATOR_DIFF = "diff --git a/block/elevator.c b/block/elevator.c\n"
@@ -174,6 +175,15 @@ def main() -> int:
     parser.add_argument("elevator_source", type=Path)
     parser.add_argument("setlocalversion_source", type=Path)
     args = parser.parse_args()
+    tree = args.elevator_source.resolve().parents[1]
+    native = subprocess.run(
+        ["git", "-C", str(tree), "apply", "--check", str(args.patch.resolve())],
+        check=False, text=True, capture_output=True,
+    )
+    if native.returncode == 0:
+        args.output.write_bytes(args.patch.read_bytes())
+        print("Prepared latest upstream ADIOS unchanged; git apply --check passed on the target tree")
+        return 0
     try:
         adapted = adapt_patch(
             args.patch.read_text(encoding="utf-8"),

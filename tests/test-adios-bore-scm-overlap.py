@@ -48,6 +48,25 @@ UPSTREAM = UPSTREAM_ELEVATOR + SCM_PATCH + "-- \n2.34.1\n"
 
 
 class AdiosBoreOverlapTests(unittest.TestCase):
+    def test_compatible_latest_patch_is_preserved_before_attempting_port(self):
+        source = "void elevator_set_default(struct request_queue *q)\n{\n}\n"
+        with tempfile.TemporaryDirectory() as temp:
+            tree = Path(temp)
+            (tree / "block").mkdir()
+            (tree / "block/elevator.c").write_text(source)
+            patch_path = tree / "upstream.patch"
+            patch_path.write_text(UPSTREAM_ELEVATOR)
+            output = tree / "prepared.patch"
+            result = subprocess.run([
+                sys.executable, str(ROOT / "automation/port-adios-7.2.py"),
+                str(patch_path), str(output), str(tree / "block/elevator.c"),
+                str(tree / "scripts/setlocalversion"),
+            ], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), patch_path.read_bytes())
+            self.assertEqual((tree / "block/elevator.c").read_text(), source)
+            self.assertIn("unchanged", result.stdout)
+
     def test_exact_duplicate_is_removed_without_dropping_elevator_changes(self):
         adapted = MODULE.adapt_patch(UPSTREAM, ELEVATOR_SOURCE, MODULE.SCM_APPLIED)
         self.assertNotIn(MODULE.SCM_DIFF, adapted)

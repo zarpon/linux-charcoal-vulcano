@@ -45,9 +45,9 @@
       "ref": "main",
       "target": "latest-adios.patch",
       "source_regex": "(?:latest-adios\\.patch|6\\.\\d+(?:\\.\\d+)?-ADIOS-[^\\s]+\\.patch)",
-      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-linux\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-ADIOS-[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?\\.patch$",
-      "kernel_version_regex": "(?i)linux(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
-      "project_version_regex": "(?i)ADIOS-(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$",
+      "filename_regex": "(?i)^patches/(?:stable|testing)/0001-(?:linux)?\\d+\\.\\d+(?:\\.[0-9]+)?(?:-rc[0-9]+)?-adios-v?[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?\\.patch$",
+      "kernel_version_regex": "(?i)0001-(?:linux)?(?P<kernel>\\d+\\.\\d+(?:\\.\\d+)?)",
+      "project_version_regex": "(?i)adios-v?(?P<version>[0-9]+(?:\\.[0-9]+)*(?:-rc[0-9]+|r[0-9]+)?)\\.patch$",
       "exclude_regex": "(?i)default",
       "port_for_kernel": "7.2",
       "port_when_incompatible": true,
@@ -194,8 +194,11 @@
       "kind": "http_patch",
       "target": "latest-libbpf-uninitialized.patch",
       "source_regex": "https://dev\\.gentoo\\.org/~alicef/genpatches/trunk/[^/]+/2990_libbpf-v2-workaround-Wmaybe-uninitialized-false-pos\\.patch",
+      "repository": "lore.kernel.org/bpf",
+      "path": "8f5c3b173e4cb216322ae19ade2766940c6fbebb.1723224401.git.sam@gentoo.org",
+      "commit": "8f5c3b173e4cb216322ae19ade2766940c6fbebb.1723224401.git.sam@gentoo.org",
       "urls": [
-        "https://lore.kernel.org/bpf/3ebbe7a4e93a5ddc3a26e2e11d329801d7c8de6b.1723217044.git.sam@gentoo.org/raw"
+        "https://lore.kernel.org/bpf/8f5c3b173e4cb216322ae19ade2766940c6fbebb.1723224401.git.sam@gentoo.org/raw"
       ]
     },
     {
@@ -242,12 +245,11 @@
       "target": "latest-firmware-name.patch",
       "source_regex": "0001-always-print-firmware-file-name\\.patch::https://732852\\.bugs\\.gentoo\\.org/attachment\\.cgi\\?id=649432",
       "urls": [
-        "https://gitweb.gentoo.org/proj/linux-patches.git/plain/3000_Support-printing-firmware-info.patch?id=369383f08d147fd98553defeff5423912d34e177",
-        "https://732852.bugs.gentoo.org/attachment.cgi?id=649432"
+        "https://gitweb.gentoo.org/proj/linux-patches.git/plain/3000_Support-printing-firmware-info.patch?id=3021b587309f85ca8fcc325100983882bfda11e8"
       ],
       "repository": "gentoo/linux-patches",
       "path": "3000_Support-printing-firmware-info.patch",
-      "commit": "369383f08d147fd98553defeff5423912d34e177"
+      "commit": "3021b587309f85ca8fcc325100983882bfda11e8"
     },
     {
       "name": "minstrel_frac",
@@ -305,10 +307,10 @@
       "target": "latest-zen-01.patch",
       "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/f6ed65cd7bda9cb6009c6a12efd7c4311df31936\\.patch",
       "repository": "zen-kernel/zen-kernel",
-      "commit": "f6ed65cd7bda9cb6009c6a12efd7c4311df31936",
-      "path": "commit/f6ed65cd7bda9cb6009c6a12efd7c4311df31936",
+      "commit": "e2a626c293d7650eb49bb3c48983a4cd0ae58cc0",
+      "path": "commit/e2a626c293d7650eb49bb3c48983a4cd0ae58cc0",
       "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/f6ed65cd7bda9cb6009c6a12efd7c4311df31936.patch"
+        "https://github.com/zen-kernel/zen-kernel/commit/e2a626c293d7650eb49bb3c48983a4cd0ae58cc0.patch"
       ]
     },
     {
@@ -317,10 +319,10 @@
       "target": "latest-zen-02.patch",
       "source_regex": "https://github\\.com/zen-kernel/zen-kernel/commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287\\.patch",
       "repository": "zen-kernel/zen-kernel",
-      "commit": "cab7ea1a4ef6685a133ae121ca27098b9dd31287",
-      "path": "commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287",
+      "commit": "6bedec045374a0e841dc8eedcd4ffcc9345481dc",
+      "path": "commit/6bedec045374a0e841dc8eedcd4ffcc9345481dc",
       "urls": [
-        "https://github.com/zen-kernel/zen-kernel/commit/cab7ea1a4ef6685a133ae121ca27098b9dd31287.patch"
+        "https://github.com/zen-kernel/zen-kernel/commit/6bedec045374a0e841dc8eedcd4ffcc9345481dc.patch"
       ]
     }
   ]

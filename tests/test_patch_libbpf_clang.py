@@ -15,6 +15,19 @@ spec.loader.exec_module(module)
 
 
 class LibbpfClangCompatibilityTests(unittest.TestCase):
+    def test_upstream_v2_guards_are_preserved_unchanged(self) -> None:
+        source = f"{module.UPSTREAM_PUSH}\nint value;\n{module.UPSTREAM_POP}\n"
+        self.assertEqual(module.adapt(source), source)
+
+    def test_partial_or_duplicated_upstream_v2_guards_fail_closed(self) -> None:
+        for source in (
+            f"{module.UPSTREAM_PUSH}\nint value;\n#pragma GCC diagnostic pop\n",
+            f"{module.UPSTREAM_POP}\nint value;\n{module.UPSTREAM_PUSH}\n",
+            f"{module.UPSTREAM_PUSH}\n{module.UPSTREAM_PUSH}\n{module.UPSTREAM_POP}\n",
+        ):
+            with self.subTest(source=source), self.assertRaises(module.CompatibilityError):
+                module.adapt(source)
+
     def test_current_gcc_pragma_is_guarded_from_clang(self) -> None:
         source = (
             "#pragma GCC diagnostic push\n"

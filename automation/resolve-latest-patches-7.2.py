@@ -5,7 +5,8 @@ The shared resolver remains compatible with the 6.16 production branch.  This
 entry point adds two 7.2 requirements without changing that branch:
 
 * use the exact Valve tag selected from the official linux-neptune-72 package;
-* use kernel series 7.2 for patch compatibility even while the tag is an RC.
+* compare patch variants against the exact selected kernel revision, retaining
+  numeric series compatibility for tags that are release candidates.
 """
 from __future__ import annotations
 
@@ -103,6 +104,24 @@ def kernel_series(manifest: dict[str, Any]) -> str:
     if tuple(map(int, series.split('.'))) < (7, 2):
         raise Resolve72Error(f"stable resolver requires Linux 7.2 or newer, got {series}")
     return series
+
+
+def patch_kernel_version(kernel_tag: str, series: str) -> str:
+    """Keep patch-level preference and port distance aligned with the audit.
+
+    Passing only ``7.2`` makes every 7.2.x variant equally native, so a later
+    patch-level variant can displace an exact match for the selected Valve
+    source. The lock auditor uses the exact revision; resolution must use the
+    same target. RC suffixes belong to tag policy, not the numeric comparison.
+    """
+    version = kernel_tag.split("-valve", 1)[0]
+    numeric = re.sub(r"-rc[0-9]+$", "", version)
+    parsed = BASE.parse_kernel_version(numeric)
+    if parsed is None or ".".join(map(str, parsed[:2])) != series:
+        raise Resolve72Error(
+            f"selected Valve tag {kernel_tag!r} does not match kernel series {series}"
+        )
+    return numeric
 
 
 def adapt_cpu_optimizations_for_valve_72(data: bytes) -> bytes:
@@ -226,9 +245,10 @@ def main() -> int:
         }
     else:
         kernel_tag, kernel_sha = preferred_kernel_tag(manifest["kernel_source"], token)
+        patch_version = patch_kernel_version(kernel_tag, series)
         selected_groups = {
             name: {
-                spec["name"]: BASE.resolve_component(spec, series, token, root)
+                spec["name"]: BASE.resolve_component(spec, patch_version, token, root)
                 for spec in specs
             }
             for name, specs in groups.items()
